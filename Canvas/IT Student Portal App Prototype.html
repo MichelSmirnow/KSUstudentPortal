@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevEdu - Портал IT-Студента</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            accent: '#06b6d4',
+                            darkBg: '#0f172a',
+                            cardDark: '#1e293b',
+                            borderDark: '#334155'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar styling for mobile feel */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .app-frame {
+            max-width: 430px;
+            height: 880px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 12px #1e293b;
+        }
+        @media (max-width: 640px) {
+            .app-frame {
+                max-width: 100%;
+                height: 100vh;
+                border-radius: 0;
+                box-shadow: none;
+            }
+        }
+        .glass-header {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex items-center justify-center p-0 sm:p-4 antialiased">
+
+    <!-- Phone Mockup Container -->
+    <div class="app-frame w-full bg-slate-900 sm:rounded-[48px] overflow-hidden flex flex-col relative border border-slate-800 transition-all duration-300">
+        
+        <!-- Top Status Bar -->
+        <div class="pt-3 px-6 pb-2 flex justify-between items-center text-xs font-mono text-slate-400 select-none bg-slate-900 z-30">
+            <span id="current-time">09:41</span>
+            <div class="w-20 h-4 bg-slate-950 rounded-full mx-auto hidden sm:block border border-slate-800"></div>
+            <div class="flex items-center gap-2">
+                <i data-lucide="wifi" class="w-3.5 h-3.5"></i>
+                <i data-lucide="battery" class="w-4 h-4"></i>
+            </div>
+        </div>
+
+        <!-- Top Header Panel -->
+        <header class="glass-header sticky top-0 bg-slate-900/90 border-b border-slate-800/80 px-4 py-3 z-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Avatar" class="w-10 h-10 rounded-full object-cover ring-2 ring-brand-500/50" />
+                    <span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-900"></span>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                        Алексей Смирнов
+                        <span class="bg-brand-500/20 text-brand-400 text-[10px] font-mono px-1.5 py-0.5 rounded border border-brand-500/30">ИВТ-301</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 font-mono">3 курс • Software Engineering</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleTheme()" title="Переключить тему" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+                    <i data-lucide="sun" id="theme-icon" class="w-4 h-4"></i>
+                </button>
+                <div class="relative">
+                    <button onclick="showNotifications()" class="p-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition relative">
+                        <i data-lucide="bell" class="w-4 h-4"></i>
+                        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-500 rounded-full animate-ping"></span>
+                        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-500 rounded-full"></span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT AREA (Scrollable Views) -->
+        <main class="flex-1 overflow-y-auto no-scrollbar relative bg-slate-950/50 pb-24">
+            
+            <!-- VIEW 1: Schedule & Homework Page (DEFAULT OPEN) -->
+            <section id="view-schedule" class="p-4 space-y-5 animate-fadeIn">
+                
+                <!-- Quick Date Switcher & Semester Info -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <span class="text-xs font-mono text-brand-400 uppercase tracking-wider">Неделя 12 (Четная)</span>
+                        <h2 class="text-xl font-extrabold text-slate-100 tracking-tight">Расписание и ДЗ</h2>
+                    </div>
+                    <div class="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700/50 text-xs font-medium">
+                        <button id="tab-day" onclick="switchScheduleTab('today')" class="px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-sm transition">Сегодня</button>
+                        <button id="tab-week" onclick="switchScheduleTab('week')" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition">Неделя</button>
+                    </div>
+                </div>
+
+                <!-- Date Carousel -->
+                <div class="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                    <div class="flex-shrink-0 w-14 p-2.5 rounded-2xl bg-slate-800/40 border border-slate-800 text-center text-slate-400 cursor-pointer hover:border-slate-700">
+                        <p class="text-[10px] font-mono uppercase">Пн</p>
+                        <p class="text-base font-bold text-slate-300">11</p>
+                    </div>
+                    <div class="flex-shrink-0 w-14 p-2.5 rounded-2xl bg-slate-800/40 border border-slate-800 text-center text-slate-400 cursor-pointer hover:border-slate-700">
+                        <p class="text-[10px] font-mono uppercase">Вт</p>
+                        <p class="text-base font-bold text-slate-300">12</p>
+                    </div>
+                    <!-- Active Day -->
+                    <div class="flex-shrink-0 w-14 p-2.5 rounded-2xl bg-gradient-to-b from-brand-600 to-brand-700 border border-brand-400/30 text-center text-white shadow-lg shadow-brand-500/20 cursor-pointer">
+                        <p class="text-[10px] font-mono uppercase opacity-90">Ср</p>
+                        <p class="text-lg font-black">13</p>
+                    </div>
+                    <div class="flex-shrink-0 w-14 p-2.5 rounded-2xl bg-slate-800/40 border border-slate-800 text-center text-slate-400 cursor-pointer hover:border-slate-700">
+                        <p class="text-[10px] font-mono uppercase">Чт</p>
+                        <p class="text-base font-bold text-slate-300">14</p>
+                    </div>
+                    <div class="flex-shrink-0 w-14 p-2.5 rounded-2xl bg-slate-800/40 border border-slate-800 text-center text-slate-400 cursor-pointer hover:border-slate-700">
+                        <p class="text-[10px] font-mono uppercase">Пт</p>
+                        <p class="text-base font-bold text-slate-300">15</p>
+                    </div>
+                    <div class="flex-shrink-0 w-14 p-2.5 rounded-2xl bg-slate-800/40 border border-slate-800 text-center text-slate-400 cursor-pointer hover:border-slate-700">
+                        <p class="text-[10px] font-mono uppercase">Сб</p>
+                        <p class="text-base font-bold text-slate-300">16</p>
+                    </div>
+                </div>
+
+                <!-- Next Lesson Banner / Live Status -->
+                <div class="bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-2xl p-4 border border-brand-500/30 relative overflow-hidden shadow-lg">
+                    <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-brand-500/10 rounded-full blur-xl pointer-events-none"></div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
+                            Идет прямо сейчас
+                        </span>
+                        <span class="text-xs font-mono text-slate-400">Ауд. 408-Л • Корпус Б</span>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-100 mb-1">Разработка под Android на Kotlin</h3>
+                    <p class="text-xs text-slate-300 flex items-center gap-1.5 mb-3">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-brand-400"></i>
+                        доц. Петров И. В.
+                    </p>
+                    <div class="w-full bg-slate-700/50 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-brand-500 h-1.5 rounded-full w-3/4"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-[11px] font-mono text-slate-400 mt-1.5">
+                        <span>09:30</span>
+                        <span class="text-brand-400">Осталось 20 мин</span>
+                        <span>11:00</span>
+                    </div>
+                </div>
+
+                <!-- Schedule Timeline Section -->
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider font-mono">Занятия на сегодня (3)</h3>
+                        <span class="text-xs text-brand-400 cursor-pointer hover:underline" onclick="openFullWeekModal()">Все расписание &rarr;</span>
+                    </div>
+
+                    <div class="space-y-3">
+                        
+                        <!-- Lesson Item 1 (Done) -->
+                        <div class="bg-slate-800/50 rounded-2xl p-3.5 border border-slate-800 opacity-75">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="text-center min-w-[55px]">
+                                    <span class="text-xs font-mono font-bold text-slate-400">08:00</span>
+                                    <span class="block text-[10px] text-slate-500 font-mono">09:30</span>
+                                    <span class="inline-block mt-2 px-1.5 py-0.5 text-[9px] bg-slate-700 text-slate-400 rounded">Лекция</span>
+                                </div>
+                                <div class="flex-1 border-l border-slate-700/60 pl-3">
+                                    <div class="flex items-center justify-between">
+                                        <h4 class="text-sm font-semibold text-slate-300">Алгоритмы и структуры данных</h4>
+                                        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+                                    </div>
+                                    <p class="text-xs text-slate-400 mt-0.5">проф. Соколов Д. М. • Онлайн (Teams)</p>
+                                    <div class="mt-2 flex gap-1.5">
+                                        <span class="text-[10px] bg-slate-700/50 text-slate-300 font-mono px-2 py-0.5 rounded">#C++</span>
+                                        <span class="text-[10px] bg-slate-700/50 text-slate-300 font-mono px-2 py-0.5 rounded">#Trees</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Lesson Item 2 (Active/In Progress) -->
+                        <div class="bg-slate-800 rounded-2xl p-3.5 border border-brand-500/40 shadow-md">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="text-center min-w-[55px]">
+                                    <span class="text-xs font-mono font-bold text-brand-400">09:40</span>
+                                    <span class="block text-[10px] text-slate-400 font-mono">11:10</span>
+                                    <span class="inline-block mt-2 px-1.5 py-0.5 text-[9px] bg-brand-500/20 text-brand-300 rounded font-medium">Лаб. раб</span>
+                                </div>
+                                <div class="flex-1 border-l border-brand-500/30 pl-3">
+                                    <div class="flex items-center justify-between">
+                                        <h4 class="text-sm font-bold text-slate-100">Mobile Dev: Android & Kotlin</h4>
+                                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">Ауд. 408-Л</span>
+                                    </div>
+                                    <p class="text-xs text-slate-300 mt-0.5">доц. Петров И. В.</p>
+                                    
+                                    <!-- Embedded Homework Card for this Subject -->
+                                    <div class="mt-3 bg-slate-900/80 rounded-xl p-2.5 border border-slate-700/80">
+                                        <div class="flex items-center justify-between text-xs mb-1">
+                                            <span class="font-medium text-amber-400 flex items-center gap-1">
+                                                <i data-lucide="file-code" class="w-3.5 h-3.5"></i> ДЗ №4: RecyclerView & Room
+                                            </span>
+                                            <span class="text-[10px] font-mono text-slate-400">Срок: Завтра</span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400 line-clamp-1">Реализовать локальное хранилище заметок с анимациями списка.</p>
+                                        <div class="mt-2 flex items-center justify-between">
+                                            <a href="#" onclick="openHomeworkModal('Android App Dev', 'ДЗ №4: RecyclerView & Room')" class="text-[11px] font-mono text-brand-400 hover:text-brand-300 flex items-center gap-1">
+                                                <span>Загрузить на GitHub</span>
+                                                <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                                            </a>
+                                            <span class="text-[10px] bg-amber-500/10 text-amber-400 font-mono px-1.5 py-0.5 rounded border border-amber-500/20">В работе</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Lesson Item 3 (Upcoming) -->
+                        <div class="bg-slate-800/80 rounded-2xl p-3.5 border border-slate-800">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="text-center min-w-[55px]">
+                                    <span class="text-xs font-mono font-bold text-slate-300">11:30</span>
+                                    <span class="block text-[10px] text-slate-500 font-mono">13:00</span>
+                                    <span class="inline-block mt-2 px-1.5 py-0.5 text-[9px] bg-slate-700 text-slate-300 rounded">Практика</span>
+                                </div>
+                                <div class="flex-1 border-l border-slate-700 pl-3">
+                                    <div class="flex items-center justify-between">
+                                        <h4 class="text-sm font-semibold text-slate-200">Базы данных и PostgreSQL</h4>
+                                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-700 text-slate-300">Ауд. 202-А</span>
+                                    </div>
+                                    <p class="text-xs text-slate-400 mt-0.5">ст. преп. Кузнецова Е. А.</p>
+                                    <div class="mt-2 flex gap-1.5">
+                                        <span class="text-[10px] bg-slate-700/50 text-slate-300 font-mono px-2 py-0.5 rounded">#SQL</span>
+                                        <span class="text-[10px] bg-slate-700/50 text-slate-300 font-mono px-2 py-0.5 rounded">#Indexing</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Homework Tasks List Section -->
+                <div class="pt-2">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider font-mono flex items-center gap-2">
+                            <i data-lucide="check-square" class="w-4 h-4 text-brand-400"></i>
+                            Активные домашние задания (3)
+                        </h3>
+                    </div>
+
+                    <div class="space-y-2.5">
+                        
+                        <!-- Homework Task 1 -->
+                        <div class="bg-slate-800/90 rounded-xl p-3 border border-slate-700/80 hover:border-slate-600 transition">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-[10px] font-mono text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded">Web Backend (FastAPI)</span>
+                                    <h4 class="text-sm font-semibold text-slate-100 mt-1">Лабораторная #3: JWT Авторизация</h4>
+                                </div>
+                                <span class="text-[10px] font-mono text-rose-400 font-medium bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">До 14 Сен</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">Создать REST API с Refresh/Access токенами и хешированием паролей argon2.</p>
+                            <div class="mt-3 flex items-center justify-between border-t border-slate-700/50 pt-2">
+                                <div class="flex items-center gap-2 text-xs text-slate-400">
+                                    <i data-lucide="git-branch" class="w-3.5 h-3.5"></i>
+                                    <span class="font-mono text-[11px]">main • 2 commit</span>
+                                </div>
+                                <button onclick="openHomeworkModal('Web Backend', 'Лабораторная #3: JWT')" class="px-2.5 py-1 text-xs bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-medium transition">
+                                    Сдать работу
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Homework Task 2 -->
+                        <div class="bg-slate-800/90 rounded-xl p-3 border border-slate-700/80 hover:border-slate-600 transition">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">DevOps & CI/CD</span>
+                                    <h4 class="text-sm font-semibold text-slate-100 mt-1">Docker Compose для microservices</h4>
+                                </div>
+                                <span class="text-[10px] font-mono text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">До 18 Сен</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">Сконфигурировать Nginx reverse proxy, App и PostgreSQL контейнеры.</p>
+                            <div class="mt-3 flex items-center justify-between border-t border-slate-700/50 pt-2">
+                                <div class="flex items-center gap-2 text-xs text-emerald-400">
+                                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    <span class="font-mono text-[11px]">На проверке у препода</span>
+                                </div>
+                                <span class="text-xs text-slate-400 font-mono">Оценка: --/100</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- VIEW 2: News Feed Page (Новостная лента) -->
+            <section id="view-news" class="p-4 space-y-4 hidden animate-fadeIn">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="text-xs font-mono text-brand-400 uppercase tracking-wider">IT Факультет</span>
+                        <h2 class="text-xl font-extrabold text-slate-100">Лента новостей</h2>
+                    </div>
+                    <button class="p-2 bg-slate-800 rounded-xl text-slate-300">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Categories filter -->
+                <div class="flex gap-2 overflow-x-auto no-scrollbar">
+                    <span class="px-3 py-1 bg-brand-600 text-white text-xs font-medium rounded-full cursor-pointer">Все</span>
+                    <span class="px-3 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-medium rounded-full cursor-pointer">🔥 Хакатоны</span>
+                    <span class="px-3 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-medium rounded-full cursor-pointer">💼 Стажировки</span>
+                    <span class="px-3 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-medium rounded-full cursor-pointer">📢 Объявления</span>
+                </div>
+
+                <!-- News Item 1 -->
+                <div class="bg-slate-800 rounded-2xl overflow-hidden border border-slate-700/80">
+                    <img src="https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=600&auto=format&fit=crop&q=80" class="w-full h-36 object-cover" alt="Hackathon">
+                    <div class="p-4">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[10px] font-mono bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">Хакатон</span>
+                            <span class="text-xs text-slate-400 font-mono">12 сентября</span>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-100 mb-1">AI Hackathon 2026: Призовой фонд 1,000,000 ₽</h3>
+                        <p class="text-xs text-slate-300 line-clamp-2">Приглашаем команды студентов от 2 до 5 человек разработать сервисы на базе LLM для умного университета.</p>
+                        <div class="mt-3 flex justify-between items-center">
+                            <span class="text-xs text-brand-400 font-semibold cursor-pointer" onclick="showToast('Регистрация открыта!')">Зарегистрировать команду &rarr;</span>
+                            <div class="flex -space-x-2">
+                                <span class="w-6 h-6 rounded-full bg-slate-700 text-[10px] flex items-center justify-center font-mono border border-slate-800">+12</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- News Item 2 -->
+                <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700/80">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">Стажировка</span>
+                        <span class="text-xs text-slate-400 font-mono">Вчера</span>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-100 mb-1">Яндекс открывает набор на осеннюю стажировку Backend/DevOps</h3>
+                    <p class="text-xs text-slate-300">Гибкий график для студентов 3-4 курсов, менторство и возможность совмещать с учебой.</p>
+                    <button class="mt-3 w-full py-2 bg-slate-700 hover:bg-slate-600 text-xs font-semibold rounded-xl text-slate-200 transition">
+                        Подать заявку через деканат
+                    </button>
+                </div>
+            </section>
+
+            <!-- VIEW 3: Teachers & Disciplines (Информация о преподавателях и дисциплинах) -->
+            <section id="view-teachers" class="p-4 space-y-4 hidden animate-fadeIn">
+                <div>
+                    <span class="text-xs font-mono text-brand-400 uppercase tracking-wider">Кафедра Программной Инженерии</span>
+                    <h2 class="text-xl font-extrabold text-slate-100">Преподаватели и Курсы</h2>
+                </div>
+
+                <!-- Search box -->
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+                    <input type="text" placeholder="Поиск дисциплины или преподавателя..." class="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-brand-500">
+                </div>
+
+                <!-- Teachers list -->
+                <div class="space-y-3">
+                    <h3 class="text-xs font-bold font-mono text-slate-400 uppercase">Преподаватели курса</h3>
+                    
+                    <div class="bg-slate-800 rounded-2xl p-3.5 border border-slate-700 flex items-center gap-3">
+                        <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=120&auto=format&fit=crop&q=80" class="w-12 h-12 rounded-xl object-cover" alt="Teacher">
+                        <div class="flex-1">
+                            <h4 class="text-sm font-bold text-slate-100">проф. Соколов Дмитрий М.</h4>
+                            <p class="text-xs text-brand-400">Алгоритмы, C++, Теория графов</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Приемные часы: Ср 14:00 - 16:00 (Ауд. 302)</p>
+                        </div>
+                        <a href="https://t.me" target="_blank" class="p-2 bg-slate-700 rounded-xl text-brand-400 hover:bg-slate-600">
+                            <i data-lucide="message-square" class="w-4 h-4"></i>
+                        </a>
+                    </div>
+
+                    <div class="bg-slate-800 rounded-2xl p-3.5 border border-slate-700 flex items-center gap-3">
+                        <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80" class="w-12 h-12 rounded-xl object-cover" alt="Teacher">
+                        <div class="flex-1">
+                            <h4 class="text-sm font-bold text-slate-100">ст. преп. Кузнецова Елена А.</h4>
+                            <p class="text-xs text-brand-400">Базы данных, PostgreSQL, SQL</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Приемные часы: Пт 11:00 - 13:00</p>
+                        </div>
+                        <a href="https://t.me" target="_blank" class="p-2 bg-slate-700 rounded-xl text-brand-400 hover:bg-slate-600">
+                            <i data-lucide="message-square" class="w-4 h-4"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Disciplines list -->
+                <div class="space-y-3 pt-2">
+                    <h3 class="text-xs font-bold font-mono text-slate-400 uppercase">Дисциплины 5 семестра</h3>
+                    
+                    <div class="bg-slate-800/60 rounded-xl p-3 border border-slate-700/80">
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="text-sm font-semibold text-slate-200">Архитектурные шаблоны & Microservices</h4>
+                            <span class="text-xs font-mono text-emerald-400">Экзамен</span>
+                        </div>
+                        <p class="text-xs text-slate-400">5 ECTS • 108 часов • Лабораторных: 6</p>
+                    </div>
+
+                    <div class="bg-slate-800/60 rounded-xl p-3 border border-slate-700/80">
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="text-sm font-semibold text-slate-200">Безопасность веб-приложений (SecOps)</h4>
+                            <span class="text-xs font-mono text-brand-400">Зачет</span>
+                        </div>
+                        <p class="text-xs text-slate-400">3 ECTS • 72 часа • Лабораторных: 4</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 4: Student Chat (Студенческий чат) -->
+            <section id="view-chat" class="p-4 space-y-4 hidden animate-fadeIn flex flex-col h-full">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="text-xs font-mono text-brand-400 uppercase tracking-wider">Сообщество</span>
+                        <h2 class="text-xl font-extrabold text-slate-100">Чаты и Обсуждения</h2>
+                    </div>
+                    <span class="text-xs bg-brand-500/20 text-brand-300 font-mono px-2 py-1 rounded">Группа ИВТ-301</span>
+                </div>
+
+                <!-- Channels list -->
+                <div class="flex gap-2 border-b border-slate-800 pb-2 overflow-x-auto no-scrollbar">
+                    <button class="px-3 py-1.5 rounded-xl bg-brand-600 text-white text-xs font-medium whitespace-nowrap"># Общий чат</button>
+                    <button class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-medium whitespace-nowrap"># Помощь с кодом</button>
+                    <button class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-medium whitespace-nowrap"># Проекты</button>
+                </div>
+
+                <!-- Chat Messages Feed -->
+                <div class="space-y-3 my-2" id="chat-messages-list">
+                    
+                    <!-- Message 1 -->
+                    <div class="flex items-start gap-2.5">
+                        <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&auto=format&fit=crop&q=80" class="w-8 h-8 rounded-full object-cover mt-1">
+                        <div class="bg-slate-800 rounded-2xl rounded-tl-none p-3 max-w-[80%] border border-slate-700/60">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-bold text-slate-200">Максим О.</span>
+                                <span class="text-[10px] text-slate-500 font-mono">09:12</span>
+                            </div>
+                            <p class="text-xs text-slate-300">Народ, кто сделал 3-ю лабораторку по БД? Какой индекс создавать на foreign key?</p>
+                        </div>
+                    </div>
+
+                    <!-- Message 2 -->
+                    <div class="flex items-start gap-2.5">
+                        <img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=80&auto=format&fit=crop&q=80" class="w-8 h-8 rounded-full object-cover mt-1">
+                        <div class="bg-slate-800 rounded-2xl rounded-tl-none p-3 max-w-[80%] border border-slate-700/60">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-bold text-slate-200">Мария В.</span>
+                                <span class="text-[10px] text-slate-500 font-mono">09:15</span>
+                            </div>
+                            <p class="text-xs text-slate-300">Используй B-tree! Вот snippet:</p>
+                            <div class="mt-1.5 bg-slate-950 p-2 rounded-lg font-mono text-[11px] text-emerald-400 overflow-x-auto">
+                                CREATE INDEX idx_user_id ON orders(user_id);
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- My Message -->
+                    <div class="flex items-start gap-2.5 justify-end">
+                        <div class="bg-brand-600 rounded-2xl rounded-tr-none p-3 max-w-[80%] text-white">
+                            <p class="text-xs">Спасибо! Это сэкономило 2 часа работы 🙌</p>
+                            <span class="block text-[9px] text-brand-200 text-right mt-1 font-mono">09:18</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Chat Input Form -->
+                <div class="mt-auto pt-2">
+                    <form onsubmit="sendChatMessage(event)" class="flex items-center gap-2">
+                        <input type="text" id="chat-input" placeholder="Написать сообщение в чат..." class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-brand-500">
+                        <button type="submit" class="p-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- VIEW 5: Grade Book Page (Зачетная книжка) -->
+            <section id="view-grades" class="p-4 space-y-4 hidden animate-fadeIn">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="text-xs font-mono text-brand-400 uppercase tracking-wider">Электронная зачетка</span>
+                        <h2 class="text-xl font-extrabold text-slate-100">Успеваемость</h2>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-2xl font-black text-emerald-400">4.85</span>
+                        <span class="block text-[10px] text-slate-400 font-mono">Средний балл (GPA)</span>
+                    </div>
+                </div>
+
+                <!-- Progress summary bar -->
+                <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700/80 space-y-3">
+                    <div class="flex justify-between text-xs font-medium">
+                        <span class="text-slate-300">Закрыто ECTS кредитов</span>
+                        <span class="text-brand-400 font-mono">120 / 240 ECTS</span>
+                    </div>
+                    <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                        <div class="bg-gradient-to-r from-brand-500 to-emerald-400 h-full w-1/2"></div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-center pt-1 border-t border-slate-700/50">
+                        <div>
+                            <span class="text-sm font-bold text-slate-100">18</span>
+                            <span class="block text-[10px] text-slate-400">Отлично</span>
+                        </div>
+                        <div>
+                            <span class="text-sm font-bold text-slate-100">4</span>
+                            <span class="block text-[10px] text-slate-400">Хорошо</span>
+                        </div>
+                        <div>
+                            <span class="text-sm font-bold text-slate-100">0</span>
+                            <span class="block text-[10px] text-slate-400">Задолженностей</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Semester Tabs -->
+                <div class="flex gap-2 overflow-x-auto no-scrollbar">
+                    <button class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-mono">1 Сем.</button>
+                    <button class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-mono">2 Сем.</button>
+                    <button class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-mono">3 Сем.</button>
+                    <button class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-mono">4 Сем.</button>
+                    <button class="px-3 py-1.5 rounded-xl bg-brand-600 text-white text-xs font-mono font-bold">5 Сем. (Текущий)</button>
+                </div>
+
+                <!-- Grade Records Table -->
+                <div class="space-y-2">
+                    <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/80 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-200">Объектно-ориентированное программирование</h4>
+                            <p class="text-[10px] text-slate-400 font-mono">Экзамен • проф. Игнатьев А. П.</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Отлично (95)</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/80 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-200">Операционные системы & Linux</h4>
+                            <p class="text-[10px] text-slate-400 font-mono">Экзамен • доц. Власов С. Н.</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Отлично (91)</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/80 flex items-center justify-between">
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-200">Компьютерные сети (CCNA)</h4>
+                            <p class="text-[10px] text-slate-400 font-mono">Зачет • ст. преп. Орлов К. В.</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-brand-500/20 text-brand-300 border border-brand-500/30">Зачтено</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- BOTTOM NAVIGATION BAR (Exact requested layout: Left to Right) -->
+        <!-- 1: News Feed | 2: Teachers & Disciplines | 3: Schedule (Middle) | 4: Student Chat | 5: Gradebook -->
+        <nav class="absolute bottom-0 left-0 right-0 glass-header bg-slate-900/95 border-t border-slate-800 px-2 py-2 z-30">
+            <div class="flex items-center justify-around relative">
+                
+                <!-- 1. News Feed (Новостная лента) -->
+                <button onclick="switchView('news', this)" class="nav-btn flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 w-16 py-1 transition">
+                    <i data-lucide="newspaper" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-medium leading-none">Лента</span>
+                </button>
+
+                <!-- 2. Teachers & Disciplines (Преподаватели и дисциплины) -->
+                <button onclick="switchView('teachers', this)" class="nav-btn flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 w-16 py-1 transition">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-medium leading-none">Кафедра</span>
+                </button>
+
+                <!-- 3. CENTER BUTTON: Schedule & Homework (Расписание) -->
+                <button onclick="switchView('schedule', this)" class="nav-btn active flex flex-col items-center -mt-5 transition group">
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-brand-600 to-brand-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/40 ring-4 ring-slate-900 group-hover:scale-105 transition-transform">
+                        <i data-lucide="calendar" class="w-6 h-6"></i>
+                    </div>
+                    <span class="text-[10px] font-bold text-brand-400 mt-1 leading-none">Расписание</span>
+                </button>
+
+                <!-- 4. Student Chat (Студенческий чат) -->
+                <button onclick="switchView('chat', this)" class="nav-btn flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 w-16 py-1 transition relative">
+                    <i data-lucide="message-square" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-medium leading-none">Чат</span>
+                    <span class="absolute top-1 right-3 w-2 h-2 bg-brand-500 rounded-full"></span>
+                </button>
+
+                <!-- 5. Grade Book (Зачетная книжка) -->
+                <button onclick="switchView('grades', this)" class="nav-btn flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 w-16 py-1 transition">
+                    <i data-lucide="book-open-check" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-medium leading-none">Зачетка</span>
+                </button>
+
+            </div>
+        </nav>
+
+        <!-- Homework Submission Modal -->
+        <div id="hw-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 animate-slideUp">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <div>
+                        <span id="modal-subject" class="text-[10px] font-mono text-brand-400">Предмет</span>
+                        <h3 id="modal-title" class="text-base font-bold text-slate-100">Название ДЗ</h3>
+                    </div>
+                    <button onclick="closeHomeworkModal()" class="text-slate-400 hover:text-slate-200 p-1">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <label class="block text-xs font-medium text-slate-300">Ссылка на GitHub репозиторий или Merge Request:</label>
+                    <div class="relative">
+                        <i data-lucide="github" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+                        <input type="text" placeholder="https://github.com/student/hw-repo" class="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-brand-500 font-mono">
+                    </div>
+
+                    <label class="block text-xs font-medium text-slate-300">Комментарий преподавателю (необязательно):</label>
+                    <textarea placeholder="Код протестирован, unit-тесты пройдены..." rows="2" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs text-slate-100 focus:outline-none focus:border-brand-500"></textarea>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closeHomeworkModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl text-slate-300">Отмена</button>
+                    <button onclick="submitHomework()" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-500 text-xs font-semibold rounded-xl text-white">Отправить ДЗ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Toast Popup -->
+        <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 bg-slate-800 text-slate-100 border border-brand-500/50 px-4 py-2.5 rounded-2xl shadow-xl text-xs font-medium flex items-center gap-2 z-50 transition-all duration-300 opacity-0 pointer-events-none">
+            <i data-lucide="info" class="w-4 h-4 text-brand-400"></i>
+            <span id="toast-text">Уведомление</span>
+        </div>
+
+    </div>
+
+    <script>
+        // Initialize Lucide Icons
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            updateClock();
+            setInterval(updateClock, 30000);
+        });
+
+        // Update Phone Clock
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const clockEl = document.getElementById('current-time');
+            if (clockEl) clockEl.textContent = `${hours}:${minutes}`;
+        }
+
+        // View Switcher Functionality
+        function switchView(viewName, clickedBtn) {
+            // Hide all views
+            const views = ['schedule', 'news', 'teachers', 'chat', 'grades'];
+            views.forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                if (el) el.classList.add('hidden');
+            });
+
+            // Show selected view
+            const selectedEl = document.getElementById(`view-${viewName}`);
+            if (selectedEl) selectedEl.classList.remove('hidden');
+
+            // Update Navigation Button States
+            const navBtns = document.querySelectorAll('.nav-btn');
+            navBtns.forEach(btn => {
+                btn.classList.remove('active');
+                const textSpan = btn.querySelector('span');
+                const icon = btn.querySelector('i');
+                if (textSpan && !btn.classList.contains('-mt-5')) {
+                    textSpan.classList.remove('text-brand-400');
+                    textSpan.classList.add('text-slate-400');
+                }
+                if (icon && !btn.classList.contains('-mt-5')) {
+                    icon.classList.remove('text-brand-400');
+                }
+            });
+
+            // Highlight active button
+            if (clickedBtn) {
+                clickedBtn.classList.add('active');
+                const textSpan = clickedBtn.querySelector('span');
+                const icon = clickedBtn.querySelector('i');
+                if (textSpan && !clickedBtn.classList.contains('-mt-5')) {
+                    textSpan.classList.remove('text-slate-400');
+                    textSpan.classList.add('text-brand-400');
+                }
+                if (icon && !clickedBtn.classList.contains('-mt-5')) {
+                    icon.classList.add('text-brand-400');
+                }
+            }
+        }
+
+        // Schedule Tab Switcher
+        function switchScheduleTab(type) {
+            const dayBtn = document.getElementById('tab-day');
+            const weekBtn = document.getElementById('tab-week');
+
+            if (type === 'today') {
+                dayBtn.className = "px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-sm transition";
+                weekBtn.className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition";
+                showToast("Показано расписание на сегодня");
+            } else {
+                weekBtn.className = "px-3 py-1.5 rounded-lg bg-brand-600 text-white shadow-sm transition";
+                dayBtn.className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition";
+                showToast("Показан обзор всей недели");
+            }
+        }
+
+        // Homework Modal Control
+        function openHomeworkModal(subject, title) {
+            document.getElementById('modal-subject').textContent = subject;
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('hw-modal').classList.remove('hidden');
+        }
+
+        function closeHomeworkModal() {
+            document.getElementById('hw-modal').classList.add('hidden');
+        }
+
+        function submitHomework() {
+            closeHomeworkModal();
+            showToast("Домашнее задание успешно отправлено на проверку!");
+        }
+
+        // Live Chat Simulation
+        function sendChatMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const chatList = document.getElementById('chat-messages-list');
+            const newMsgHtml = `
+                <div class="flex items-start gap-2.5 justify-end animate-fadeIn">
+                    <div class="bg-brand-600 rounded-2xl rounded-tr-none p-3 max-w-[80%] text-white">
+                        <p class="text-xs">${escapeHtml(message)}</p>
+                        <span class="block text-[9px] text-brand-200 text-right mt-1 font-mono">Только что</span>
+                    </div>
+                </div>
+            `;
+            chatList.insertAdjacentHTML('beforeend', newMsgHtml);
+            input.value = '';
+            
+            // Scroll to bottom
+            const mainContainer = document.querySelector('main');
+            mainContainer.scrollTop = mainContainer.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // Notification System
+        function showNotifications() {
+            showToast("🔔 2 новых сообщения и 1 новое задание");
+        }
+
+        function showToast(text) {
+            const toast = document.getElementById('toast');
+            const toastText = document.getElementById('toast-text');
+            toastText.textContent = text;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // Dark / Light Mode Toggle
+        let isDark = true;
+        function toggleTheme() {
+            isDark = !isDark;
+            const html = document.documentElement;
+            const icon = document.getElementById('theme-icon');
+            
+            if (isDark) {
+                html.classList.add('dark');
+                icon.setAttribute('data-lucide', 'sun');
+            } else {
+                html.classList.remove('dark');
+                icon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+            showToast(isDark ? "Включена тёмная тема" : "Включена светлая тема");
+        }
+
+        function openFullWeekModal() {
+            showToast("Открыто полное расписание семестра");
+        }
+    </script>
+</body>
+</html>

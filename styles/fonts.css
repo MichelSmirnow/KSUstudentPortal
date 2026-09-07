@@ -1,0 +1,21 @@
+/* ✓ Шрифт основного текста */
+@font-face { font-family: 'ProductSans-Black'; src: url('ProductSans/ProductSans-Black.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-BlackItalic'; src: url('ProductSans/ProductSans-BlackItalic.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-Bold'; src: url('ProductSans/ProductSans-Bold.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-BoldItalic'; src: url('ProductSans/ProductSans-BoldItalic.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-Italic'; src: url('ProductSans/ProductSans-Italic.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-Light'; src: url('ProductSans/ProductSans-Light.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-LightItalic'; src: url('ProductSans/ProductSans-LightItalic.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-Medium'; src: url('ProductSans/ProductSans-Medium.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-MediumItalic'; src: url('ProductSans/ProductSans-MediumItalic.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-Regular'; src: url('ProductSans/ProductSans-Regular.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-Thin'; src: url('ProductSans/ProductSans-Thin.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'ProductSans-ThinItalic'; src: url('ProductSans/ProductSans-ThinItalic.ttf') format('truetype'); font-style: normal; }
+p, li, a { font-family: 'ProductSans-Regular'; line-height: 1.2; }
+
+/* ✓ Шрифт заголовков */
+@font-face { font-family: 'MegaSans-Bold'; src: url('OnyMegaSans/MegaSans-Bold.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'MegaSans-Light'; src: url('OnyMegaSans/MegaSans-Light.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'MegaSans-Medium'; src: url('OnyMegaSans/MegaSans-Medium.ttf') format('truetype'); font-style: normal; }
+@font-face { font-family: 'MegaSans-Regular'; src: url('OnyMegaSans/MegaSans-Regular.ttf') format('truetype'); font-style: normal; }
+h1, h2, h3, h4, h5 { font-family: 'MegaSans-Bold'; line-height: 0.25; }

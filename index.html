@@ -1,25 +1,60 @@
-<!doctype html> 
+<!DOCTYPE html>
 <html lang="ru">
-    <head>
-        <!-- Настройки окна -->
-        <meta charset="utf-8">
+	<head>
+		<meta charset="utf-8">
         <meta name="language" content="ru">
-        <title>Студенческий портал | ИВИТШ КГУ</title> 
-        <meta name="description" content="Добро пожаловать на студенческий портал института Высшей ИТ-школы, КГУ! Единое пространство, предназначенное для студента">
+		<title>Студенческий портал | ИВИТШ КГУ</title>
+		<meta name="description" content="">
         <link type="image/x-icon" href="favicon.ico" rel="shortcut icon">
         <link type="Image/x-icon" href="favicon.ico" rel="icon">
-        <meta name="version" content="test">
+        <meta name="version" content="alpha 2.0">
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-        <!-- Импорты стилей -->
-        <link rel="stylesheet" href="fonts.css">   <!-- Шрифты приложения -->
-        <link rel="stylesheet" href="main.css">    <!-- Общая стилизация -->
-    </head>
-    <body>
-        <div id="background"></div> <!-- Задний фон приложения -->
-        <div id="container"> <!-- Контейнер с наполнителем приложения (генерируется в script.js) -->
+		<!-- Импорты стилей -->
+		<link rel="stylesheet" href="styles/fonts.css"> <!-- Шрифты приложения -->
+		<link rel="stylesheet" href="styles/main.css">  <!-- Общая стилизация -->
+	</head>
+	<body>
+		<!-- Элементы заднего фона -->
+		 <div id="background"></div>
 
-        </div> 
-        <script defer src="script.js"></script> <!-- Скрипт генератора страницы -->
-    </body>
+		<div id="filter-bottom"></div>
+		<div id="nav"> <!-- Панель навигации -->
+				<div class="nav-element" id="nav-kafeder">
+					<img src="images/ui/graduation-cap.png" />
+				</div>
+				<div class="nav-element" id="nav-homework">
+					<img src="images/ui/work.png" />
+				</div>
+				<div class="nav-element" id="nav-shedule">
+					<img src="images/ui/schedule.png" />
+				</div>
+				<div class="nav-element" id="nav-messager">
+					<img src="images/ui/messager.png" />
+				</div>
+				<div class="nav-element" id="nav-services">
+					<img src="images/ui/apps.png" />
+				</div>
+			</div>
+
+		<div id="filter-top"></div>
+		<div id="header"> <!-- Верхняя панель -->
+			<img class="header-avatar" src="images/background.png"/>
+			<div class="header-description">
+				<div class="header-name">
+					<p><span id="header-time">Добрый день</span>, <span id="header-name">Даниил</span></p>
+					<p><span id="header-group"></span></p>
+				</div>
+				<p><span id="header-desc"></span></p>
+			</div>
+			<div class="header-button" id="header-notifications">
+				<!-- <img src="images/ui/notification.png"/> -->
+			</div>
+		</div>
+
+		<div id="container">
+
+		</div>
+		<script defer src="scripts/ui.js"></script>
+	</body>
 </html>

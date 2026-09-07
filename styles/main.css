@@ -14,6 +14,95 @@
 /* ==================================== Основные HTML стили ==================================== */
 
 html, body { margin: 0; padding: 0; overflow: hidden; position: relative; background-color: rgba(255,255,255,1);}
-#background { z-index: 1; position: fixed; inset: 0; background-image: url('images/background.png'); background-repeat: no-repeat; background-position: center; background-attachment: fixed; background-size: cover; }
+#container { overflow-y: scroll; z-index: 2; position: relative; height: 100vh; width: 100vw; padding: 100px 0 !important;}
+
+/* Задний фон приложения */
+#background { 
+    position: fixed; width: 100%; height: 100%; top: 0; left: 0; bottom: 0; right: 0;
+    background-image: linear-gradient(to bottom right, rgb(230, 234, 240) 0%,rgb(236, 235, 243) 100%);
+    z-index: 1; opacity: 1;
+}
+
+/* Подкладка верхнего закрепленного интерфейса */
+#filter-top {
+    position: fixed; height: 100px; top: -30px; left: -3px; right: -3px;
+    z-index: 100; opacity: 1; background-color: rgb(241, 241, 241);
+    border-radius: 30px; border: 2px solid rgba(49,49,49,0.25);
+}
+
+/* Подкладка нижнего закрепленного интерфейса */
+#filter-bottom {
+    position: fixed; height: 80px; bottom: -30px; left: -3px; right: -3px;
+    z-index: 7; opacity: 1; background-color: rgb(241, 241, 241);
+    border-radius: 30px; border: 2px solid rgba(49,49,49,0.25);
+}
 
 
+/* ==================================== Закрепленный интерфейс ==================================== */
+
+/* Контейнер нижнего навигационного меню */
+#nav {
+    position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); z-index: 9999;
+    display: flex; flex-direction: line; justify-content: center; align-items: center; gap: 10px;
+    width: auto; height: 60px; padding: 0 15px;
+    background-color: rgba(255, 255, 255, 0.25); border-radius: 30px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.15);
+}
+
+/* ✓ Нажимаемый элемент нижнего навигационного меню */
+.nav-element {
+    position: relative; width: 50px; height: 50px; padding: 0; margin: 0; font-size: 10px;
+    background-position: right; background-size: 200%; filter: brightness(125%);
+    box-shadow: 0 0 10px rgba(0,0,0,0.25); backdrop-filter: blur(5px); border-radius: 10px;
+    background-color: rgba(0,0,0,0.2);
+    transition: width 1s ease, height 1s ease, background-position 1s ease, font-size 1s ease, filter 1s ease, box-shadow 1s ease;
+}
+
+/* ✓ Индивидуальные цвета для элементов нижнего меню*/
+#nav-kafeder  { background-image: linear-gradient(to left, rgba(0,0,255,0.25) 0%, rgba(0,255,255,0.25) 150%); }
+#nav-kafeder:hover  { box-shadow: 0 0 15px rgba(0,0,255,0.25); }
+#nav-homework { background-image: linear-gradient(to left, rgba(211, 148, 11, 0.25) 0%, rgba(255, 0, 0, 0.25) 150%); }
+#nav-homework:hover { box-shadow: 0 0 15px rgba(211, 148, 11, 0.25); }
+#nav-shedule  { background-image: linear-gradient(to left, rgba(255, 0, 149, 0.25) 0%, rgba(17, 0, 255, 0.25) 150%); }
+#nav-shedule:hover  { box-shadow: 0 0 15x rgba(255, 0, 149, 0.25); }
+#nav-messager { background-image: linear-gradient(to left, rgba(0, 217, 255, 0.25) 0%, rgba(0, 140, 255, 0.25) 150%); }
+#nav-messager:hover { box-shadow: 0 0 15px rgba(0, 217, 255, 0.25); }
+#nav-services { background-image: linear-gradient(to left, rgba(0, 255, 106, 0.25) 0%, rgba(0,255,255,0.25) 150%); }
+#nav-services:hover { box-shadow: 0 0 15px rgba(0, 255, 106, 0.25); }
+
+/* ✓ Наведенный элемент нижнего навигационного меню */
+.nav-element:hover {
+    width: 75px; height: 75px;
+    background-position: left; font-size: 17px;
+    transition: width 0.5s ease, height 0.5s ease, background-position 0.5s ease, font-size 0.5s ease, filter 0.5s ease, box-shadow 0.5s ease;
+}
+
+/* ✓ Кликнутый элемент нижнего навигационного меню */
+.nav-element:active {
+    width: 70px; height: 70px;
+    background-position: center; font-size: 15px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.25); filter: brightness(110%);
+    transition: width 0.3s ease, height 0.3s ease, background-position 0.3s ease, font-size 0.3s ease, filter 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* ✓ Иконка на элементе нижнего пользовательского интерфейса*/
+.nav-element img {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 60%; height: 60%; 
+    filter: invert(100%) drop-shadow(0 0 10px rgba(0,0,0,0.35));
+    border: 0;
+}
+
+/* Контейнер верхнего информационного меню */
+#header {
+    position: fixed; left: 50%; top: 0; transform: translateX(-50%); z-index: 9999;
+    display: flex; flex-direction: line; justify-content: center; align-items: center; gap: 10px;
+    width: 100%; height: 70px; background-color: rgba(0,0,0,0.15);
+    border-radius: 30px;
+    
+}
+
+img.header-avatar { 
+    height: 60px; width: 60px; 
+    border-radius: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.25);
+}
