@@ -15,46 +15,65 @@
 		<link rel="stylesheet" href="styles/main.css">  <!-- Общая стилизация -->
 	</head>
 	<body>
-		<!-- Элементы заднего фона -->
-		 <div id="background"></div>
+		<!-- ✓ Элементы заднего фона -->
+		<div id="background"></div>
 
+		<!-- ✓ Нижняя панель навигации закрепленного интерфейса -->
 		<div id="filter-bottom"></div>
-		<div id="nav"> <!-- Панель навигации -->
-				<div class="nav-element" id="nav-kafeder">
-					<img src="images/ui/graduation-cap.png" />
-				</div>
-				<div class="nav-element" id="nav-homework">
-					<img src="images/ui/work.png" />
-				</div>
-				<div class="nav-element" id="nav-shedule">
-					<img src="images/ui/schedule.png" />
-				</div>
-				<div class="nav-element" id="nav-messager">
-					<img src="images/ui/messager.png" />
-				</div>
-				<div class="nav-element" id="nav-services">
-					<img src="images/ui/apps.png" />
-				</div>
+		<div id="nav">
+			<div class="nav-element" id="nav-kafeder">
+				<img src="images/ui/graduation-cap.png" />
 			</div>
+			<div class="nav-element" id="nav-homework">
+				<img src="images/ui/work.png" />
+			</div>
+			<div class="nav-element" id="nav-shedule">
+				<img src="images/ui/schedule.png" />
+			</div>
+			<div class="nav-element" id="nav-messager">
+				<img src="images/ui/messager.png" />
+			</div>
+			<div class="nav-element" id="nav-services">
+				<img src="images/ui/apps.png" />
+			</div>
+		</div>
 
+		<!-- ✓ Верхняя панель закрепленного интерфейса -->
 		<div id="filter-top"></div>
-		<div id="header"> <!-- Верхняя панель -->
-			<img class="header-avatar" src="images/background.png"/>
-			<div class="header-description">
-				<div class="header-name">
-					<p><span id="header-time">Добрый день</span>, <span id="header-name">Даниил</span></p>
-					<p><span id="header-group"></span></p>
-				</div>
-				<p><span id="header-desc"></span></p>
-			</div>
+		<div id="header-left">
+			<img class="header-avatar" src="images/male.jpg" />
+			<p><span id="header-name">Даниил Соловьев</span></p>
+		</div>
+		<div id="header-right">
+			<p id="header-group-p"><span id="header-group">26-ИСбо-4</span></p>
 			<div class="header-button" id="header-notifications">
-				<!-- <img src="images/ui/notification.png"/> -->
+				<img src="images/ui/notification.png" />
+			</div>
+			<div class="header-button" id="header-settings">
+				<img src="images/ui/web.png" />
 			</div>
 		</div>
 
+		<!-- Основной контейнер наполнителя -->
 		<div id="container">
+			<div class="relative-container" id="subcontainer">
+				<div class="flex-container info-container">
+					<div class="banner-half">
+						<h3>Расписание</h3>
+						<p>Егорыч, билд не доделан, но можешь потестить)</p>
+						<div class="flex-container radio-container" style="justify-content: start !important;">
+							<button id="shedule-day" class="radio-button" onclick="switchSchedule('day')">День</button>
+							<button id="shedule-week" class="radio-button" onclick="switchSchedule('week')">Неделя</button>
+						</div>
+					</div>
+					<img class="banner-half" src="images/supbanners/note.png"/>
+				</div>
+				<div id="shedule-container">
 
+				</div>
+			</div>
 		</div>
+		
 		<script defer src="scripts/ui.js"></script>
 	</body>
 </html>

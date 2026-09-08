@@ -21,42 +21,38 @@ class generate {
     }
 } */
 
-// Парсер ICS календаря с сайта ЕЙОС КГУ
+
+
+
+
+
+// ✓ Парсер ICS календаря с сайта ЕЙОС КГУ
 class ICSParser {
-  constructor() {
-    this.events = [];
-  }
+  constructor() { this.events = []; }
   
+  // ✓ Получение ICS календаря расписания
   async fetch(url) {
     try {
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Accept': 'text/calendar'
-        }
+        headers: { 'Accept': 'text/calendar' }
       });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.status}`);
-      }
-      
+      if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
       const text = await response.text();
       return this.parse(text);
-      
     } catch (error) {
       console.error('Fetch error:', error);
       throw error;
     }
   }
   
+  // ✓ Парсирование полученного календаря до объекта и запись в массив
   parse(icsContent) {
     this.events = [];
     const lines = icsContent.split(/\r?\n/);
     let currentEvent = null;
-    
     lines.forEach(line => {
       line = line.trim();
-      
       if (line === 'BEGIN:VEVENT') {
         currentEvent = {};
       } else if (line === 'END:VEVENT' && currentEvent) {
@@ -66,18 +62,18 @@ class ICSParser {
         this.parseProperty(currentEvent, line);
       }
     });
-    
     return this.events;
   }
   
+  // ✓ Вспомогательная функция парсирования значения в календаре
   parseProperty(event, line) {
     const colonIndex = line.indexOf(':');
     let key = line.substring(0, colonIndex).split(';')[0];
     let value = line.substring(colonIndex + 1);
-    
     event[key] = value;
   }
   
+  // ✓ Нормализация обьекта календаря
   normalizeEvent(event) {
     return {
       uid: event.UID || '',
@@ -91,19 +87,20 @@ class ICSParser {
     };
   }
   
+  // ✓ Парсирование времени (нормализация значений времени в обьектах календаря)
   parseDateTime(dateString) {
     if (!dateString) return null;
-    
     const date = dateString.replace(/[TZ]/g, '');
     const year = date.substring(0, 4);
     const month = date.substring(4, 6);
     const day = date.substring(6, 8);
     const hour = date.substring(8, 10) || '00';
     const minute = date.substring(10, 12) || '00';
-    
-    return new Date(`${year}-${month}-${day}T${hour}:${minute}:00`);
+    const utcDate = new Date(`${year}-${month}-${day}T${hour}:${minute}:00Z`);
+    return utcDate;
   }
   
+  // ✓ Вспомогательная функция корректного декодирования строкового значения
   decode(text) {
     return text
       .replace(/\\n/g, '\n')
@@ -113,7 +110,7 @@ class ICSParser {
   }
 }
 
-// Класс для отрисовки расписания
+// Отрисовка расписания
 class ScheduleRenderer {
   constructor(containerId) {
     this.container = document.querySelector(containerId);
@@ -293,154 +290,26 @@ class ScheduleRenderer {
   }
 }
 
-// CSS стили
-function injectStyles() {
-  const style = document.createElement('style');
-  style.textContent = `
-    #container {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 20px;
-      background-color: #f5f5f5;
-    }
-    
-    .schedule-day {
-      margin-bottom: 30px;
-      background: white;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-    
-    .day-header {
-      padding: 15px 20px;
-      color: white;
-      font-weight: 600;
-      font-size: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .day-name {
-      font-weight: 700;
-    }
-    
-    .day-date {
-      font-size: 14px;
-      opacity: 0.95;
-    }
-    
-    .day-events {
-      padding: 0;
-    }
-    
-    .event {
-      display: flex;
-      align-items: flex-start;
-      padding: 15px 20px;
-      border-bottom: 1px solid #e0e0e0;
-      transition: background-color 0.2s;
-    }
-    
-    .event:hover {
-      background-color: #f9f9f9;
-    }
-    
-    .event:last-child {
-      border-bottom: none;
-    }
-    
-    .event-time-block {
-      min-width: 70px;
-      margin-right: 20px;
-      padding-left: 10px;
-    }
-    
-    .event-time {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-    
-    .start-time {
-      font-weight: 700;
-      font-size: 18px;
-      color: #333;
-    }
-    
-    .end-time {
-      font-size: 12px;
-      color: #999;
-    }
-    
-    .event-content {
-      flex: 1;
-      min-width: 0;
-    }
-    
-    .event-header {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    
-    .event-subject {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #333;
-      word-break: break-word;
-    }
-    
-    .event-type {
-      background-color: #e8e8e8;
-      color: #666;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    
-    .event-details {
-      font-size: 13px;
-      color: #666;
-    }
-    
-    .event-detail {
-      margin-bottom: 4px;
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    
-    .event-details-btn {
-      background: none;
-      border: none;
-      color: #999;
-      cursor: pointer;
-      font-size: 20px;
-      padding: 0 10px;
-      margin-left: auto;
-      transition: color 0.2s;
-    }
-    
-    .event-details-btn:hover {
-      color: #333;
-    }
-  `;
-  document.head.appendChild(style);
+
+
+
+// Изменение режима просмотра расписания
+function switchSchedule(type) {
+  const dayButton = document.getElementById('shedule-day');
+  const weekButton = document.getElementById('shedule-week');
+  if (type === 'day') {
+    weekButton.classList.remove('selected');
+    dayButton.classList.add('selected');
+  } else if (type === 'week') {
+    dayButton.classList.remove('selected');
+    weekButton.classList.add('selected');
+  }
 }
 
 // Инициализация
 async function initSchedule() {
-  injectStyles();
-  
   const parser = new ICSParser();
-  const renderer = new ScheduleRenderer('#container');
+  const renderer = new ScheduleRenderer('#shedule-container');
   
   try {
     const events = await parser.fetch('https://eios.kosgos.ru/api/Rasp?idGroup=8953&iCal=true');
@@ -450,13 +319,14 @@ async function initSchedule() {
     console.log('Schedule loaded:', events);
   } catch (error) {
     console.error('Error loading schedule:', error);
-    document.querySelector('#container').innerHTML = `
-      <div style="padding: 20px; color: red; text-align: center;">
-        Ошибка при загрузке расписания: ${error.message}
+    document.querySelector('#shedule-container').innerHTML = `
+      <div style="padding: 20px; text-align: center;">
+        Ошибка при загрузке расписания: ${error.message}. Попробуйте отключить VPN (если включен) и перезагрузить приложение
       </div>
     `;
   }
 }
 
 // Запуск
+switchSchedule('day');
 initSchedule();
