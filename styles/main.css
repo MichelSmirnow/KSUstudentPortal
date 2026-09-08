@@ -298,18 +298,3 @@ html, body { margin: 0; padding: 0; overflow: hidden; position: relative; backgr
     gap: 8px;
     align-items: center;
 }
-
-.event-details-btn {
-    background: none;
-    border: none;
-    color: #999;
-    cursor: pointer;
-    font-size: 20px;
-    padding: 0 10px;
-    margin-left: auto;
-    transition: color 0.2s;
-}
-
-.event-details-btn:hover {
-    color: #333;
-}
