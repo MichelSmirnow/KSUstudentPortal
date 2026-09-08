@@ -11,11 +11,11 @@
 @font-face { font-family: 'ProductSans-Regular'; src: url('ProductSans/ProductSans-Regular.ttf') format('truetype'); font-style: normal; }
 @font-face { font-family: 'ProductSans-Thin'; src: url('ProductSans/ProductSans-Thin.ttf') format('truetype'); font-style: normal; }
 @font-face { font-family: 'ProductSans-ThinItalic'; src: url('ProductSans/ProductSans-ThinItalic.ttf') format('truetype'); font-style: normal; }
-p, li, a { font-family: 'ProductSans-Regular'; line-height: 1.2; }
+p, li, a, span, div, button { font-family: 'ProductSans-Regular'; line-height: 1.2; }
 
 /* ✓ Шрифт заголовков */
 @font-face { font-family: 'MegaSans-Bold'; src: url('OnyMegaSans/MegaSans-Bold.ttf') format('truetype'); font-style: normal; }
 @font-face { font-family: 'MegaSans-Light'; src: url('OnyMegaSans/MegaSans-Light.ttf') format('truetype'); font-style: normal; }
 @font-face { font-family: 'MegaSans-Medium'; src: url('OnyMegaSans/MegaSans-Medium.ttf') format('truetype'); font-style: normal; }
 @font-face { font-family: 'MegaSans-Regular'; src: url('OnyMegaSans/MegaSans-Regular.ttf') format('truetype'); font-style: normal; }
-h1, h2, h3, h4, h5 { font-family: 'MegaSans-Bold'; line-height: 0.25; }
+h1, h2, h3, h4, h5 { font-family: 'MegaSans-Bold' !important; line-height: 0.25 !important; }
