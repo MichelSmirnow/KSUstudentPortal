@@ -65,7 +65,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; position: relative; backgr
 /* ======== Стилизация основных типов кнопок ======== */
 
 /* Стилизация радиокнопок с выбором*/
-.radio-container { padding: 5px !important; margin-top: -10px; height: 30px; }
+.radio-container { padding: 5px !important; margin-top: -10px; height: 40px; }
 .radio-button {
     padding: 5px 10px; border-radius: 10px; border: 0; 
     background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.25);
@@ -170,14 +170,9 @@ html, body { margin: 0; padding: 0; overflow: hidden; position: relative; backgr
 #header-left { justify-content: start; left: calc(50% + 20px); transform: translateX(-50%); }
 #header-right { justify-content: end; right: calc(50% + 20px); transform: translateX(50%); }
 
-/* ✓ Уменьшенный пользовательский аватар */
-.header-avatar { 
-    height: 35px; width: 35px; border-radius: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.25);
-}
-
 /* ✓ Название группы пользователя */
 #header-group-p {
-    padding: 5px 10px;
+    padding: 5px 10px; font-size: 15px; 
     color: rgb(255, 255, 255); background-color: rgb(114, 178, 231); text-shadow: 0 0 10px rgba(10, 83, 143, 0.25);
     box-shadow: 0 0 10px rgba(0, 140, 255, 0.25); border-radius: 10px;
 }

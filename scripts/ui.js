@@ -186,7 +186,43 @@ class ScheduleRenderer {
   render(type) {
     this.generated = '';
     if (type === 'day') { // Сгенерировать внутридневное расписание
-      this.generated += `<p>Пока не работает, попробуй переключить на неделю</p>`;
+      /*const event = ;
+
+      const startTime = this.formatTime(event.startTime);
+      const endTime = event.endTime ? this.formatTime(event.endTime) : 'Никогда';
+      const status;
+      const statusColor = (true) ? '#11a819ff' : '#7f119bff';
+      const location = event.location;
+      const teacher = this.extractTeacher(event.description);
+      
+      const colors = {
+        'лаб':'linear-gradient(to bottom right, rgba(252,184,38,0.5) 0%, rgba(192,112,2,0.5) 100%)',
+        'лек':'linear-gradient(to bottom right, rgba(38,163,38,0.5) 0%, rgba(3,93,2,0.5) 100%)',
+        'пр.':'linear-gradient(to bottom right, rgba(162,37,162,0.5) 0%, rgba(93,2,93,0.5) 100%)',
+      }
+      let bgcolor = colors[];
+      
+
+      this.generated += `
+      <div class="info-container" style="margin-bottom: 10px !important;">
+        <div class="flex-container">
+        
+        </div>
+        <h3>${}</h3>
+        <p>${}</p>
+        <div class="flex-container">
+
+        </div>
+      </div>
+      <div class="info-container" style="margin-bottom: 10px !important;">
+      
+      </div>
+      <div class="info-container" style="margin-bottom: 10px !important;">
+      
+      </div>
+      `;*/
+      this.generated += `<div style="height: 100px; width: 100%; "></div>`
+      this.generated += `<p>Я не успел сегодня доделать дневное расписание, но зато я выкатил крутое обновление недельного расписания!!!</p>`
       return this.generated;
 
     } else if (type === 'week') { // ✓ Сгенерировать недельное расписание
@@ -204,7 +240,6 @@ class ScheduleRenderer {
       }
       
       // ✓ Генерируем недельное расписание
-      this.generated = '';
       const grouped = this.groupByDate(this.events);
       Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
         const dayDate = new Date(dateKey + 'T00:00:00');
@@ -236,12 +271,12 @@ class ScheduleRenderer {
       this.generated += `<div style="height: 100px; width: 100%; "></div>`
       return this.generated;
 
-    } else {
-      return `<p>Как ты умудрился это сделать? Не лезь в консоль :_</p>`
+    } else { // Если страница не найдена (Ошибка 404)
+      return `<p>Как ты умудрился(-ась) это сделать? Не лезь в консоль :_</p>`
     }
   }
   
-  // ✓ Рендер элемента расписания (рендер занятия)
+  // ✓ Рендер элемента недельного расписания
   createEventElement(event, dayColor) {
     // ✓ Получаем основную информацию по занятию
     const startTime = this.formatTime(event.startTime);
@@ -251,21 +286,32 @@ class ScheduleRenderer {
     
     // ✓ Получаем дополнительную информацию по занятию
     const typeMatch = event.summary.match(/\(([^)]+)\)/);
-    const type = typeMatch ? typeMatch[1] : '';
+    const type = typeMatch ? String(typeMatch[1]).substring(0,7) : '';
     
-    // ✓ Получаем название предмета
-    const subjectMatch = event.summary.match(/(?:лек|пр|лаб)\.\s+(.+?)(?:\(|$)/);
-    const subject = subjectMatch ? subjectMatch[1].trim() : event.summary;
+    // ✓ Получаем название и цвет предмета
+    const colors = {
+      'лаб':'rgba(252,184,38,1)',
+      'лек':'rgba(37, 204, 37, 1)',
+      'пр.':'rgba(190, 38, 190, 1)',
+    }
+    const nameMatch = {
+      'лаб':'Семинар',
+      'лек':'Лекция',
+      'пр.':'Лаба',
+    }
+    const subjectMatch = event.summary.slice(0, 3);
+    const subjectMatchColor = colors[subjectMatch];
+    const subject = event.summary.slice(4).trim(); 
     
-    // Генерируем HTML (добавить лаб/пр/лек)
+    // ✓ Генерируем HTML
     return `<div class="event">
-      <div class="event-time-block" style="border-left: 4px solid ${dayColor}">
+      <div class="event-time-block" style="border-left: 5px solid ${subjectMatchColor}">
         <div class="event-time">
           <span class="start-time">${startTime}</span>
           <span class="end-time">${endTime}</span>
         </div>
+        <span style="color: #555; margin-top: 5px; font-size: 13px; ">${nameMatch[subjectMatch]}</span>
       </div>
-      
       <div class="event-content">
         <div class="event-header">
           <p class="event-subject"><b>${subject}</b></p>
@@ -493,16 +539,48 @@ async function generatePageContent(id) {
     const renderer = new ScheduleRenderer();
     const events = await loadSchedule();
     renderer.setEvents(events);
-    sheduleHTML = renderer.render('day');
+    sheduleHTML = renderer.render('week'); // Временно для удобства
+
+    // ✓ Получить случайное описание 
+    function getRandomDescription() {
+      const descriptions = [
+        "Ходит слух, что 4 курс умудряется прогуливать даже перемены",
+        "Мы преследовали умные мысли. Они не смогли убежать",
+        "Три пары хорошо, а две - лучше",
+        "Лучше не прогуливать физкультуру. Поверьте.",
+        "Если ты прогулял пару, то ты ее прогулял.",
+        "Мы пишем код на бумаге. Если вообще пишем...",
+        "Расписание пишется вручную. ChatGPT сломался, извините",
+        "Какое расписание? Я спать хочу вообще-то",
+        "Первокурсники кибербеза НЕ умеют пробивать",
+        "За двумя зайцами погонишься - застрянешь в текстурах",
+        "Расписание еще не пушнули. Приходите позже",
+        "Чем больше дедлайн, тем ровнее мой код",
+        "Мне тренировки к турниру по DOTA2 дороже сна",
+        "Сессия - это естественный отбор в среде первокурсников",
+        "Впитал(а) python с молоком матери",
+        "ГДЗ уже не поможет...",
+        "Самая лучшая аудитория - туалет",
+        "Print('Hello, world!')",
+        "Если пришел раньше препода, значит не опоздал",
+        "Знайте, мы дышим одним воздухом с ректором КГУ",
+        "Код за хвост не подергаешь",
+        "Код не кот - когда гладишь не мурлычет",
+        "Кто-то это вообще читает?",
+      ];
+      const randomIndex = Math.floor(Math.random() * descriptions.length);
+      return descriptions[randomIndex];
+    }
+
     return `
     <div class="relative-container" id="subcontainer">
       <div class="flex-container info-container">
         <div class="banner-half">
           <h3>Расписание</h3>
-          <p>Разраб выкатил обнову кнопок, радуйтесь простые смертные!!!</p>
+          <p>${getRandomDescription()}</p>
           <div class="flex-container radio-container" style="justify-content: start !important;">
-            <button id="shedule-day" class="radio-button selected" onclick="switchSchedule('day')">День</button>
-            <button id="shedule-week" class="radio-button" onclick="switchSchedule('week')">Неделя</button>
+            <button id="shedule-day" class="radio-button" onclick="switchSchedule('day')">День</button>
+            <button id="shedule-week" class="radio-button selected" onclick="switchSchedule('week')">Неделя</button>
           </div>
         </div>
         <img class="banner-half" src="images/supbanners/note.png"/>
@@ -514,9 +592,9 @@ async function generatePageContent(id) {
     <!-- <img src="images/supbanners/404.jpg" class="banner-half" style="width: 100% !important;"/> -->
     <h1>Пустая страница</h1>
     <p>Тут пока ничего нету прикинь</p>
-    <p>Разраб трудолюбивая задница и не вайбкодит весь дизайн за раз :(</p>
-    <p>Чтобы ты не расстраивался, вот тебе жмыхнутая девчонка</p>
-    <img src="images/supbanners/girl.jpg" class="banner-half" style="width: 100% !important; height: 200px !important;"/>
+    <p>Разраб устал, уже 8 вечера, завтра продолжу</p>
+    <p>Девочка больше не жмыхнутая!!!!!!</p>
+    <img src="images/supbanners/girl.jpg" class="banner-half" style="width: 100% !important; "/>
     `;
   }
 }
