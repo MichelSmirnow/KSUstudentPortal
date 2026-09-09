@@ -16,24 +16,44 @@
 
 /* ==================================== Основные HTML стили ==================================== */
 
-/* Основные части страницы */
 html, body { margin: 0; padding: 0; overflow: hidden; position: relative; background-color: rgba(255,255,255,1); }
-#container { max-width: 700px;
-    z-index: 5; position: fixed; left: 50%; top: 30px; transform: translateX(-50%);
+
+/* ======== Главные контейнеры ======== */
+/* ✓ Основной контейнер наполнителя контента */
+#container, #container-translate { /* max-width: 700px; */
+    position: fixed; left: 50%; top: 30px; transform: translateX(-50%);
     height: calc(100vh - 160px); width: calc(100vw - 20px); margin: 0; padding: 50px 0;
-    overflow-y: scroll;
+    overflow-y: scroll; transition: 0; opacity: 1;
 }
-#subcontainer {
-    display: flex; flex-direction: column; gap: 20px; 
+#container { z-index: 5; }
+#container-translate { z-index: 4; }
+
+/* Контейнер анимации перелистывания */
+#container.animated, #container-translate.animated { 
+    transition: left 1s ease, opacity 0.75s ease !important; 
 }
+#container-translate.left, #container.left {
+    left: -50% !important; opacity: 0 !important;
+}
+#container-translate.right, #container.right {
+    left: 150% !important; opacity: 0 !important;
+}
+
+
+
+
+/* Вспомогательный контейнер наполнителя */
+#subcontainer { 
+    display: flex; flex-direction: column; gap: 20px;
+}
+
+/* ======== Стилизационные стандартизированные элементы ======== */
 
 .info-container {
     margin: 0 auto !important; width: 80%;
     border-radius: 30px; border: 2px solid rgba(33,33,33,0.15);
     padding: 0 30px;
 }
-
-/* Стилизационные стандартизированные элементы */
 .banner-half {
     width: 50%; padding: 5px; 
 }
@@ -42,20 +62,29 @@ html, body { margin: 0; padding: 0; overflow: hidden; position: relative; backgr
 }
 
 
-/* Стилизация основных типов кнопок*/
-.radio-container {
-    background-color: #999;
-    padding: 5px !important;
-    border-radius: 10px;
-}
+/* ======== Стилизация основных типов кнопок ======== */
 
+/* Стилизация радиокнопок с выбором*/
+.radio-container { padding: 5px !important; margin-top: -10px; height: 30px; }
 .radio-button {
-    border-radius: 10px;
+    padding: 5px 10px; border-radius: 10px; border: 0; 
+    background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.25);
+    transition: padding 0.5s ease, background-color 0.5s ease, box-shadow 0.5s ease;
+}
+.radio-button:hover {
+    padding: 7px 12px; background-color: rgb(247, 247, 247);
+    transition: padding 0.35s ease, background-color 0.35s ease, box-shadow 0.35s ease;
+}
+.radio-button:active {
+    padding: 6px 11px; background-color: rgb(197, 197, 197);
+    transition: padding 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+}
+.radio-button.selected {
+    color: rgb(255, 255, 255); background-color: rgb(114, 178, 231); text-shadow: 0 0 10px rgba(10, 83, 143, 0.25);
+    box-shadow: 0 0 10px rgba(0, 140, 255, 0.25);
 }
 
-.radio-button
-
-/* ==================================== Закрепленный интерфейс ==================================== */
+/* ==================================== ✓ Закрепленный интерфейс ==================================== */
 /* ======== Нижний пользовательский интерфейс ======== */
 
 /* ✓ Задний фон приложения */
