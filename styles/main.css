@@ -55,10 +55,11 @@ html, body { margin: 0; padding: 0; overflow: hidden; position: relative; backgr
     padding: 0 30px;
 }
 .banner-half {
-    width: 50%; padding: 5px; 
+    width: 50%; padding: 5px; font-size: 15px;
 }
-.banner-half img {
-    max-height: 100px !important;
+img.banner-half {
+    min-width: 150px !important;
+    max-width: 220px !important;
 }
 
 
@@ -322,3 +323,54 @@ html, body { margin: 0; padding: 0; overflow: hidden; position: relative; backgr
     gap: 8px;
     align-items: center;
 }
+
+
+
+
+
+/* ======== Интерфейс вкладки связи ======== */
+#messager-container {
+    display: flex; align-items: center; justify-content: start; flex-direction: column; gap: 10px;
+    width: 100%; height: auto;
+}
+
+/* ✓ Кнопка чата/ссылки*/
+.messager-button {
+    position: relative; width: 95%; height: 70px;
+    border-radius: 30px; text-align: left; color: #f3f3f3;
+    border: 0; box-shadow: 0 0 10px rgba(17, 3, 136, 0.5), inset 0 0 10px rgba(125, 209, 243, 0.5);
+    filter: brightness(100%); transition: filter 0.5s ease, width 0.5s ease, height 0.5s ease;
+}
+.messager-button:hover {
+    filter: brightness(120%); width: 97%; height: 75px; 
+    transition: filter 0.35s ease, width 0.35s ease, height 0.35s ease;
+}
+.messager-button:active {
+    filter: brightness(80%); width: 93%; height: 65px; 
+    transition: filter 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+
+/* Контейнер внутри кнопки чата/ссылки */
+.messager-button-inset {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 100%; height: 100%; padding: 0; margin: 0;
+}
+
+/* ✓ Заголовок и описание кнопки */
+.messager-button-header {
+    font-size: 15px; margin-bottom: -10px; margin-top: 10px;
+}
+.messager-button p { 
+    text-shadow: 0 0 10px rgba(0,0,0,0.5); 
+}
+
+/* ✓ Иконка кнопки */
+.messager-button-avatar {
+    border-radius: 30px; height: 50px; width: 50px; margin-left: 10px;
+    box-shadow: 0 0 10px rgba(17, 3, 136, 0.25), 0 0 15px rgba(0,0,0,0.35);
+}
+
+/* ✓ Специальная стилизация кнопок для разных сервисов */
+.tg-button  { background-image: linear-gradient(to right, rgb(29, 131, 175) 0%, rgb(50,170,223) 100%); }
+.vk-button  { background-image: linear-gradient(to right, rgb(23, 90, 184) 0%, rgb(0,119,255) 100%); }
+.max-button { background-image: linear-gradient(to right, rgb(73,187,243) 0%, rgb(34,65,237) 40%, rgba(106,46,222) 100%); }

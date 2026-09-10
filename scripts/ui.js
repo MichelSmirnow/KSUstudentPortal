@@ -1,3 +1,9 @@
+/* Пользовательские данные (данные группы), основной информационный контент приложения */
+const groupData = {
+  shedule: [],
+}
+
+
 /* ====================================== Расписание ====================================== */
 
 // ✓ Парсер ICS календаря с сайта ЕЙОС КГУ
@@ -22,7 +28,7 @@ class ICSParser {
   
   // ✓ Парсирование полученного календаря до объекта и запись в массив
   parse(icsContent) {
-    this.events = [];
+    groupData.shedule = [];
     const lines = icsContent.split(/\r?\n/);
     let currentEvent = null;
     lines.forEach(line => {
@@ -30,13 +36,13 @@ class ICSParser {
       if (line === 'BEGIN:VEVENT') {
         currentEvent = {};
       } else if (line === 'END:VEVENT' && currentEvent) {
-        this.events.push(this.normalizeEvent(currentEvent));
+        groupData.shedule.push(this.normalizeEvent(currentEvent));
         currentEvent = null;
       } else if (currentEvent && line.includes(':')) {
         this.parseProperty(currentEvent, line);
       }
     });
-    return this.events;
+    return groupData.shedule;
   }
   
   // ✓ Вспомогательная функция парсирования значения в календаре
@@ -89,22 +95,18 @@ async function loadSchedule() {
   const parser = new ICSParser();
   try {
     const events = await parser.fetch('https://eios.kosgos.ru/api/Rasp?idGroup=8953&iCal=true');
-    return events;
+    groupData.shedule = events;
   } catch (error) {
     console.error('Error loading schedule:', error);
   }
 }
 
-// ✓ Отрисовка расписания
-// 1) Добавить определение лаб/практики/лекции по цвету и спец выделением
-// 2) 
+// ✓ Отрисовка расписания 
 class ScheduleRenderer {
   constructor(type) {
     this.type = type;
     this.generated = '';
-    this.events = [];
   }
-  setEvents(events) { this.events = events; }
   
   // ✓ Отсортировать и сгруппировать даты
   groupByDate(events) {
@@ -181,103 +183,9 @@ class ScheduleRenderer {
     const match = description.match(/([А-Яа-яЁё\s\.]+)/);
     return match ? match[0].trim() : '';
   }
-  
-  // Рендер дней в расписании (добавить два типа расписания - ежедневное и недельное)
-  render(type) {
-    this.generated = '';
-    if (type === 'day') { // Сгенерировать внутридневное расписание
-      /*const event = ;
 
-      const startTime = this.formatTime(event.startTime);
-      const endTime = event.endTime ? this.formatTime(event.endTime) : 'Никогда';
-      const status;
-      const statusColor = (true) ? '#11a819ff' : '#7f119bff';
-      const location = event.location;
-      const teacher = this.extractTeacher(event.description);
-      
-      const colors = {
-        'лаб':'linear-gradient(to bottom right, rgba(252,184,38,0.5) 0%, rgba(192,112,2,0.5) 100%)',
-        'лек':'linear-gradient(to bottom right, rgba(38,163,38,0.5) 0%, rgba(3,93,2,0.5) 100%)',
-        'пр.':'linear-gradient(to bottom right, rgba(162,37,162,0.5) 0%, rgba(93,2,93,0.5) 100%)',
-      }
-      let bgcolor = colors[];
-      
-
-      this.generated += `
-      <div class="info-container" style="margin-bottom: 10px !important;">
-        <div class="flex-container">
-        
-        </div>
-        <h3>${}</h3>
-        <p>${}</p>
-        <div class="flex-container">
-
-        </div>
-      </div>
-      <div class="info-container" style="margin-bottom: 10px !important;">
-      
-      </div>
-      <div class="info-container" style="margin-bottom: 10px !important;">
-      
-      </div>
-      `;*/
-      this.generated += `<div style="height: 100px; width: 100%; "></div>`
-      this.generated += `<p>Я не успел сегодня доделать дневное расписание, но зато я выкатил крутое обновление недельного расписания!!!</p>`
-      return this.generated;
-
-    } else if (type === 'week') { // ✓ Сгенерировать недельное расписание
-      // ✓ Получить текущую неделю
-      function getWeekNumber(date) {
-        const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-        const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
-        return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-      }
-
-      // ✓ Проверка на то, что сегодняшняя дата находится на той же неделе что и дата расписания
-      function isSameWeek(date) {
-        const today = new Date(); 
-        return date.getFullYear() === today.getFullYear() && getWeekNumber(date) === getWeekNumber(today);
-      }
-      
-      // ✓ Генерируем недельное расписание
-      const grouped = this.groupByDate(this.events);
-      Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
-        const dayDate = new Date(dateKey + 'T00:00:00');
-        if (isSameWeek(dayDate)) {
-
-          // ✓ Получаем данные заголовка дня
-          const dayName = this.getDayName(dayDate);
-          const formattedDate = this.formatDate(dayDate);
-          const dayColor = this.getDayColor(dayDate);
-      
-          // ✓ Генерируем список занятий
-          let events = '';
-          dayEvents.forEach((event, index) => {
-            events +=  this.createEventElement(event, dayColor);
-          });
-          
-          // ✓ Добавляем новый день к общему списку дней
-          this.generated += `
-          <div class="schedule-day">
-            <div class="day-header" style="background-color: ${dayColor};">
-              <span class="day-name">${dayName}</span>
-              <span class="day-date">${formattedDate}</span>
-            </div>
-            <div class="day-events">${events}</div>
-          </div>
-          `;
-        }
-      });
-      this.generated += `<div style="height: 100px; width: 100%; "></div>`
-      return this.generated;
-
-    } else { // Если страница не найдена (Ошибка 404)
-      return `<p>Как ты умудрился(-ась) это сделать? Не лезь в консоль :_</p>`
-    }
-  }
-  
   // ✓ Рендер элемента недельного расписания
-  createEventElement(event, dayColor) {
+  createEventElement(event) {
     // ✓ Получаем основную информацию по занятию
     const startTime = this.formatTime(event.startTime);
     const endTime = event.endTime ? this.formatTime(event.endTime) : '';
@@ -323,6 +231,273 @@ class ScheduleRenderer {
         </div>
       </div>
     </div>`;
+  }
+
+  // ✓ Вернуть элемент расписания по дате (добавить пустой день если расписания нету!)
+  renderByDate(date) {
+    const dateKey = this.formatDateKey(date);
+    const dayEvents = groupData.shedule
+      .filter(event => event.startTime && this.formatDateKey(event.startTime) === dateKey)
+      .sort((a, b) => a.startTime - b.startTime);
+
+    // ✓ Получаем данные заголовка дня
+    const dayDate = new Date(dateKey + 'T00:00:00');
+    const dayName = this.getDayName(dayDate);
+    const formattedDate = this.formatDate(dayDate);
+    const dayColor = this.getDayColor(dayDate);
+
+    // ✓ Генерируем список занятий
+    let events = '';
+    dayEvents.forEach((event, index) => {
+      events += this.createEventElement(event);
+    });
+    console.log(events);
+    
+    // ✓ Возвращаем список занятий на текущий день
+    return `
+    <div class="schedule-day">
+      <div class="day-header" style="background-color: ${dayColor};">
+        <span class="day-name">${dayName}</span>
+        <span class="day-date">${formattedDate}</span>
+      </div>
+      <div class="day-events">${events}</div>
+    </div>
+    `;
+  }
+  
+  // ✓ Проверяем, закончились ли сегодня пары
+  isClassesEndedToday() {
+    const today = this.formatDateKey(new Date());
+    const now = new Date();
+    const todayEvents = groupData.shedule.filter(event => 
+      event.startTime && this.formatDateKey(event.startTime) === today
+    );
+    if (todayEvents.length === 0) return true;
+    const lastEvent = todayEvents.reduce((latest, event) => 
+      event.endTime > latest.endTime ? event : latest
+    );
+    return now > lastEvent.endTime;
+  }
+
+  // ✓ Возвращает дату следующих занятий после сегодняшнего дня
+  getNextClassesDate() {
+    const today = this.formatDateKey(new Date());
+    
+    // Берём все уникальные даты из событий
+    const allDates = [...new Set(
+      groupData.shedule
+        .filter(event => event.startTime)
+        .map(event => this.formatDateKey(event.startTime))
+    )].sort();
+    
+    // Ищем первую дату, которая больше сегодняшней
+    const nextDate = allDates.find(date => date > today);
+    
+    return nextDate ? new Date(nextDate + 'T00:00:00') : null;
+  }
+
+  // Текущая пара (Нужно полностью переделать дизайн)
+  getCurrentClassElement() {
+    const now = new Date();
+    
+    // Ищем событие, которое идёт прямо сейчас
+    const currentEvent = groupData.shedule.find(event => 
+      event.startTime && event.endTime &&
+      now >= event.startTime && now <= event.endTime
+    );
+    
+    if (!currentEvent) return null;
+    
+    // Создаём контейнер
+    const container = document.createElement('div');
+    container.className = 'current-class';
+    container.style.cssText = `
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      color: white;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    `;
+    
+    // Извлекаем данные
+    const subject = currentEvent.summary.match(/(?:лек|пр|лаб)\.\s+(.+?)(?:\(|$)/) 
+      ? currentEvent.summary.match(/(?:лек|пр|лаб)\.\s+(.+?)(?:\(|$)/)[1].trim()
+      : currentEvent.summary;
+    
+    const typeMatch = currentEvent.summary.match(/\(([^)]+)\)/);
+    const type = typeMatch ? typeMatch[1] : '';
+    
+    const startTime = this.formatTime(currentEvent.startTime);
+    const endTime = this.formatTime(currentEvent.endTime);
+    
+    const room = currentEvent.location;
+    const teacher = this.extractTeacher(currentEvent.description);
+    
+    // Вычисляем прогресс
+    const totalDuration = currentEvent.endTime - currentEvent.startTime;
+    const elapsed = now - currentEvent.startTime;
+    const remaining = currentEvent.endTime - now;
+    
+    const progressPercent = (elapsed / totalDuration) * 100;
+    const remainingMinutes = Math.ceil(remaining / (1000 * 60));
+    
+    // HTML структура
+    container.innerHTML = `
+      <div style="margin-bottom: 15px;">
+        <div style="font-size: 12px; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">
+          📚 Текущая пара
+        </div>
+        <p style="margin: 0; font-size: 24px; font-weight: 600;">${subject}</p>
+        ${type ? `<div style="font-size: 14px; opacity: 0.85; margin-top: 5px;">${type}</div>` : ''}
+      </div>
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; font-size: 14px;">
+        <div>
+          <div style="opacity: 0.75; margin-bottom: 3px;">Начало</div>
+          <div style="font-size: 18px; font-weight: 600;">${startTime}</div>
+        </div>
+        <div>
+          <div style="opacity: 0.75; margin-bottom: 3px;">Окончание</div>
+          <div style="font-size: 18px; font-weight: 600;">${endTime}</div>
+        </div>
+      </div>
+      
+      ${room || teacher ? `
+        <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 13px;">
+          ${teacher ? `<div style="margin-bottom: 5px;">👤 ${teacher}</div>` : ''}
+          ${room ? `<div>📍 ${room}</div>` : ''}
+        </div>
+      ` : ''}
+      
+      <div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px;">
+          <span>Прогресс</span>
+          <span class="remaining-time" style="font-weight: 600;">${remainingMinutes} мин осталось</span>
+        </div>
+        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.3); border-radius: 4px; overflow: hidden;">
+          <div class="progress-bar" style="
+            height: 100%;
+            width: ${progressPercent}%;
+            background: white;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+          "></div>
+        </div>
+      </div>
+    `;
+    
+    // Функция для обновления прогресса
+    const updateProgress = () => {
+      const nowUpdate = new Date();
+      
+      // Проверяем, не закончилась ли пара
+      if (nowUpdate > currentEvent.endTime) {
+        container.remove();
+        return;
+      }
+      
+      const elapsedUpdate = nowUpdate - currentEvent.startTime;
+      const remainingUpdate = currentEvent.endTime - nowUpdate;
+      const progressPercentUpdate = (elapsedUpdate / totalDuration) * 100;
+      const remainingMinutesUpdate = Math.ceil(remainingUpdate / (1000 * 60));
+      
+      const progressBar = container.querySelector('.progress-bar');
+      const remainingTimeSpan = container.querySelector('.remaining-time');
+      
+      if (progressBar) {
+        progressBar.style.width = progressPercentUpdate + '%';
+      }
+      if (remainingTimeSpan) {
+        remainingTimeSpan.textContent = remainingMinutesUpdate + ' мин осталось';
+      }
+    };
+    
+    // Обновляем каждую секунду
+    const intervalId = setInterval(updateProgress, 1000);
+    
+    // Останавливаем обновление при удалении элемента
+    container.dataset.intervalId = intervalId;
+    const observer = new MutationObserver(() => {
+      if (!document.contains(container)) {
+        clearInterval(intervalId);
+        observer.disconnect();
+      }
+    });
+    observer.observe(document, { childList: true, subtree: true });
+    return container;
+  }
+
+  // Рендер дней в расписании
+  render(type) {
+    this.generated = '';
+    if (type === 'day') { // Сгенерировать внутридневное расписание
+
+      // Если сейчас идет пара, то генерируем блок с этой парой
+      // Может быть проблема с подгруппами - это надо будет решить потом
+      const currentClassElement = this.getCurrentClassElement();
+      if (currentClassElement) { this.generated += currentClassElement.outerHTML;
+      } else { console.log('Прямо сейчас нет пар'); }
+
+      // ✓ Проверяем, закончились ли на сегодня пары
+      if (this.isClassesEndedToday()) {
+        this.generated += `<p style="text-align: center; ">Расписание на следующий учебный день</p>`;
+        this.generated += this.renderByDate(this.getNextClassesDate());
+      } else {
+        this.generated += `<p style="text-align: center;">Расписание на сегодня</p>`;
+        this.generated += this.renderByDate(new Date());
+      }
+      this.generated += `<div style="height: 100px; width: 100%;"></div>`
+      return this.generated;
+
+    } else if (type === 'week') { // ✓ Сгенерировать недельное расписание
+      // ✓ Получить текущую неделю
+      function getWeekNumber(date) {
+        const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+        const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+        return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+      }
+
+      // ✓ Проверка на то, что сегодняшняя дата находится на той же неделе что и дата расписания
+      function isSameWeek(date) {
+        const today = new Date(); 
+        return date.getFullYear() === today.getFullYear() && getWeekNumber(date) === getWeekNumber(today);
+      }
+      
+      // ✓ Генерируем недельное расписание
+      const grouped = this.groupByDate(groupData.shedule);
+      Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
+        const dayDate = new Date(dateKey + 'T00:00:00');
+        if (isSameWeek(dayDate)) {
+
+          // ✓ Получаем данные заголовка дня
+          const dayName = this.getDayName(dayDate);
+          const formattedDate = this.formatDate(dayDate);
+          const dayColor = this.getDayColor(dayDate);
+      
+          // ✓ Генерируем список занятий
+          let events = '';
+          dayEvents.forEach((event, index) => {
+            events +=  this.createEventElement(event);
+          });
+          
+          // ✓ Добавляем новый день к общему списку дней
+          this.generated += `
+          <div class="schedule-day">
+            <div class="day-header" style="background-color: ${dayColor};">
+              <span class="day-name">${dayName}</span>
+              <span class="day-date">${formattedDate}</span>
+            </div>
+            <div class="day-events">${events}</div>
+          </div>
+          `;
+        }
+      });
+      this.generated += `<div style="height: 100px; width: 100%; "></div>`
+      return this.generated;
+
+    } else { // Если страница не найдена (Ошибка 404)
+      return `<p>Как ты умудрился(-ась) это сделать? Не лезь в консоль :_</p>`
+    }
   }
 }
 
@@ -510,10 +685,7 @@ async function switchSchedule(type) {
   if (type === 'day' && !dayButton.classList.contains('selected')) {
     weekButton.classList.remove('selected');
     dayButton.classList.add('selected');
-
     const renderer = new ScheduleRenderer();
-    const events = await loadSchedule();
-    renderer.setEvents(events);
     sheduleHTML = renderer.render('day');
     changeContent(sheduleHTML);
 
@@ -521,10 +693,7 @@ async function switchSchedule(type) {
   } else if (type === 'week' && !weekButton.classList.contains('selected')) {
     dayButton.classList.remove('selected');
     weekButton.classList.add('selected');
-
     const renderer = new ScheduleRenderer();
-    const events = await loadSchedule();
-    renderer.setEvents(events);
     sheduleHTML = renderer.render('week');
     changeContent(sheduleHTML);
   }
@@ -534,12 +703,42 @@ async function switchSchedule(type) {
 
 // Генерация контента на страницах приложения
 let sheduleHTML;
-async function generatePageContent(id) {
-  if (id === 'nav-shedule') { // ✓ Окно расписания
+async function generatePageContent(id, data) {
+  if (id === 'nav-kafeder') { // Окно кафедры
+    
+    return `
+    <div class="relative-container" id="subcontainer">
+      <div class="flex-container info-container">
+        <div class="banner-half" style="z-index: 9999 !important;">
+          <h3>Кафедра</h3>
+          <p>Списки дисциплин и информация про преподавателей</p>
+          <p style="font-size: 12px; color: #777;">Вся информация взята из открытых источников</p>
+          <div class="flex-container radio-container" style="justify-content: start !important; z-index: 9999 !important;">
+            <button id="kafeder-teachers" class="radio-button selected" onclick="">Преподаватели</button>
+            <button id="kafeder-lessons" class="radio-button" onclick="">Дисциплины</button>
+          </div>
+        </div>
+        <img class="banner-half" style="z-index: 1 !important;" src="images/supbanners/kafeder.png"/>
+      </div>
+      <div id="shedule-container"></div>
+    </div>`;
+  } else if (id === 'nav-homework') { // Окно домашних заданий, работы и материалов
+
+    return `
+    <div class="relative-container" id="subcontainer">
+      <div class="flex-container info-container">
+        <div class="banner-half">
+          <h3>Материалы</h3>
+          <p></p>
+        </div>
+        <img class="banner-half" src="images/supbanners/note.png"/>
+      </div>
+      <div id="shedule-container"></div>
+    </div>
+    `;
+  } else if (id === 'nav-shedule') { // ✓ Окно расписания
     const renderer = new ScheduleRenderer();
-    const events = await loadSchedule();
-    renderer.setEvents(events);
-    sheduleHTML = renderer.render('week'); // Временно для удобства
+    sheduleHTML = renderer.render('day'); // Временно для удобства
 
     // ✓ Получить случайное описание 
     function getRandomDescription() {
@@ -579,22 +778,131 @@ async function generatePageContent(id) {
           <h3>Расписание</h3>
           <p>${getRandomDescription()}</p>
           <div class="flex-container radio-container" style="justify-content: start !important;">
-            <button id="shedule-day" class="radio-button" onclick="switchSchedule('day')">День</button>
-            <button id="shedule-week" class="radio-button selected" onclick="switchSchedule('week')">Неделя</button>
+            <button id="shedule-day" class="radio-button selected" onclick="switchSchedule('day')">День</button>
+            <button id="shedule-week" class="radio-button" onclick="switchSchedule('week')">Неделя</button>
           </div>
         </div>
         <img class="banner-half" src="images/supbanners/note.png"/>
       </div>
       <div id="shedule-container">${sheduleHTML}</div>
     </div>`;
-  } else {
+  
+  } else if (id === 'nav-messager') { // Окно чатов
+  
     return `
-    <!-- <img src="images/supbanners/404.jpg" class="banner-half" style="width: 100% !important;"/> -->
+    <div class="relative-container" id="subcontainer">
+      <div class="flex-container info-container">
+        <div class="banner-half">
+          <h3>Связь</h3>
+          <p>Все ссылки на чаты и каналы КГУ на разных площадках - в одном месте</p>
+        </div>
+        <img class="banner-half" src="images/supbanners/messager.png"/>
+      </div>
+      <div id="messager-container">
+        <button class="messager-button vk-button" onclick="openLink('https://vk.me/join/8DfcHJRFXddLyLELoai/JNfBYD0bD2WME3s=')">
+          <div class="messager-button-inset"><div class="relative-container flex-container" style="justify-content: start !important;">
+            <img class="messager-button-avatar" src="images/ui/vk.png"/>
+            <div>
+              <p class="messager-button-header"><b>(ВКонтакте) ИВИТШ КГУ 2026</b></p>
+              <p>Официальный чат первого курса института</p>
+            </div>
+          </div></div>
+        </button>
+
+        <!-- Более менее готовый рабочий дизайн под шаблон -->
+        <button class="messager-button tg-button" onclick="openLink('tg://join?invite=3ucdy90chfg5MDky')">
+          <div class="messager-button-inset"><div class="relative-container flex-container" style="justify-content: start !important;">
+            <img class="messager-button-avatar" src="images/ui/tg.png"/>
+            <div>
+              <p class="messager-button-header"><b>(Telegram) 26-ИСбо-4 без куратора</b></p>
+              <p>Чат для неофициального общения</p>
+            </div>
+          </div></div>
+        </button>
+
+        <button class="messager-button vk-button" onclick="openLink('https://vk.me/join/LofPzydYEehzayfIU3v6YvVeS5/2va3Wvow=')">
+          <div class="messager-button-inset"><div class="relative-container flex-container" style="justify-content: start !important;">
+            <img class="messager-button-avatar" src="images/ui/vk.png"/>
+            <div>
+              <p class="messager-button-header"><b>(ВКонтакте) 26-ИСбо-4 с куратором</b></p>
+              <p>Для объявлений и решения вопросов</p>
+            </div>
+          </div></div>
+        </button>
+
+        <button class="messager-button max-button" onclick="openLink('https://www.youtube.com/watch?v=PkT0PJwy8mI')">
+          <div class="messager-button-inset"><div class="relative-container flex-container" style="justify-content: start !important;">
+            <img class="messager-button-avatar" src="images/ui/max.png"/>
+            <div>
+              <p class="messager-button-header"><b>(Макс) Официальный чат мусор дроп</b></p>
+              <p>Твой шанс на большой дроп</p>
+            </div>
+          </div></div>
+        </button>
+      </div>
+    </div>
+    `;
+  } else if (id === 'nav-services') { // Окно сервисов
+  
+    return `
+    <div class="relative-container" id="subcontainer">
+      <div class="flex-container info-container">
+        <div class="banner-half">
+          <h3>Сервисы</h3>
+          <p></p>
+        </div>
+        <img class="banner-half" src="images/supbanners/note.png"/>
+      </div>
+      <div id="shedule-container"></div>
+    </div>
+    `;
+  } else if (id === 'lesson') { // Окно информации о занятии
+
+    return `
+    <div class="relative-container" id="subcontainer">
+      <div class="flex-container info-container">
+        <div class="banner-half">
+          <h3>Расписание</h3>
+          <p></p>
+        </div>
+        <img class="banner-half" src="images/supbanners/note.png"/>
+      </div>
+      <div id="shedule-container"></div>
+    </div>
+    `;
+  } else if (id === 'notifications') { // Окно информации о занятии
+
+    return `
+    <div class="relative-container" id="subcontainer">
+      <div class="flex-container info-container">
+        <div class="banner-half">
+          <h3>Объявления</h3>
+          <p>Получайте самые свежие новости от старосты, профорга и культорга</p>
+        </div>
+        <img class="banner-half" src="images/supbanners/notifications.png"/>
+      </div>
+      <div id="shedule-container"></div>
+    </div>
+    `;
+  } else if (id === 'web') { // Официальные сайты КГУ
+
+    return `
+    <div class="relative-container" id="subcontainer">
+      <div class="flex-container info-container">
+        <div class="banner-half">
+          <h3>Университет</h3>
+          <p>Полезные ссылки на официальные сервисы ИВИТШ КГУ</p>
+        </div>
+        <img class="banner-half" src="images/supbanners/kgu.png"/>
+      </div>
+      <div id="shedule-container"></div>
+    </div>
+    `;
+  } else { // Страница не найдена, ошибка 404
+    return `
+    <img src="images/supbanners/404.jpg" class="banner-half" style="width: 100% !important;"/>
     <h1>Пустая страница</h1>
     <p>Тут пока ничего нету прикинь</p>
-    <p>Разраб устал, уже 8 вечера, завтра продолжу</p>
-    <p>Девочка больше не жмыхнутая!!!!!!</p>
-    <img src="images/supbanners/girl.jpg" class="banner-half" style="width: 100% !important; "/>
     `;
   }
 }
@@ -644,18 +952,23 @@ async function generatePage(id, skip) {
   }, 1000);
 }
 
-// ✓ Объявление кнопок нижнего закрепленного интерфейса
+// ✓ Объявление кнопок закрепленного интерфейса
 let navOpened = 'nav-shedule'; // Текущая открытая страница навигационного меню
-const navPosition = { // Расположение кнопок слева направо
-  'nav-kafeder': 1,
-  'nav-homework':2,
-  'nav-shedule': 3,
-  'nav-messager':4,
-  'nav-services':5,
+const navPosition = {          // Расположение кнопок слева направо
+  'web':          0,
+  'nav-kafeder':  1,
+  'nav-homework': 2,
+  'nav-shedule':  3,
+  'nav-messager': 4,
+  'nav-services': 5,
+  'lesson':       6,
+  'notifications':7,
 }
 
-// ✓ Добавление слушателей нажатия на все кнопки нижнего интерфейса
+// ✓ Добавление слушателей нажатия на все кнопки интерфейса
 const navButtons = document.querySelectorAll('.nav-element');
+const buttonNotifications = document.getElementById('header-notifications');
+const buttonWeb = document.getElementById('header-web');
 navButtons.forEach(button => {
   button.addEventListener('click', async() => {
     try { 
@@ -663,11 +976,36 @@ navButtons.forEach(button => {
     } catch { animationInProgress = false; }
   });
 });
+buttonNotifications.addEventListener('click', async() => {
+  try { 
+    if (animationInProgress !== true) { await generatePage('notifications'); }
+  } catch { animationInProgress = false; }
+});
+buttonWeb.addEventListener('click', async() => {
+  try { 
+    if (animationInProgress !== true) { await generatePage('web'); }
+  } catch { animationInProgress = false; }
+});
 
+
+
+// Обработка нажатий на кнопку стороннего перехода
+function openLink(link) {
+  if (link.startsWith('tg://') || link.startsWith('mailto:') || link.startsWith('tel:') || link.startsWith('viber://') || link.startsWith('whatsapp://')) {
+    window.location.href = link;
+  } else {
+    window.open(link, '_blank');
+  }
+}
 
 /* ===================================== Инициализация ==================================== */
 
 // Запуск
 // switchSchedule('day');
 // initSchedule();
-generatePage('nav-shedule', true);
+async function init() {
+  await loadSchedule();
+  await generatePage('nav-shedule', true);
+}
+init();
+
