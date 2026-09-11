@@ -10,11 +10,16 @@
         <meta name="version" content="alpha 2.0">
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
+		<!-- Совместимость с IOS -->
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <link rel="apple-touch-icon" href="images/logo/192x192.png">
+		
 		<!-- Импорты стилей -->
 		<link rel="stylesheet" href="styles/fonts.css"> <!-- Шрифты приложения -->
 		<link rel="stylesheet" href="styles/main.css">  <!-- Общая стилизация -->
 	</head>
-	<body>
+	<body><div class="relative-container"></div>
 		<!-- ✓ Элементы заднего фона -->
 		<div id="background"></div>
 
@@ -52,6 +57,9 @@
 				<img src="images/ui/web.png" />
 			</div>
 		</div>
+
+		<!-- ✓ Контейнер уведомлений -->
+		<div id="notifications"></div>
 
 		<!-- ✓ Основной контейнер наполнителя контента -->
 		<div id="container"></div>

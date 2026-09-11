@@ -1,8 +1,60 @@
 /* Пользовательские данные (данные группы), основной информационный контент приложения */
-const groupData = {
+// Данные по группе
+let groupData = {
   shedule: [],
 }
+const sheduleLink = 'https://eios.kosgos.ru/api/Rasp?idGroup=8953&iCal=true';
 
+// ✓ Функции сохранения и загрузки локально сохраненных данных
+class GroupDataStorage {
+  constructor(dbName, storeName) {
+    this.dbName = dbName;
+    this.storeName = storeName;
+    this.db = null;
+  }
+
+  // ✓ Инициализация базы данных
+  async initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+    });
+  }
+
+  // ✓ Аппаратная функция сохранения данных
+  async save(data) {
+    if (!this.db) await this.initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(this.storeName, 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      const request = store.put(data, 'groupData');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(data);
+    });
+  }
+
+  // ✓ Аппаратная функция загрузки данных
+  async load() {
+    if (!this.db) await this.initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(this.storeName, 'readonly');
+      const store = transaction.objectStore(this.storeName);
+      const request = store.get('groupData');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result || null);
+    });
+  }
+}
 
 /* ====================================== Расписание ====================================== */
 
@@ -90,14 +142,29 @@ class ICSParser {
   }
 }
 
-// Загрузить расписание (требуется офлайн сохранение)
+// ✓ Загрузить расписание (добавить уведомления)
 async function loadSchedule() {
-  const parser = new ICSParser();
   try {
-    const events = await parser.fetch('https://eios.kosgos.ru/api/Rasp?idGroup=8953&iCal=true');
-    groupData.shedule = events;
-  } catch (error) {
-    console.error('Error loading schedule:', error);
+    // ✓ Выгрузка локально сохраненных данных
+    const storage = new GroupDataStorage('26ISBO4', 'groupData');
+    const offlineData = await storage.load();
+    if (offlineData) {
+      groupData = offlineData;
+      console.log('Данные загружены из кэша', groupData);
+    }
+
+    try { // ✓ Попытка обновить данные с сервера
+      const parser = new ICSParser();
+      const events = await parser.fetch(sheduleLink);
+      groupData.shedule = events;
+      console.log('Данные обновлены с сервера');
+      await storage.save(groupData);
+
+    } catch (error) { // Ошибка сервеар или интернет-подключения, но локальные данные выгружены
+      console.warn('Ошибка при загрузке с сервера, используется кэш', error);
+    }
+  } catch (error) { // Ошибка загрузки локально сохраненных данных
+    console.error('Ошибка загрузки офлайн данных', error);
   }
 }
 
@@ -654,20 +721,10 @@ async function switchSchedule(type) {
 
   // ✓ Скрываем контейнер расписания, меняем контент и снова делаем видимым
   function changeContent(content) {
-    sheduleContainer.classList.add('hidden');
-    sheduleContainer.classList.remove('visible');
-    setTimeout(() => {
-      if (!content) content = `<h1>Ошибка 404</h1>`;
-      sheduleContainer.innerHTML = content;
-    }, 500);
-    setTimeout(() => {
-      sheduleContainer.classList.add('visible');
-      sheduleContainer.classList.remove('hidden');
-      animationInProgress = false;
-    }, 500);
+    if (!content) content = `<h1>Ошибка 404</h1>`;
+    sheduleContainer.innerHTML = content;
   }
 
-  animationInProgress = true;
   // ✓ Если выбрано внутридневное расписание
   if (type === 'day' && !dayButton.classList.contains('selected')) {
     weekButton.classList.remove('selected');
@@ -700,14 +757,14 @@ async function generatePageContent(id, data) {
           <h3>Кафедра</h3>
           <p>Списки дисциплин и информация про преподавателей</p>
           <p style="font-size: 12px; color: #777;">Вся информация взята из открытых источников</p>
-          <div class="flex-container radio-container" style="justify-content: start !important; z-index: 9999 !important;">
-            <button id="kafeder-teachers" class="radio-button selected" onclick="">Преподаватели</button>
-            <button id="kafeder-lessons" class="radio-button" onclick="">Дисциплины</button>
-          </div>
         </div>
         <img class="banner-half" style="z-index: 1 !important;" src="images/supbanners/kafeder.png"/>
       </div>
-      <div id="shedule-container"></div>
+      <div class="flex-container radio-container">
+        <button id="kafeder-teachers" class="radio-button selected" onclick="">Преподаватели</button>
+        <button id="kafeder-lessons" class="radio-button" onclick="">Дисциплины</button>
+      </div>
+      <div id="kafeder-container"></div>
     </div>`;
   } else if (id === 'nav-homework') { // Окно домашних заданий, работы и материалов
 
@@ -716,9 +773,9 @@ async function generatePageContent(id, data) {
       <div class="flex-container info-container">
         <div class="banner-half">
           <h3>Материалы</h3>
-          <p></p>
+          <p>Загружайте, делитесь и просматривайте конспекты, записи лекций и домашние задания</p>
         </div>
-        <img class="banner-half" src="images/supbanners/note.png"/>
+        <img class="banner-half" src="images/supbanners/homework.png"/>
       </div>
       <div id="shedule-container"></div>
     </div>
@@ -764,12 +821,12 @@ async function generatePageContent(id, data) {
         <div class="banner-half">
           <h3>Расписание</h3>
           <p>${getRandomDescription()}</p>
-          <div class="flex-container radio-container" style="justify-content: start !important;">
-            <button id="shedule-day" class="radio-button selected" onclick="switchSchedule('day')">День</button>
-            <button id="shedule-week" class="radio-button" onclick="switchSchedule('week')">Неделя</button>
-          </div>
         </div>
         <img class="banner-half" src="images/supbanners/note.png"/>
+      </div>
+      <div class="flex-container radio-container">
+        <button id="shedule-day" class="radio-button selected" onclick="switchSchedule('day')">День</button>
+        <button id="shedule-week" class="radio-button" onclick="switchSchedule('week')">Неделя</button>
       </div>
       <div id="shedule-container">${sheduleHTML}</div>
     </div>`;
@@ -830,17 +887,16 @@ async function generatePageContent(id, data) {
     </div>
     `;
   } else if (id === 'nav-services') { // Окно сервисов
-  
     return `
     <div class="relative-container" id="subcontainer">
       <div class="flex-container info-container">
         <div class="banner-half">
           <h3>Сервисы</h3>
-          <p></p>
+          <p>Дополнительные опции для тех, кому мало расписания и материалов</p>
         </div>
-        <img class="banner-half" src="images/supbanners/note.png"/>
+        <img class="banner-half" src="images/supbanners/services.png"/>
       </div>
-      <div id="shedule-container"></div>
+      <div id="services-container"><p></p></div>
     </div>
     `;
   } else if (id === 'lesson') { // Окно информации о занятии
@@ -936,7 +992,7 @@ async function generatePage(id, skip) {
     containerMain.classList.remove('right');
     containerTranslate.innerHTML = '';
     animationInProgress = false;
-  }, 1000);
+  }, 500);
 }
 
 // ✓ Объявление кнопок закрепленного интерфейса

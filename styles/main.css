@@ -30,7 +30,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; position: relative; backgr
 
 /* Контейнер анимации перелистывания */
 #container.animated, #container-translate.animated { 
-    transition: left 1s ease, opacity 0.75s ease !important; 
+    transition: left 0.5s ease, opacity 0.35s ease !important; 
 }
 #container-translate.left, #container.left {
     left: -50% !important; opacity: 0 !important;
@@ -66,23 +66,21 @@ img.banner-half {
 /* ======== Стилизация основных типов кнопок ======== */
 
 /* Стилизация радиокнопок с выбором*/
-.radio-container { padding: 5px !important; margin-top: -10px; height: 40px; }
+.radio-container { 
+  width: 100%; padding: 0; margin: -10px 0; height: 70px !important; 
+  justify-content: center !important; align-items: center !important;
+}
 .radio-button {
-    padding: 5px 10px; border-radius: 10px; border: 0; 
-    background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.25);
-    transition: padding 0.5s ease, background-color 0.5s ease, box-shadow 0.5s ease;
+    width: 40%; padding: 5px 10px; 
+    border-radius: 10px; border: 0; font-size: 15px;  
+    background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.35); color: #000; 
+    transition: all 0.5s ease;
 }
-.radio-button:hover {
-    padding: 7px 12px; background-color: rgb(247, 247, 247);
-    transition: padding 0.35s ease, background-color 0.35s ease, box-shadow 0.35s ease;
-}
-.radio-button:active {
-    padding: 6px 11px; background-color: rgb(197, 197, 197);
-    transition: padding 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
-}
+.radio-button:hover { background-color: rgb(247, 247, 247); transition: all 0.35s ease; }
+.radio-button:active { background-color: rgb(197, 197, 197); transition: all 0.25s ease; }
 .radio-button.selected {
     color: rgb(255, 255, 255); background-color: rgb(114, 178, 231); text-shadow: 0 0 10px rgba(10, 83, 143, 0.25);
-    box-shadow: 0 0 10px rgba(0, 140, 255, 0.25);
+    box-shadow: 0 0 10px rgba(0, 140, 255, 0.35);
 }
 
 /* ==================================== ✓ Закрепленный интерфейс ==================================== */
@@ -117,18 +115,18 @@ img.banner-half {
     background-position: right; background-size: 200%; filter: brightness(125%);
     box-shadow: 0 0 10px rgba(0,0,0,0.25); backdrop-filter: blur(5px); border-radius: 10px;
     background-color: rgba(0,0,0,0.2);
-    transition: width 1s ease, height 1s ease, background-position 1s ease, font-size 1s ease, filter 1s ease, box-shadow 1s ease;
+    transition: all 0.65s ease;
 }
 .nav-element:hover {
     width: 75px; height: 75px;
     background-position: left;
-    transition: width 0.5s ease, height 0.5s ease, background-position 0.35s ease, font-size 0.35s ease, filter 0.35s ease, box-shadow 0.35s ease;
+    transition: all 0.35s ease;
 }
 .nav-element:active {
     width: 70px; height: 70px;
     background-position: center;
     box-shadow: 0 0 10px rgba(0,0,0,0.25); filter: brightness(110%);
-    transition: width 0.3s ease, height 0.3s ease, background-position 0.25s ease, font-size 0.25s ease, filter 0.25s ease, box-shadow 0.25s ease;
+    transition: all 0.25s ease;
 }
 
 /* ✓ Индивидуальные цвета для элементов нижнего меню*/
