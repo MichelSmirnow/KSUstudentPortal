@@ -8,7 +8,7 @@ const groupData = {
 
 // ✓ Парсер ICS календаря с сайта ЕЙОС КГУ
 class ICSParser {
-  constructor() { this.events = []; }
+  constructor() { groupData.shedule = []; }
   
   // ✓ Получение ICS календаря расписания
   async fetch(url) {
@@ -251,7 +251,6 @@ class ScheduleRenderer {
     dayEvents.forEach((event, index) => {
       events += this.createEventElement(event);
     });
-    console.log(events);
     
     // ✓ Возвращаем список занятий на текущий день
     return `
@@ -296,114 +295,178 @@ class ScheduleRenderer {
     return nextDate ? new Date(nextDate + 'T00:00:00') : null;
   }
 
+
   // Текущая пара (Нужно полностью переделать дизайн)
-  getCurrentClassElement() {
+  // Фантомный квадрат Худякова
+  // Может быть проблема с подгруппами - это надо будет решить потом
+  // Сделать динамическое обновление оставшегося времени (в данный момент глючит и не обновляется)
+  getCurrentAndNextClassElement() {
+    const colors = {
+      'лаб': 'rgba(252, 184, 38, 1)',
+      'лек': 'rgba(37, 204, 37, 1)',
+      'пр.': 'rgba(190, 38, 190, 1)',
+      'next': 'rgba(74, 144, 226, 1)'
+    };
+
+    const nameMatch = {
+      'лаб': 'Семинар',
+      'лек': 'Лекция',
+      'пр.': 'Лаба'
+    };
+
     const now = new Date();
-    
-    // Ищем событие, которое идёт прямо сейчас
-    const currentEvent = groupData.shedule.find(event => 
+    const wrapper = document.createElement('div');
+    wrapper.className = 'classes-wrapper';
+
+    // Ищем текущее событие
+    const currentEvent = groupData.shedule.find(event =>
       event.startTime && event.endTime &&
       now >= event.startTime && now <= event.endTime
     );
-    
-    if (!currentEvent) return null;
-    
-    // Создаём контейнер
+
+    // Если есть текущее событие, добавляем его
+    if (currentEvent) {
+      wrapper.appendChild(this.createCurrentClassElement(currentEvent, colors, nameMatch));
+    }
+
+    // Функция для проверки, что две даты в один день
+    const isSameDay = (date1, date2) => {
+      return date1.getFullYear() === date2.getFullYear() &&
+            date1.getMonth() === date2.getMonth() &&
+            date1.getDate() === date2.getDate();
+    };
+
+    // Ищем следующее событие в тот же день
+    let nextEvent = null;
+
+    if (currentEvent) {
+      // Если есть текущее событие, ищем следующее после него в тот же день
+      nextEvent = groupData.shedule.find(event =>
+        event.startTime && event.endTime &&
+        event.startTime > currentEvent.endTime &&
+        isSameDay(event.startTime, now)
+      );
+    } else {
+      // Если нет текущего события, ищем первое событие в будущем в тот же день
+      nextEvent = groupData.shedule.find(event =>
+        event.startTime && event.endTime &&
+        event.startTime > now &&
+        isSameDay(event.startTime, now)
+      );
+    }
+
+    // Определяем, показываем ли мы следующее событие
+    if (nextEvent) {
+      const timeUntilNext = nextEvent.startTime - now;
+      const hoursUntilNext = timeUntilNext / (1000 * 60 * 60);
+
+      // Если до следующей пары меньше 3 часов, показываем её
+      if (hoursUntilNext <= 3) {
+        wrapper.appendChild(this.createNextClassElement(nextEvent, colors, nameMatch, timeUntilNext));
+      } else {
+        // Если более 3 часов до следующей пары, показываем блок "Нет пар"
+        const noClassesBlock = document.createElement('div');
+        noClassesBlock.className = 'no-classes-block';
+        noClassesBlock.textContent = '⏱️ В ближайшее время нет пар';
+        wrapper.appendChild(noClassesBlock);
+      }
+    } else {
+      // Если нет следующих событий в этот день, показываем блок "Нет пар"
+      if (!currentEvent) {
+        const noClassesBlock = document.createElement('div');
+        noClassesBlock.className = 'no-classes-block';
+        noClassesBlock.textContent = '⏱️ В ближайшее время нет пар';
+        wrapper.appendChild(noClassesBlock);
+      }
+    }
+
+    return wrapper;
+  }
+
+  createCurrentClassElement(event, colors, nameMatch) {
     const container = document.createElement('div');
     container.className = 'current-class';
-    container.style.cssText = `
-      padding: 20px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 12px;
-      color: white;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    `;
-    
+
+    // Определяем тип пары
+    const typeMatch = event.summary.match(/^(лаб|лек|пр\.)/);
+    const classType = typeMatch ? typeMatch[1] : 'next';
+    const classColor = colors[classType];
+
+    container.style.setProperty('--class-color', classColor);
+
     // Извлекаем данные
-    const subject = currentEvent.summary.match(/(?:лек|пр|лаб)\.\s+(.+?)(?:\(|$)/) 
-      ? currentEvent.summary.match(/(?:лек|пр|лаб)\.\s+(.+?)(?:\(|$)/)[1].trim()
-      : currentEvent.summary;
-    
-    const typeMatch = currentEvent.summary.match(/\(([^)]+)\)/);
-    const type = typeMatch ? typeMatch[1] : '';
-    
-    const startTime = this.formatTime(currentEvent.startTime);
-    const endTime = this.formatTime(currentEvent.endTime);
-    
-    const room = currentEvent.location;
-    const teacher = this.extractTeacher(currentEvent.description);
-    
+    const subject = event.summary.slice(4).trim();
+    const displayType = nameMatch[classType] || classType;
+
+    const startTime = this.formatTime(event.startTime);
+    const endTime = this.formatTime(event.endTime);
+
+    const room = event.location;
+    const teacher = this.extractTeacher(event.description);
+
     // Вычисляем прогресс
-    const totalDuration = currentEvent.endTime - currentEvent.startTime;
-    const elapsed = now - currentEvent.startTime;
-    const remaining = currentEvent.endTime - now;
-    
+    const now = new Date();
+    const totalDuration = event.endTime - event.startTime;
+    const elapsed = now - event.startTime;
+    const remaining = event.endTime - now;
+
     const progressPercent = (elapsed / totalDuration) * 100;
     const remainingMinutes = Math.ceil(remaining / (1000 * 60));
-    
+
     // HTML структура
     container.innerHTML = `
-      <div style="margin-bottom: 15px;">
-        <div style="font-size: 12px; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">
-          📚 Текущая пара
-        </div>
-        <p style="margin: 0; font-size: 24px; font-weight: 600;">${subject}</p>
-        ${type ? `<div style="font-size: 14px; opacity: 0.85; margin-top: 5px;">${type}</div>` : ''}
+      <div class="class-subject">
+        <div class="class-type-label">📚 ${displayType}</div>
+        <p><b>${subject}</b></p>
       </div>
-      
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; font-size: 14px;">
-        <div>
-          <div style="opacity: 0.75; margin-bottom: 3px;">Начало</div>
-          <div style="font-size: 18px; font-weight: 600;">${startTime}</div>
+
+      <div class="class-time-grid">
+        <div class="class-time-item">
+          <div class="class-time-label">Начало</div>
+          <div class="class-time-value">${startTime}</div>
         </div>
-        <div>
-          <div style="opacity: 0.75; margin-bottom: 3px;">Окончание</div>
-          <div style="font-size: 18px; font-weight: 600;">${endTime}</div>
+        <div class="class-time-item">
+          <div class="class-time-label">Окончание</div>
+          <div class="class-time-value">${endTime}</div>
         </div>
       </div>
-      
+
       ${room || teacher ? `
-        <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 13px;">
-          ${teacher ? `<div style="margin-bottom: 5px;">👤 ${teacher}</div>` : ''}
-          ${room ? `<div>📍 ${room}</div>` : ''}
+        <div class="class-info">
+          ${teacher ? `<div class="class-info-item">👤 ${teacher}</div>` : ''}
+          ${room ? `<div class="class-info-item">📍 ${room}</div>` : ''}
         </div>
       ` : ''}
-      
-      <div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px;">
-          <span>Прогресс</span>
-          <span class="remaining-time" style="font-weight: 600;">${remainingMinutes} мин осталось</span>
+
+      <div class="class-progress">
+        <div class="class-progress-header">
+          <span class="class-progress-label">Прогресс</span>
+          <span class="class-remaining-time">${remainingMinutes} мин осталось</span>
         </div>
-        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.3); border-radius: 4px; overflow: hidden;">
-          <div class="progress-bar" style="
-            height: 100%;
-            width: ${progressPercent}%;
-            background: white;
-            border-radius: 4px;
-            transition: width 0.3s ease;
-          "></div>
+        <div class="class-progress-bar-container">
+          <div class="class-progress-bar" style="width: ${progressPercent}%"></div>
         </div>
       </div>
     `;
-    
+
     // Функция для обновления прогресса
     const updateProgress = () => {
       const nowUpdate = new Date();
-      
+
       // Проверяем, не закончилась ли пара
-      if (nowUpdate > currentEvent.endTime) {
+      if (nowUpdate > event.endTime) {
         container.remove();
         return;
       }
-      
-      const elapsedUpdate = nowUpdate - currentEvent.startTime;
-      const remainingUpdate = currentEvent.endTime - nowUpdate;
+
+      const elapsedUpdate = nowUpdate - event.startTime;
+      const remainingUpdate = event.endTime - nowUpdate;
       const progressPercentUpdate = (elapsedUpdate / totalDuration) * 100;
       const remainingMinutesUpdate = Math.ceil(remainingUpdate / (1000 * 60));
-      
-      const progressBar = container.querySelector('.progress-bar');
-      const remainingTimeSpan = container.querySelector('.remaining-time');
-      
+
+      const progressBar = container.querySelector('.class-progress-bar');
+      const remainingTimeSpan = container.querySelector('.class-remaining-time');
+
       if (progressBar) {
         progressBar.style.width = progressPercentUpdate + '%';
       }
@@ -411,12 +474,12 @@ class ScheduleRenderer {
         remainingTimeSpan.textContent = remainingMinutesUpdate + ' мин осталось';
       }
     };
-    
+
     // Обновляем каждую секунду
     const intervalId = setInterval(updateProgress, 1000);
-    
-    // Останавливаем обновление при удалении элемента
     container.dataset.intervalId = intervalId;
+
+    // Останавливаем обновление при удалении элемента
     const observer = new MutationObserver(() => {
       if (!document.contains(container)) {
         clearInterval(intervalId);
@@ -424,19 +487,99 @@ class ScheduleRenderer {
       }
     });
     observer.observe(document, { childList: true, subtree: true });
+
     return container;
   }
 
-  // Рендер дней в расписании
+  createNextClassElement(event, colors, nameMatch, timeUntilNext) {
+    const container = document.createElement('div');
+    container.className = 'next-class';
+
+    // Определяем тип пары
+    const typeMatch = event.summary.match(/^(лаб|лек|пр\.)/);
+    const classType = typeMatch ? typeMatch[1] : 'next';
+    const displayType = nameMatch[classType] || classType;
+
+    // Извлекаем данные
+    const subject = event.summary.slice(4).trim();
+    const startTime = this.formatTime(event.startTime);
+    const room = event.location;
+    const teacher = this.extractTeacher(event.description);
+
+    // Вычисляем время до пары
+    const updateCountdown = () => {
+      const nowUpdate = new Date();
+      // const nowUpdate = new Date();
+      const timeRemaining = event.startTime - nowUpdate;
+
+      if (timeRemaining <= 0) {
+        container.remove();
+        return;
+      }
+
+      const hours = Math.floor(timeRemaining / (1000 * 60 * 60));
+      const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
+
+      const countdownSpan = container.querySelector('.class-countdown-value');
+      if (countdownSpan) {
+        countdownSpan.textContent = `${hours}ч ${minutes}м ${seconds}с`;
+      }
+    };
+
+    // HTML структура
+    container.innerHTML = `
+      <div class="class-subject">
+        <div class="class-type-label">⏳ Следующая пара</div>
+        <p><b>${subject}</b></p>
+        <div class="class-subject-type">${displayType}</div>
+      </div>
+
+      <div class="class-time-grid">
+        <div class="class-time-item">
+          <div class="class-time-label">Начало</div>
+          <div class="class-time-value">${startTime}</div>
+        </div>
+      </div>
+
+      ${room || teacher ? `
+        <div class="class-info">
+          ${teacher ? `<div class="class-info-item">👤 ${teacher}</div>` : ''}
+          ${room ? `<div class="class-info-item">📍 ${room}</div>` : ''}
+        </div>
+      ` : ''}
+
+      <div class="class-countdown">
+        <span>Осталось:</span>
+        <span class="class-countdown-value">...</span>
+      </div>
+    `;
+
+    // Обновляем каждую секунду
+    updateCountdown();
+    const intervalId = setInterval(updateCountdown, 1000);
+    container.dataset.intervalId = intervalId;
+
+    // Останавливаем обновление при удалении элемента
+    const observer = new MutationObserver(() => {
+      if (!document.contains(container)) {
+        clearInterval(intervalId);
+        observer.disconnect();
+      }
+    });
+    observer.observe(document, { childList: true, subtree: true });
+
+    return container;
+  }
+
+
+  // ✓ Рендер расписания
   render(type) {
     this.generated = '';
-    if (type === 'day') { // Сгенерировать внутридневное расписание
-
-      // Если сейчас идет пара, то генерируем блок с этой парой
-      // Может быть проблема с подгруппами - это надо будет решить потом
-      const currentClassElement = this.getCurrentClassElement();
-      if (currentClassElement) { this.generated += currentClassElement.outerHTML;
-      } else { console.log('Прямо сейчас нет пар'); }
+    if (type === 'day') { // ✓ Сгенерировать внутридневное расписание
+      // ✓ Если сейчас идет пара или до пары 3 часа, то генерируем блок с этой парой
+      const currentClassElement = this.getCurrentAndNextClassElement();
+      this.generated += currentClassElement.outerHTML;
 
       // ✓ Проверяем, закончились ли на сегодня пары
       if (this.isClassesEndedToday()) {
@@ -495,167 +638,11 @@ class ScheduleRenderer {
       this.generated += `<div style="height: 100px; width: 100%; "></div>`
       return this.generated;
 
-    } else { // Если страница не найдена (Ошибка 404)
+    } else { // ✓ Если страница не найдена (Ошибка 404)
       return `<p>Как ты умудрился(-ась) это сделать? Не лезь в консоль :_</p>`
     }
   }
 }
-
-
-
-
-// IndexedDB manager
-class ScheduleStorage {
-  constructor(dbName = 'db', storeName = 'schedule') {
-    this.dbName = dbName;
-    this.storeName = storeName;
-    this.db = null;
-  }
-
-  // ✓ Аппаратная инициализация базы данных
-  async init() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, 1);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve();
-      };
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(this.storeName)) {
-          db.createObjectStore(this.storeName);
-        }
-      };
-    });
-  }
-
-  // ✓ Аппаратное сохранение в базу данных
-  async save(events) {
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.storeName], 'readwrite');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.put(events, 'events');
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
-  }
-
-  // ✓ Аппаратная загрузка из базы данных
-  async load() {
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.storeName], 'readonly');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.get('events');
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-  }
-}
-
-
-
-
-
-const scheduleStorage = new ScheduleStorage('isbo4', 'schedule');
-
-
-/*
-// Check internet connection
-function isOnline() {
-  return navigator.onLine;
-}
-
-// Fetch schedule from server
-async function fetchScheduleFromServer(parser) {
-  try {
-    const events = await parser.fetch('https://eios.kosgos.ru/api/Rasp?idGroup=8953&iCal=true');
-    await scheduleStorage.save(events);
-    return events;
-  } catch (error) {
-    console.error('Error fetching schedule from server:', error);
-    throw error;
-  }
-}
-
-// Load schedule (from server or cache)
-async function loadSchedule(parser) {
-  try {
-    if (isOnline()) {
-      console.log('Online - fetching from server');
-      return await fetchScheduleFromServer(parser);
-    } else {
-      console.log('Offline - loading from cache');
-      const cachedEvents = await scheduleStorage.load();
-      if (!cachedEvents) {
-        throw new Error('No cached schedule available');
-      }
-      return cachedEvents;
-    }
-  } catch (error) {
-    console.error('Error loading schedule:', error);
-    // Try to load from cache as fallback
-    try {
-      const cachedEvents = await scheduleStorage.load();
-      if (cachedEvents) {
-        console.log('Loaded from cache as fallback');
-        return cachedEvents;
-      }
-    } catch (cacheError) {
-      console.error('Error loading from cache:', cacheError);
-    }
-    throw error;
-  }
-}
-
-// Update schedule with server check
-async function updateSchedule() {
-  const parser = new ICSParser();
-  try {
-    const events = await loadSchedule(parser);
-    await generateSchedule(events);
-  } catch (error) {
-    console.error('Error updating schedule:', error);
-    document.querySelector('#shedule-container').innerHTML = `
-      <div style="padding: 20px; text-align: center;">
-        Ошибка при загрузке расписания: ${error.message}. Попробуйте отключить VPN (если включен) и перезагрузить приложение
-      </div>
-    `;
-  }
-}
-
-// Initialize schedule on app load
-async function initSchedule() {
-  // Initialize storage
-  try {
-    await scheduleStorage.init();
-  } catch (error) {
-    console.error('Error initializing storage:', error);
-  }
-
-  // Load and display schedule
-  await updateSchedule();
-
-  // Set up auto-update every 10 minutes (600000 ms)
-  setInterval(updateSchedule, 600000);
-
-  // Listen for online/offline events
-  window.addEventListener('online', () => {
-    console.log('Connection restored - updating schedule');
-    updateSchedule();
-  });
-
-  window.addEventListener('offline', () => {
-    console.log('Connection lost - will use cached schedule');
-  });
-}
-
-// Call this to manually update schedule at any time
-async function manualUpdateSchedule() {
-  console.log('Manual schedule update');
-  await updateSchedule();
-}
-*/
 
 // ✓ Изменение режима просмотра расписания
 let animationInProgress = false;
@@ -987,9 +974,7 @@ buttonWeb.addEventListener('click', async() => {
   } catch { animationInProgress = false; }
 });
 
-
-
-// Обработка нажатий на кнопку стороннего перехода
+// ✓ Обработка нажатий на кнопку стороннего перехода
 function openLink(link) {
   if (link.startsWith('tg://') || link.startsWith('mailto:') || link.startsWith('tel:') || link.startsWith('viber://') || link.startsWith('whatsapp://')) {
     window.location.href = link;
@@ -1001,8 +986,6 @@ function openLink(link) {
 /* ===================================== Инициализация ==================================== */
 
 // Запуск
-// switchSchedule('day');
-// initSchedule();
 async function init() {
   await loadSchedule();
   await generatePage('nav-shedule', true);
