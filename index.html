@@ -19,7 +19,7 @@
 		<link rel="stylesheet" href="styles/fonts.css"> <!-- Шрифты приложения -->
 		<link rel="stylesheet" href="styles/main.css">  <!-- Общая стилизация -->
 	</head>
-	<body><div class="relative-container"></div>
+	<body>
 		<!-- ✓ Элементы заднего фона -->
 		<div id="background"></div>
 
@@ -38,8 +38,8 @@
 			<div class="nav-element" id="nav-messager">
 				<img src="images/ui/messager.png" />
 			</div>
-			<div class="nav-element" id="nav-services">
-				<img src="images/ui/apps.png" />
+			<div class="nav-element" id="nav-account">
+				<img src="images/ui/phone.png" />
 			</div>
 		</div>
 
@@ -49,7 +49,7 @@
 			<p><span id="header-name">🔑 Режим теста</span></p>
 		</div>
 		<div id="header-right">
-			<p id="header-group-p"><span id="header-group">26-ИСбо-4</span></p>
+			<p id="header-group-p"><span id="header-group">26-ИСбо-5</span></p>
 			<div class="header-button" id="header-notifications">
 				<img src="images/ui/notification.png" />
 			</div>
@@ -65,15 +65,6 @@
 		<div id="container"></div>
 		<div id="container-translate"></div>
 		
-		<script defer src="scripts/ui.js"></script>
-		<script>
-            if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('/sw.js')
-                    .then((reg) => console.log('Service Worker успешно зарегистрирован!', reg.scope))
-                    .catch((err) => console.error('Ошибка регистрации Service Worker:', err));
-                });
-            }
-        </script>
+		<script src="scripts/ui.js"></script>
 	</body>
 </html>
