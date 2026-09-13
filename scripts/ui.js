@@ -3,7 +3,7 @@
 let groupData = {
   shedule: [],
 }
-const sheduleLink = 'https://eios.kosgos.ru/api/Rasp?idGroup=8878&iCal=true';
+let sheduleLink = 'https://eios.kosgos.ru/api/Rasp?idGroup=8953&iCal=true';
 
 /* Преподавательский состав */
 const teachersData = {
@@ -601,8 +601,30 @@ const groupsID = {
   "26-ИСбо-3":9000,
   "26-ИСбо-4":8953,
   "26-ИСбо-5":8878,
-
 }
+
+const groupChange = document.getElementById('header-group-p');
+let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-4';
+(document.getElementById('header-group')).innerHTML = CurrentGroup;
+groupChange.addEventListener('click', async() => {
+
+  // Выбираем следующий ключ в списке
+  const groupKeys = Object.keys(groupsID);
+  const currentIndex = groupKeys.indexOf(CurrentGroup);
+  const nextIndex = (currentIndex + 1) % groupKeys.length;
+  CurrentGroup = groupKeys[nextIndex];
+  localStorage.setItem('lastSelectedGroup', CurrentGroup);
+
+  // Обновляем страницу и расписание
+  (document.getElementById('header-group')).innerHTML = CurrentGroup;
+  sheduleLink = `https://eios.kosgos.ru/api/Rasp?idGroup=${groupsID[CurrentGroup]}&iCal=true`;
+  loadSchedule(true);
+  if (navOpened === 'nav-shedule') { 
+    const sheduleContainer = document.getElementById('shedule-container');
+    sheduleContainer.innerHTML = '';
+    generatePage('nav-shedule', true); 
+  }
+});
 
 // ✓ Функции сохранения и загрузки локально сохраненных данных
 class GroupDataStorage {
@@ -743,21 +765,22 @@ class ICSParser {
 }
 
 // ✓ Загрузить расписание (добавить уведомления)
-async function loadSchedule() {
+async function loadSchedule(web) {
   try {
-    // ✓ Выгрузка локально сохраненных данных
-    const storage = new GroupDataStorage('26ISBO4', 'groupData');
-    const offlineData = await storage.load();
-    if (offlineData) {
-      groupData = offlineData;
-      console.log('Данные загружены из кэша');
+    if (web !== true) { // ✓ Выгрузка локально сохраненных данных
+      const storage = new GroupDataStorage('26ISBO4', 'groupData');
+      const offlineData = await storage.load();
+      if (offlineData) {
+        groupData = offlineData;
+        console.log('Данные загружены из кэша');
+      }
     }
 
     try { // ✓ Попытка обновить данные с сервера
       const parser = new ICSParser();
       const events = await parser.fetch(sheduleLink);
       groupData.shedule = events;
-      console.log('Данные обновлены с сервера');
+      console.log('Данные обновлены с сервера', events);
       await storage.save(groupData);
 
     } catch (error) { // Ошибка сервеар или интернет-подключения, но локальные данные выгружены
