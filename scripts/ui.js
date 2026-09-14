@@ -1,9 +1,10 @@
+const DEBUG_MODE = false;
+
 /* Пользовательские данные (данные группы), основной информационный контент приложения */
 // Данные по группе
 let groupData = {
   shedule: [],
 }
-let sheduleLink = 'https://eios.kosgos.ru/api/Rasp?idGroup=8953&iCal=true';
 
 /* Преподавательский состав */
 const teachersData = {
@@ -617,27 +618,28 @@ groupChange.addEventListener('click', async() => {
 
   // Обновляем страницу и расписание
   (document.getElementById('header-group')).innerHTML = CurrentGroup;
-  sheduleLink = `https://eios.kosgos.ru/api/Rasp?idGroup=${groupsID[CurrentGroup]}&iCal=true`;
-  loadSchedule(true);
+  groupData.shedule = await fetchShedule(CurrentGroup, 'group');
   if (navOpened === 'nav-shedule') { 
-    const sheduleContainer = document.getElementById('shedule-container');
-    sheduleContainer.innerHTML = '';
-    generatePage('nav-shedule', true); 
+    const dayButton = document.getElementById('shedule-day');
+    changeSheduleTypeContent((dayButton.classList.contains('selected')) ? "day" : "week");
   }
 });
 
 // ✓ Функции сохранения и загрузки локально сохраненных данных
-class GroupDataStorage {
+class indexedStorage {
   constructor(dbName, storeName) {
     this.dbName = dbName;
     this.storeName = storeName;
     this.db = null;
+    this.initPromise = null;
   }
 
   // ✓ Инициализация базы данных
   async initDB() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, 1);
+    if (this.initPromise) return this.initPromise;
+    
+    this.initPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         this.db = request.result;
@@ -647,35 +649,78 @@ class GroupDataStorage {
         const db = event.target.result;
         if (!db.objectStoreNames.contains(this.storeName)) {
           db.createObjectStore(this.storeName);
+          console.log(`Хранилище "${this.storeName}" создано`);
         }
       };
     });
+
+    return this.initPromise;
+  }
+
+  // ✓ Создание ячейки с данными и расширение БД
+  async ensureStore() {
+    if (!this.db) await this.initDB();
+
+    if (!this.db.objectStoreNames.contains(this.storeName)) {
+      const currentVersion = this.db.version;
+      this.db.close();
+      this.db = null;
+      this.initPromise = null;
+
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(this.dbName, currentVersion + 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          this.db = request.result;
+          resolve();
+        };
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains(this.storeName)) {
+            db.createObjectStore(this.storeName);
+            console.log(`Хранилище "${this.storeName}" создано`);
+          }
+        };
+      });
+    }
   }
 
   // ✓ Аппаратная функция сохранения данных
   async save(data) {
-    if (!this.db) await this.initDB();
+    await this.ensureStore();
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction(this.storeName, 'readwrite');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.put(data, 'groupData');
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(data);
+      try {
+        const transaction = this.db.transaction(this.storeName, 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(data, 'groupData');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(data);
+        transaction.onerror = () => reject(transaction.error);
+      } catch(err) {
+        console.log('Ошибка ', err);
+        reject(err);
+      }
     });
   }
 
   // ✓ Аппаратная функция загрузки данных
   async load() {
-    if (!this.db) await this.initDB();
+    await this.ensureStore();
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction(this.storeName, 'readonly');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.get('groupData');
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result || null);
+      try {
+        const transaction = this.db.transaction(this.storeName, 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get('groupData');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result || null);
+        transaction.onerror = () => reject(transaction.error);
+      } catch(err) {
+        reject(err);
+      }
     });
   }
 }
+
 
 
 /* ====================================== Расписание ====================================== */
@@ -764,32 +809,115 @@ class ICSParser {
   }
 }
 
-// ✓ Загрузить расписание (добавить уведомления)
-async function loadSchedule(web) {
+// Глобальный кэш хранилищ
+const storageCache = new Map();
+
+function getStorage(dbName, storeName) {
+  const key = `${dbName}:${storeName}`;
+  if (!storageCache.has(key)) {
+    storageCache.set(key, new indexedStorage(dbName, storeName));
+  }
+  return storageCache.get(key);
+}
+
+/* ✓ Загрузить расписание из локальной памяти */
+async function loadLocalShedule(sheduleID, sheduleType) {
+  if(DEBUG_MODE) console.log({sheduleID, sheduleType});
+  if (!sheduleID || !sheduleType) { 
+    throw new Error('Данные для загрузки расписания объявлены неверным образом');
+  }
   try {
-    if (web !== true) { // ✓ Выгрузка локально сохраненных данных
-      const storage = new GroupDataStorage('26ISBO4', 'groupData');
-      const offlineData = await storage.load();
-      if (offlineData) {
-        groupData = offlineData;
-        console.log('Данные загружены из кэша');
-      }
-    }
-
-    try { // ✓ Попытка обновить данные с сервера
-      const parser = new ICSParser();
-      const events = await parser.fetch(sheduleLink);
-      groupData.shedule = events;
-      console.log('Данные обновлены с сервера', events);
-      await storage.save(groupData);
-
-    } catch (error) { // Ошибка сервеар или интернет-подключения, но локальные данные выгружены
-      console.warn('Ошибка при загрузке с сервера, используется файл локального сохранения', error);
-    }
-  } catch (error) { // Ошибка загрузки локально сохраненных данных
-    console.error('Ошибка загрузки офлайн данных', error);
+    const storage = getStorage(sheduleType, sheduleID);
+    const loadedData = await storage.load();
+    return JSON.parse(loadedData); 
+  } catch(error) {
+    throw new Error('Ошибка загрузки данных из локальной памяти: ', error);
   }
 }
+
+/* ✓ Сохранить расписание в локальной памяти */
+async function saveLocalShedule(shedule, sheduleID, sheduleType) {
+  if(DEBUG_MODE) console.log({shedule, sheduleID, sheduleType});
+  if (!shedule || !sheduleID || !sheduleType) { 
+    throw new Error('Данные для сохранения расписания объявлены неверным образом');
+  }
+  try { 
+    const storage = getStorage(sheduleType, sheduleID);
+    const stringShedule = JSON.stringify(shedule);
+    await storage.save(stringShedule); 
+  } catch(error) {
+    throw new Error('Ошибка загрузки данных в локальную память: ', error);
+  }
+}
+
+/* ✓ Выгрузить календарь с расписанием с сайта ЭЙОС КГУ и распарсировать его */
+async function fetchShedule(sheduleID, sheduleType) {
+
+  // ✓ Функция слияния двух массивов расписаний
+  function mergeSchedules(oldShedule, newShedule) {
+    const merged = [...oldShedule]; // ✓ Создаём копию старого расписания
+    newShedule.forEach(newItem => { // ✓ Проходим по каждому элементу нового расписания
+      const existingIndex = merged.findIndex(oldItem => oldItem.uid === newItem.uid);
+      if (existingIndex !== -1) { // ✓ Если найден элемент с таким же uid, обновляем его
+        merged[existingIndex] = newItem;
+      } else { merged.push(newItem); } // ✓ Если элемента нет в старом массиве, добавляем его
+    });
+    return merged;
+  }
+
+  // ✓ Сгенерировать ссылку для получения расписания (добавить учительское расписание)
+  function getSheduleLink(type, id) {
+    if (type === 'group') {
+      const groupIDtoExtract = groupsID[id];
+      if (!groupIDtoExtract) { return undefined; }
+      return `https://eios.kosgos.ru/api/Rasp?idGroup=${groupIDtoExtract}&iCal=true`;
+
+    } else if (type === 'teacher') {
+
+    }
+  }
+
+  let oldShedule;
+  try { // ✓ Попытка загрузить данные из локального хранилища
+    oldShedule = await loadLocalShedule(sheduleID, sheduleType);
+    if (!oldShedule || oldShedule.length <= 0 || !Array.isArray(oldShedule)) oldShedule = undefined;
+    if(DEBUG_MODE) console.log({oldShedule});
+  } catch(error) {
+    console.warn('Ошибка при загрузке расписания из локального хранилища, используется серверное расписание', error);
+  }
+  
+  let newShedule;
+  try { // ✓ Попытка обновить данные с сервера
+    const parser = new ICSParser();
+    const sheduleLink = getSheduleLink(sheduleType, sheduleID);
+    newShedule = await parser.fetch(sheduleLink);
+    if (!newShedule || newShedule.length <= 0 || !Array.isArray(newShedule)) newShedule = undefined; 
+    if(DEBUG_MODE) console.log({newShedule});
+  } catch(error) { // Если пришел пустой массив
+    console.warn('Ошибка при загрузке расписания с сервера, используется файл локального сохранения', error);
+  }
+
+  if(!newShedule && !oldShedule) { console.warn('Без интернета первый раз зашел в приложение, пипец что говорить :/'); return undefined; }
+  let mergedShedule;
+  try { // ✓ Слияние двух расписаний
+    if (!newShedule) { mergedShedule = oldShedule;
+    } else if (!oldShedule) { mergedShedule = newShedule;
+    } else { mergedShedule = mergeSchedules(oldShedule, newShedule); }
+    if(DEBUG_MODE) console.log({mergedShedule});
+  } catch(error) {
+    console.warn('Этот этап невозможно крашнуть але');
+  }
+  
+  // Сохраняем слитое расписание в локальное хранилище
+  try { await saveLocalShedule(mergedShedule, sheduleID, sheduleType);
+  } catch(error) { 
+    console.warn('Тебе прям реально не везет :(', error); 
+    return mergedShedule;
+  }
+  console.log('Расписание успешно сохранено и обновлено');
+  return mergedShedule;
+}
+
 
 // ✓ Отрисовка расписания 
 class ScheduleRenderer {
@@ -882,7 +1010,7 @@ class ScheduleRenderer {
     const nameMatch = {
       'лаб': 'Лаба',
       'лек': 'Лекция',
-      'пр.': 'Семинар'
+      'пр.': 'Практика',
     };
     const subjectMatch = event.summary.slice(0, 3);
     const subjectMatchColor = colors[subjectMatch] ? colors[subjectMatch] : colors['пр.'];
@@ -1046,7 +1174,7 @@ class ScheduleRenderer {
       // ✓ Проверяем, не началась ли пара (для следующей пары)
       if (nowUpdate > event.startTime && next === true) {
         dayEventContainer.classList.add('container-hidden'); 
-        setTimeout(() => { dayEventContainer.remove(); changeContent('day'); }, 510); 
+        setTimeout(() => { dayEventContainer.remove(); changeSheduleTypeContent('day'); }, 510); 
         return;
       }
 
@@ -1264,7 +1392,7 @@ class ScheduleRenderer {
 }
 
 // ✓ Сменить контент расписания
-function changeContent(type) {
+function changeSheduleTypeContent(type) {
   const sheduleContainer = document.getElementById('shedule-container');
   const renderer = new ScheduleRenderer();
   const sheduleFiller = renderer.render(type);
@@ -1273,7 +1401,6 @@ function changeContent(type) {
 }
 
 // ✓ Изменение режима просмотра расписания
-// Фантомный квадрат Худякова?
 let animationInProgress = false;
 function switchSchedule(type) {
   if (animationInProgress === true) return;
@@ -1282,17 +1409,17 @@ function switchSchedule(type) {
   if (type === 'day' && !dayButton.classList.contains('selected')) { // ✓ Если выбрано внутридневное расписание
     weekButton.classList.remove('selected');
     dayButton.classList.add('selected');
-    changeContent('day');
+    changeSheduleTypeContent('day');
   } else if (type === 'week' && !weekButton.classList.contains('selected')) { // ✓ Если выбрано недельное расписание
     dayButton.classList.remove('selected');
     weekButton.classList.add('selected');
-    changeContent('week');
+    changeSheduleTypeContent('week');
   }
 }
 
 /* ======================================= Кафедра ======================================== */
 
-class TeachersRenderer {
+class KafederRenderer {
   constructor(data) {
     this.data = data;
     this.allTeachers = this.extractAllTeachers();
@@ -1487,9 +1614,9 @@ class TeachersRenderer {
 
 // Генерация контента на страницах приложения
 async function generatePageContent(id, data) {
+  const generatePageContentContainer = document.createElement('div');
   if (id === 'nav-kafeder') { // Окно кафедры
-    const generatePageContentContainer = document.createElement('div');
-    const renderer = new TeachersRenderer(teachersData);
+    const renderer = new KafederRenderer(teachersData);
     const innerElement = renderer.render(); 
 
     // ✓ Заполняем контейнер данными и возвращаем
@@ -1525,7 +1652,6 @@ async function generatePageContent(id, data) {
     </div>
     `;
   } else if (id === 'nav-shedule') { // ✓ Окно расписания
-    const generatePageContentContainer = document.createElement('div');
     const renderer = new ScheduleRenderer();
     const innerElement = renderer.render('day');
     const sheduleContainer = document.createElement('div');
@@ -1674,18 +1800,28 @@ async function generatePageContent(id, data) {
     `;
   } else if (id === 'web') { // Официальные сайты КГУ
 
-    return `
-    <div class="relative-container" id="subcontainer">
-      <div class="flex-container info-container">
-        <div class="banner-half">
-          <h3>Университет</h3>
-          <p>Полезные ссылки на официальные сервисы ИВИТШ КГУ</p>
-        </div>
-        <img class="banner-half" src="images/supbanners/kgu.png"/>
+    generatePageContentContainer.innerHTML = `
+    <div class="relative-contaner" style="display: flex; flex-direction: column; gap: 10px; ">
+    <div class="flex-container info-container">
+      <div class="banner-half">
+        <h3>Об авторах</h3>
+        <p></p>
       </div>
-      <div id="shedule-container"></div>
+      <img class="banner-half" src="images/supbanners/note.png"/>
+    </div>
+    <div class="info-container">
+      <div class="flex-container">
+        <p class="banner-half" style="font-size: 20px"><b>Я люблю сырки</b></p>
+        <img style="width: 70% !important;" src="images/supbanners/sirok.png"/>  
+      </div>
+      <p class="">Чтобы поддержать разработчика, можете ему лично купить <i>глазированный сырок</i> (а лучше два)</p>
+    </div>
+    <div class="flex-container">
+      <p></p>
+      <button>Закинуть денег на растишку</button>
     </div>
     `;
+    return generatePageContentContainer;
   } else { // Страница не найдена, ошибка 404
     return `
     <img src="images/supbanners/404.jpg" class="banner-half" style="width: 100% !important;"/>
@@ -1748,6 +1884,15 @@ async function generatePage(id, skip) {
   }, 500);
 }
 
+
+async function generateSubpageContent() {
+  
+}
+
+function generateSubpage() {
+
+} 
+
 // ✓ Объявление кнопок закрепленного интерфейса
 let navOpened = 'nav-shedule'; // Текущая открытая страница навигационного меню
 const navPosition = {          // Расположение кнопок слева направо
@@ -1796,7 +1941,7 @@ function openLink(link) {
 
 // Запуск
 async function init() {
-  await loadSchedule();
+  groupData.shedule = await fetchShedule(CurrentGroup, 'group');
   await generatePage('nav-shedule', true);
 }
 init();
