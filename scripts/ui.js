@@ -605,7 +605,7 @@ const groupsID = {
 }
 
 const groupChange = document.getElementById('header-group-p');
-let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-4';
+let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-5';
 (document.getElementById('header-group')).innerHTML = CurrentGroup;
 groupChange.addEventListener('click', async() => {
 
@@ -719,8 +719,53 @@ class indexedStorage {
       }
     });
   }
-}
 
+  // ✓ Очистка данных только в индексированной ячейке
+  async clear() {
+    await this.ensureStore();
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = this.db.transaction(this.storeName, 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.clear();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          console.log(`Хранилище "${this.storeName}" полностью очищено`);
+          resolve();
+        };
+        transaction.onerror = () => reject(transaction.error);
+      } catch(err) {
+        console.log('Ошибка при очистке: ', err);
+        reject(err);
+      }
+    });
+  }
+
+  // ✓ Удаление базы данных
+  async delete() {
+    return new Promise((resolve, reject) => {
+      try {
+        if (this.db) { // Закрываем текущее соединение
+          this.db.close();
+          this.db = null;
+          this.initPromise = null;
+        }
+        const request = indexedDB.deleteDatabase(this.dbName);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          console.log(`База данных "${this.dbName}" полностью удалена`);
+          resolve();
+        };
+        request.onblocked = () => {
+          console.warn(`Удаление базы "${this.dbName}" заблокировано. Закройте все вкладки с этой БД`);
+        };
+      } catch(err) {
+        console.log('Ошибка при удалении базы данных: ', err);
+        reject(err);
+      }
+    });
+  }
+}
 
 
 /* ====================================== Расписание ====================================== */
@@ -809,7 +854,7 @@ class ICSParser {
   }
 }
 
-// Глобальный кэш хранилищ
+// ✓ Глобальный кэш хранилищ
 const storageCache = new Map();
 function getStorage(dbName, storeName) {
   const key = `${dbName}:${storeName}`;
@@ -918,7 +963,6 @@ async function fetchShedule(sheduleID, sheduleType) {
   return mergedShedule;
 }
 
-
 // ✓ Отрисовка расписания 
 class ScheduleRenderer {
   
@@ -963,7 +1007,7 @@ class ScheduleRenderer {
   }
 
   // ✓ Извлечь данные пары в удобном для рендера формате
-  extractElementData(event) {
+  static extractElementData(event) {
     if (!event) return undefined;
 
     // ✓ Отформатировать время для стандартного отображения
@@ -977,17 +1021,6 @@ class ScheduleRenderer {
     function extractTeacher(description) {
       const match = description.match(/([А-Яа-яЁё\s\.]+)/);
       const extractedTeacher = match ? match[0].trim() : '';
-      /*
-      let performedTeacher = extractedTeacher;
-      for (const institute of Object.values(teachersData)) {
-        for (const department of Object.values(institute)) {
-          if (department[extractedTeacher]) {
-            performedTeacher = department[extractedTeacher].fullName;
-            break;
-          }
-        }
-      }
-      console.log(performedTeacher); */
       return extractedTeacher;
     }
 
@@ -1058,14 +1091,13 @@ class ScheduleRenderer {
   }
 
   //  ✓ Рендер элемента недельного расписания 
-  // (обработчик нажатия и переработка названий классов)
   createEventElement(event) {
     if (!event) return undefined;
 
     // ✓ Создаем элемент и экстрактируем данные события
     const eventElementContainer = document.createElement('div');
     eventElementContainer.classList.add('event');
-    const extractedData = this.extractElementData(event);
+    const extractedData = ScheduleRenderer.extractElementData(event);
 
     // ✓ HTML структура
     eventElementContainer.innerHTML = `
@@ -1087,14 +1119,15 @@ class ScheduleRenderer {
       </div>
     </div>`;
 
-    // Обработчик нажатия на занятие
-
+    // ✓ Обработчик нажатия на занятие
+    eventElementContainer.addEventListener('click', () => {
+      generateSubpage('lesson', event);
+    });
 
     return eventElementContainer;
   }
 
   // ✓ Сгенерировать самообновляющийся элемент текущего/следующего занятия 
-  // (обработчик нажатия и HTML переработка)
   createDayEventElement(event, next) {
     if (!event) return undefined;
 
@@ -1102,7 +1135,7 @@ class ScheduleRenderer {
     const dayEventContainer = document.createElement('div');
     dayEventContainer.classList.add('container-hidden');
     dayEventContainer.classList.add('lesson-container');
-    const extractedData = this.extractElementData(event);
+    const extractedData = ScheduleRenderer.extractElementData(event);
     const colors = {
       'лаб':  'linear-gradient(to bottom right, #667eea 0%, #764ba2 100%)',
       'лек':  'linear-gradient(to bottom right, #2dac14 0%, #1c6e0bff 100%)',
@@ -1164,8 +1197,10 @@ class ScheduleRenderer {
        </div>`}
     </div>`;
 
-    // Обработчик нажатия на занятие
-
+    // ✓ Обработчик нажатия на занятие
+    dayEventContainer.addEventListener('click', () => {
+      generateSubpage('lesson', event);
+    });
 
     // ✓ Тик обновления оставшегося времени
     const updateProgress = () => {
@@ -1234,7 +1269,7 @@ class ScheduleRenderer {
     return eventsContainer; // ✓ Возвращаем собранный контейнер
   }
 
-  // ✓ Получить элементы текущей и следующей пар (Нужно полностью переделать дизайн)
+  // ✓ Получить элементы текущей и следующей пар
   // Может быть проблема с подгруппами - это надо будет решить потом
   getDayEventElements() {
     const now = new Date();
@@ -1316,7 +1351,7 @@ class ScheduleRenderer {
 
     // ✓ Стандартное форматирование недели
     function formatWeekDisplay(monday, sunday) {
-      const months = ['Янв', 'Февр', 'Март', 'Апр', 'Май', 'Июнь', 
+      const months = ['Янв', 'Фев', 'Март', 'Апр', 'Май', 'Июнь', 
                       'Июль', 'Авг', 'Сент', 'Окт', 'Ноя', 'Дек'];
       const mondayDay = monday.getDate();
       const sundayDay = sunday.getDate();
@@ -1728,9 +1763,9 @@ class KafederRenderer {
 /* ================================= Интерфейс и страницы ================================= */
 
 // Генерация контента на страницах приложения
-async function generatePageContent(id, data) {
+async function generatePageContent(id) {
   const generatePageContentContainer = document.createElement('div');
-  if (id === 'nav-kafeder') { // Окно кафедры
+  if (id === 'nav-kafeder') {          // Окно кафедры
     const renderer = new KafederRenderer(teachersData);
     const innerElement = renderer.render(); 
 
@@ -1752,7 +1787,7 @@ async function generatePageContent(id, data) {
     </div>`;
 
     return generatePageContentContainer;
-  } else if (id === 'nav-homework') { // Окно домашних заданий, работы и материалов
+  } else if (id === 'nav-homework') {  // Окно домашних заданий, работы и материалов
 
     return `
     <div class="relative-container" id="subcontainer">
@@ -1766,7 +1801,7 @@ async function generatePageContent(id, data) {
       <div id="shedule-container"></div>
     </div>
     `;
-  } else if (id === 'nav-shedule') { // ✓ Окно расписания
+  } else if (id === 'nav-shedule') {   // ✓ Окно расписания
     const renderer = new ScheduleRenderer();
     const innerElement = renderer.render('day');
     const sheduleContainer = document.createElement('div');
@@ -1820,7 +1855,7 @@ async function generatePageContent(id, data) {
     generatePageContentContainer.appendChild(sheduleContainer);
     return generatePageContentContainer;
   
-  } else if (id === 'nav-messager') { // Окно чатов
+  } else if (id === 'nav-messager') {  // Окно чатов
   
     return `
     <div class="relative-container" id="subcontainer">
@@ -1875,7 +1910,7 @@ async function generatePageContent(id, data) {
       </div>
     </div>
     `;
-  } else if (id === 'nav-account') { // Окно аккаунта
+  } else if (id === 'nav-account') {   // Окно аккаунта
     return `
     <div class="relative-container" id="subcontainer">
       <div class="flex-container info-container">
@@ -1885,21 +1920,7 @@ async function generatePageContent(id, data) {
       <div id="services-container"><p></p></div>
     </div>
     `;
-  } else if (id === 'lesson') { // Окно информации о занятии
-
-    return `
-    <div class="relative-container" id="subcontainer">
-      <div class="flex-container info-container">
-        <div class="banner-half">
-          <h3>Расписание</h3>
-          <p></p>
-        </div>
-        <img class="banner-half" src="images/supbanners/note.png"/>
-      </div>
-      <div id="shedule-container"></div>
-    </div>
-    `;
-  } else if (id === 'notifications') { // Окно информации о занятии
+  } else if (id === 'notifications') { // Окно уведомлений администрации
 
     return `
     <div class="relative-container" id="subcontainer">
@@ -1913,7 +1934,7 @@ async function generatePageContent(id, data) {
       <div id="shedule-container"></div>
     </div>
     `;
-  } else if (id === 'web') { // Официальные сайты КГУ
+  } else if (id === 'web') {           // Страница разработчика
 
     generatePageContentContainer.innerHTML = `
     <div class="relative-contaner" style="display: flex; flex-direction: column; gap: 10px; ">
@@ -1949,11 +1970,19 @@ async function generatePageContent(id, data) {
 // ✓ Функция генерации страницы 
 const containerMain = document.getElementById('container'); // Родительский контейнер генерации
 const containerTranslate = document.getElementById('container-translate');
+const containerUpward = document.getElementById('container-upwards'); // Перекрывающий контейнер генерации
 async function generatePage(id, skip) {
   if (!id) throw new Error('Страницы не существует');
   animationInProgress = true;
   containerMain.classList.add('animated');         // Для плавного перемещения
   containerTranslate.classList.remove('animated'); // Для мгновенного перемещения
+
+  // ✓ Убираем перекрывающий контейнер
+  if (containerUpward.classList.contains('visible')) {
+    containerUpward.classList.remove('visible');
+    containerUpward.classList.add('hidden');
+    setTimeout(() => { containerUpward.innerHTML = '';}, 350);
+  }
 
   // ✓ Мгновенное перемещение второстепенного окна вбок и плавное перемещение текущего окна
   if (navPosition[id] > navPosition[navOpened]) { // Если открыта правая страница
@@ -1999,13 +2028,84 @@ async function generatePage(id, skip) {
   }, 500);
 }
 
-
-async function generateSubpageContent() {
+// Генерация перекрывающего контента на перекрывающем окне
+function generateSubpageContent(id, data) {
+  if (!data) {}
+  const generatePageContentContainer = document.createElement('div');
   
+  if (id === 'lesson') {
+
+    // ✓ Получить данные о преподавателе
+    function extractTeachersData(teacher) {
+      extractedTeacher = teacher.substring(teacher.indexOf(' ') + 1);
+      let performedTeacher = extractedTeacher;
+      for (const institute of Object.values(teachersData)) {
+        for (const department of Object.values(institute)) {
+          console.log(department);
+          if (department[extractedTeacher]) {
+            performedTeacher = department[extractedTeacher]; break;
+          }
+        }
+      }
+      return performedTeacher;
+    }
+
+    const extractedData = ScheduleRenderer.extractElementData(data);
+    const teacherData = extractTeachersData(extractedData.teacher); 
+
+    generatePageContentContainer.innerHTML = `
+    <div class="flex-container">  
+      <img class="materials-teacher" src="${teacherData.image}"/>
+      <div class="info-container" style="padding: 0 15px !important; text-align: center;">
+        <p>${teacherData.fullName}</p>
+        <p>${extractedData.subject}</p>
+        <p>${extractedData.name}</p>
+        <p><i>Аудитория</i> ${extractedData.room}</p>
+      <div>
+    </div>
+    `;
+  }
+
+  /*
+  let performedTeacher = extractedTeacher;
+  for (const institute of Object.values(teachersData)) {
+    for (const department of Object.values(institute)) {
+      if (department[extractedTeacher]) {
+        performedTeacher = department[extractedTeacher].fullName;
+        break;
+      }
+    }
+  }
+  console.log(performedTeacher); */
+
+
+  return generatePageContentContainer;
+
 }
 
-function generateSubpage() {
+// ✓ Функция генерации перекрывающего окна
+function generateSubpage(id, data) {
+  if (!id) throw new Error('Страницы не существует');
 
+  // ✓ Заполняем родительский контейнер сгенерированным контентом
+  const a = generateSubpageContent(id, data);
+  containerUpward.appendChild(a);
+
+  // ✓ Добавляем кнопку закрытия второстепенного окна
+  const closeButton = document.createElement('button');
+  closeButton.innerHTML = 'Закрыть'
+  closeButton.addEventListener('click', async() => {
+    containerUpward.classList.remove('visible');
+    containerUpward.classList.add('hidden');
+    setTimeout(() => { containerUpward.innerHTML = '';}, 350);
+  });
+  containerUpward.appendChild(closeButton);
+
+  // ✓ Показываем полученный контейнер
+  setTimeout(() => {
+    containerUpward.classList.remove('hidden');
+    containerUpward.classList.add('visible');
+  }, 10);
 } 
 
 // ✓ Объявление кнопок закрепленного интерфейса
@@ -2042,6 +2142,8 @@ buttonWeb.addEventListener('click', async() => {
     if (animationInProgress !== true) { await generatePage('web'); }
   } catch { animationInProgress = false; }
 });
+
+
 
 // ✓ Обработка нажатий на кнопку стороннего перехода
 function openLink(link) {
