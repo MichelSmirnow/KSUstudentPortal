@@ -14,6 +14,9 @@
 /* ==================================== ✓ Основные HTML стили ==================================== */
 
 html, body { margin: 0; padding: 0; overflow: hidden; position: relative; background-color: rgb(238, 238, 238); }
+div::-webkit-scrollbar { width: 5px; }
+div::-webkit-scrollbar-track { opacity: 0; }
+div::-webkit-scrollbar-thumb { box-shadow: 0 0 10px rgba(255, 255, 255 0.3); background-color: rgba(155, 155, 155, 0.50); border-radius: 10px;}
 
 /* ======== ✓ Главные контейнеры ======== */
 /* ✓ Основной контейнер наполнителя контента */
@@ -59,7 +62,7 @@ img.banner-half {
 
 /* ======== Стилизация основных типов кнопок ======== */
 
-/* Стилизация радиокнопок с выбором*/
+/* Стилизация радиокнопок с выбором субменю */
 .radio-container { 
   width: 100%; padding: 0; margin: -10px 0; height: 70px !important; 
   justify-content: center !important; align-items: center !important;
@@ -70,9 +73,24 @@ img.banner-half {
     background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.35); color: #000; 
     transition: all 0.5s ease;
 }
-.radio-button:hover { background-color: rgb(247, 247, 247); transition: all 0.35s ease; }
-.radio-button:active { background-color: rgb(197, 197, 197); transition: all 0.25s ease; }
-.radio-button.selected {
+
+/* Дополнительная стилизация радиокнопок с выбором дней недели */
+.radio-week-container {
+  width: 100%; padding: 0; margin: -10px 0; height: 70px !important; 
+  justify-content: start !important; align-items: center !important; gap: 10px;
+  overflow-x: scroll; background-color: rgba(0, 0, 0, 0.25);
+}
+.radio-week-button {
+  width: 70px; padding: 5px 10px; 
+  border-radius: 10px; border: 0; font-size: 15px;  
+  background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.35); color: #000; 
+  transition: all 0.5s ease;
+}
+
+/* Анимация радиокнопок */
+.radio-button:hover, .radio-week-button:hover { background-color: rgb(247, 247, 247); transition: all 0.35s ease; }
+.radio-button:active, .radio-week-button:active { background-color: rgb(197, 197, 197); transition: all 0.25s ease; }
+.radio-button.selected, .radio-week-button.selected {
     color: rgb(255, 255, 255); background-color: rgb(114, 178, 231); text-shadow: 0 0 10px rgba(10, 83, 143, 0.25);
     box-shadow: 0 0 10px rgba(0, 140, 255, 0.35);
 }

@@ -811,7 +811,6 @@ class ICSParser {
 
 // Глобальный кэш хранилищ
 const storageCache = new Map();
-
 function getStorage(dbName, storeName) {
   const key = `${dbName}:${storeName}`;
   if (!storageCache.has(key)) {
@@ -829,7 +828,8 @@ async function loadLocalShedule(sheduleID, sheduleType) {
   try {
     const storage = getStorage(sheduleType, sheduleID);
     const loadedData = await storage.load();
-    return JSON.parse(loadedData); 
+    const parsedData = JSON.parse(loadedData);
+    return (!parsedData) ? [] : parsedData; 
   } catch(error) {
     throw new Error('Ошибка загрузки данных из локальной памяти: ', error);
   }
@@ -1285,6 +1285,118 @@ class ScheduleRenderer {
     return {currentClassElement, nextClassElement}; // ✓ Возвращаем собранные контейнеры
   }
 
+  // ✓ Создаем список доступных недель
+  generateWeekSelector(sheduleContainer) {
+
+    // ✓ Проверить, находятся ли даты на одной неделе
+    function isSameWeek(selectedDate, date) { 
+      function getWeekNumber(date) { // ✓ Получить номер текущей недели
+        const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+        const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+        return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+      }
+      return date.getFullYear() === selectedDate.getFullYear() && getWeekNumber(date) === getWeekNumber(selectedDate);
+    } 
+
+    // ✓ Получить понедельник той недели, на которой расположена входящая дата
+    function getMondayOfWeek(date) {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      return new Date(d.setDate(diff));
+    }
+
+    // ✓ Стандартное форматирование даты
+    function formatWeekDate(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // ✓ Стандартное форматирование недели
+    function formatWeekDisplay(monday, sunday) {
+      const months = ['Янв', 'Февр', 'Март', 'Апр', 'Май', 'Июнь', 
+                      'Июль', 'Авг', 'Сент', 'Окт', 'Ноя', 'Дек'];
+      const mondayDay = monday.getDate();
+      const sundayDay = sunday.getDate();
+      const mondayMonth = months[monday.getMonth()];
+      const sundayMonth = months[sunday.getMonth()];
+      if (monday.getMonth() === sunday.getMonth()) {
+        return `${mondayDay} - ${sundayDay} ${sundayMonth}`;
+      } else {
+        return `${mondayDay} ${mondayMonth} - ${sundayDay} ${sundayMonth}`;
+      }
+    }
+
+    // ✓ Определяем все уникальные недели
+    const weeks = new Map();
+    groupData.shedule.forEach(event => {
+      const monday = getMondayOfWeek(event.startTime);
+      const mondayStr = formatWeekDate(monday);
+      if (!weeks.has(mondayStr)) {
+        const sunday = new Date(monday);
+        sunday.setDate(sunday.getDate() + 6);
+        weeks.set(mondayStr, {
+          monday: new Date(monday),
+          sunday,
+          events: []
+        });
+      }
+      weeks.get(mondayStr).events.push(event);
+    });
+
+    // ✓ Сортируем недели по дате
+    const sortedWeeks = Array.from(weeks.values()).sort(
+      (a, b) => a.monday - b.monday
+    );
+
+    // ✓ Определяем текущую неделю и понедельник этой недели
+    const today = new Date();
+    const currentMonday = getMondayOfWeek(today);
+    const currentMondayStr = formatWeekDate(currentMonday);
+    let selectedDate = new Date(currentMonday);
+
+    // Создаем кнопки для каждой недели
+    const weekContainer = document.createElement('div');
+    weekContainer.className = 'radio-week-container flex-container';
+    sortedWeeks.forEach(week => {
+      const button = document.createElement('button');
+      button.className = 'radio-week-button';
+      button.dataset.mondayDate = formatWeekDate(week.monday);
+      const weekDisplay = formatWeekDisplay(week.monday, week.sunday);
+      button.textContent = weekDisplay;
+
+      // ✓ Если текущая неделя, делаем её выбранной по умолчанию
+      if (formatWeekDate(week.monday) === currentMondayStr) {
+        button.classList.add('selected');
+      }
+
+      // ✓ Добавляем обработку нажатия на кнопку недели
+      button.addEventListener('click', () => {
+        if (!button.classList.contains('selected')) {
+          weekContainer.querySelectorAll('.radio-week-button').forEach(btn => {
+            btn.classList.remove('selected'); // ✓ Очищаем остальные кнопки от нажатия
+          }); button.classList.add('selected');
+
+          // Перерендриваем блок расписания
+          selectedDate = new Date(week.monday);
+          const grouped = this.groupByDate(groupData.shedule);
+          sheduleContainer.innerHTML = '';
+          Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
+            const dayDate = new Date(dateKey + 'T00:00:00');
+            if (isSameWeek(selectedDate, dayDate)) {
+              sheduleContainer.appendChild(this.createDateElement(dayDate));
+            }
+          });
+        }
+      });
+      weekContainer.appendChild(button);
+    });
+
+    return {weekContainer, selectedDate};
+  }
+
   // ✓ Произвести рендер расписания и получить элемент расписания
   // Сделать список доступных недель для переключения
   render(type) {
@@ -1356,10 +1468,10 @@ class ScheduleRenderer {
       const weekElementContainer = document.createElement('div');
       weekElementContainer.classList.add('relative-container');
 
-      // Создаем список доступных недель
-      const weekSelectors = document.createElement('div');
-      const selectedDate = new Date();
-      weekElementContainer.appendChild(weekSelectors);
+      const weekSheduleContainer = document.createElement('div');
+      const extractedWeekSelector = this.generateWeekSelector(weekSheduleContainer);
+      weekElementContainer.appendChild(extractedWeekSelector.weekContainer);
+      const selectedDate = extractedWeekSelector.selectedDate;
 
       // ✓ Проверить, находятся ли даты на одной неделе
       function isSameWeek(selectedDate, date) { 
@@ -1375,8 +1487,11 @@ class ScheduleRenderer {
       const grouped = this.groupByDate(groupData.shedule);
       Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
         const dayDate = new Date(dateKey + 'T00:00:00');
-        if (isSameWeek(selectedDate, dayDate)) weekElementContainer.appendChild(this.createDateElement(dayDate));
+        if (isSameWeek(selectedDate, dayDate)) {
+          weekSheduleContainer.appendChild(this.createDateElement(dayDate));
+        }
       });
+      weekElementContainer.appendChild(weekSheduleContainer);
 
        // ✓ Добавляем филлер в конце для увеличения высоты страницы
       const fillerDiv = document.createElement('div');
