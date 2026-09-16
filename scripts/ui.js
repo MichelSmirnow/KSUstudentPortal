@@ -1,10 +1,8 @@
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 
 /* Пользовательские данные (данные группы), основной информационный контент приложения */
 // Данные по группе
-let groupData = {
-  shedule: [],
-}
+let groupData = {}
 
 /* Преподавательский состав */
 const teachersData = {
@@ -596,32 +594,34 @@ const teachersData = {
 }
 
 /* Коды расписания для разных групп (и полный доступный список групп для регистрации в приложении)*/
-const groupsID = {
+const groupsID = {/*
   "26-ИСбо-1":8954,
   "26-ИСбо-2":8881,
-  "26-ИСбо-3":9000,
+  "26-ИСбо-3":9000,*/
   "26-ИСбо-4":8953,
   "26-ИСбо-5":8878,
 }
 
+/* Функция для смены расписания группы */
 const groupChange = document.getElementById('header-group-p');
 let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-5';
 (document.getElementById('header-group')).innerHTML = CurrentGroup;
 groupChange.addEventListener('click', async() => {
 
-  // Выбираем следующий ключ в списке
+  // ✓ Выбираем следующий ключ в списке
   const groupKeys = Object.keys(groupsID);
   const currentIndex = groupKeys.indexOf(CurrentGroup);
   const nextIndex = (currentIndex + 1) % groupKeys.length;
   CurrentGroup = groupKeys[nextIndex];
   localStorage.setItem('lastSelectedGroup', CurrentGroup);
 
-  // Обновляем страницу и расписание
+  // ✓Обновляем страницу и расписание
   (document.getElementById('header-group')).innerHTML = CurrentGroup;
-  groupData.shedule = await fetchShedule(CurrentGroup, 'group');
+  if (!groupData[CurrentGroup]) { groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');  }
   if (navOpened === 'nav-shedule') { 
     const dayButton = document.getElementById('shedule-day');
-    changeSheduleTypeContent((dayButton.classList.contains('selected')) ? "day" : "week");
+    changeSheduleTypeContent(((dayButton.classList.contains('selected')) ? "day" : "week"), groupData[CurrentGroup]);
+    return;
   }
 });
 
@@ -745,11 +745,11 @@ class indexedStorage {
   async delete() {
     return new Promise((resolve, reject) => {
       try {
-        if (this.db) { // Закрываем текущее соединение
+        try {
           this.db.close();
           this.db = null;
           this.initPromise = null;
-        }
+        } catch { console.log('База данных уже удалена'); }
         const request = indexedDB.deleteDatabase(this.dbName);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
@@ -772,7 +772,9 @@ class indexedStorage {
 
 // ✓ Парсер ICS календаря с сайта ЕЙОС КГУ
 class ICSParser {
-  constructor() { groupData.shedule = []; }
+  constructor() { 
+    this.parseShedule = [];
+  }
   
   // ✓ Получение ICS календаря расписания
   async fetch(url) {
@@ -792,7 +794,7 @@ class ICSParser {
   
   // ✓ Парсирование полученного календаря до объекта и запись в массив
   parse(icsContent) {
-    groupData.shedule = [];
+    this.parseShedule = [];
     const lines = icsContent.split(/\r?\n/);
     let currentEvent = null;
     lines.forEach(line => {
@@ -800,13 +802,13 @@ class ICSParser {
       if (line === 'BEGIN:VEVENT') {
         currentEvent = {};
       } else if (line === 'END:VEVENT' && currentEvent) {
-        groupData.shedule.push(this.normalizeEvent(currentEvent));
+        this.parseShedule.push(this.normalizeEvent(currentEvent));
         currentEvent = null;
       } else if (currentEvent && line.includes(':')) {
         this.parseProperty(currentEvent, line);
       }
     });
-    return groupData.shedule;
+    return this.parseShedule;
   }
   
   // ✓ Вспомогательная функция парсирования значения в календаре
@@ -916,9 +918,8 @@ async function fetchShedule(sheduleID, sheduleType) {
       const groupIDtoExtract = groupsID[id];
       if (!groupIDtoExtract) { return undefined; }
       return `https://eios.kosgos.ru/api/Rasp?idGroup=${groupIDtoExtract}&iCal=true`;
-
     } else if (type === 'teacher') {
-
+      return `https://eios.kosgos.ru/api/Rasp?idTeacher=$${id}&iCal=true`;
     }
   }
 
@@ -965,6 +966,10 @@ async function fetchShedule(sheduleID, sheduleType) {
 
 // ✓ Отрисовка расписания 
 class ScheduleRenderer {
+  constructor(events) {
+    this.sheduleData = events;
+    if (DEBUG_MODE) console.log('Вот проинициализировано все правильно', this.sheduleData);
+  }
   
   // ✓ Отсортировать и сгруппировать даты
   groupByDate(events) {
@@ -1120,8 +1125,8 @@ class ScheduleRenderer {
     </div>`;
 
     // ✓ Обработчик нажатия на занятие
-    eventElementContainer.addEventListener('click', () => {
-      generateSubpage('lesson', event);
+    eventElementContainer.addEventListener('click', async() => {
+      await generateSubpage('lesson', event);
     });
 
     return eventElementContainer;
@@ -1198,8 +1203,8 @@ class ScheduleRenderer {
     </div>`;
 
     // ✓ Обработчик нажатия на занятие
-    dayEventContainer.addEventListener('click', () => {
-      generateSubpage('lesson', event);
+    dayEventContainer.addEventListener('click', async() => {
+      await generateSubpage('lesson', event);
     });
 
     // ✓ Тик обновления оставшегося времени
@@ -1209,7 +1214,7 @@ class ScheduleRenderer {
       // ✓ Проверяем, не началась ли пара (для следующей пары)
       if (nowUpdate > event.startTime && next === true) {
         dayEventContainer.classList.add('container-hidden'); 
-        setTimeout(() => { dayEventContainer.remove(); changeSheduleTypeContent('day'); }, 510); 
+        setTimeout(() => { dayEventContainer.remove(); changeSheduleTypeContent('day', groupData[CurrentGroup]); }, 510); 
         return;
       }
 
@@ -1246,7 +1251,7 @@ class ScheduleRenderer {
   createDateElement(date) {
     // ✓ Получаем данные дня
     const dateKey = ScheduleRenderer.formatDateKey(date);
-    const dayEvents = groupData.shedule
+    const dayEvents = this.sheduleData
       .filter(event => event.startTime && ScheduleRenderer.formatDateKey(event.startTime) === dateKey)
       .sort((a, b) => a.startTime - b.startTime);
     const extractedData = this.extractEventData(dateKey);
@@ -1285,7 +1290,7 @@ class ScheduleRenderer {
 
     // ✓ Ищем и добавляем текущее занятие
     let currentClassElement = undefined;
-    const currentEvent = groupData.shedule.find(event =>
+    const currentEvent = this.sheduleData.find(event =>
       event.startTime && event.endTime &&
       now >= event.startTime && now <= event.endTime
     );
@@ -1295,13 +1300,13 @@ class ScheduleRenderer {
     let nextClassElement = undefined; 
     let nextEvent = null;
     if (currentEvent) { // Если есть текущее событие, ищем следующее после него в тот же день
-      nextEvent = groupData.shedule.find(event =>
+      nextEvent = this.sheduleData.find(event =>
         event.startTime && event.endTime &&
         event.startTime > currentEvent.endTime &&
         isSameDay(event.startTime, now)
       );
     } else { // Если нет текущего события, ищем первое начальное занятие
-      nextEvent = groupData.shedule.find(event =>
+      nextEvent = this.sheduleData.find(event =>
         event.startTime && event.endTime &&
         event.startTime > now &&
         isSameDay(event.startTime, now)
@@ -1366,7 +1371,8 @@ class ScheduleRenderer {
 
     // ✓ Определяем все уникальные недели
     const weeks = new Map();
-    groupData.shedule.forEach(event => {
+    console.log(this.sheduleData);
+    this.sheduleData.forEach(event => {
       const monday = getMondayOfWeek(event.startTime);
       const mondayStr = formatWeekDate(monday);
       if (!weeks.has(mondayStr)) {
@@ -1416,7 +1422,7 @@ class ScheduleRenderer {
 
           // Перерендриваем блок расписания
           selectedDate = new Date(week.monday);
-          const grouped = this.groupByDate(groupData.shedule);
+          const grouped = this.groupByDate(this.sheduleData);
           sheduleContainer.innerHTML = '';
           Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
             const dayDate = new Date(dateKey + 'T00:00:00');
@@ -1451,10 +1457,10 @@ class ScheduleRenderer {
       }
 
       // ✓ Проверяем, закончились ли сегодня пары
-      function isClassesEndedToday() {
+      function isClassesEndedToday(sheduleData) {
         const today = ScheduleRenderer.formatDateKey(new Date());
         const now = new Date();
-        const todayEvents = groupData.shedule.filter(event => 
+        const todayEvents = sheduleData.filter(event => 
           event.startTime && ScheduleRenderer.formatDateKey(event.startTime) === today
         );
         if (todayEvents.length === 0) return true;
@@ -1465,10 +1471,10 @@ class ScheduleRenderer {
       }
 
       // ✓ Возвращает дату следующего учебного дня
-      function getNextClassesDate() {
+      function getNextClassesDate(sheduleData) {
         const today = ScheduleRenderer.formatDateKey(new Date());
         const allDates = [...new Set( // Берём все уникальные даты из событий
-          groupData.shedule
+          sheduleData
             .filter(event => event.startTime)
             .map(event => ScheduleRenderer.formatDateKey(event.startTime))
         )].sort();
@@ -1480,8 +1486,8 @@ class ScheduleRenderer {
       const p = document.createElement('p'); p.setAttribute("style", "text-align: center;");
       let nextDate;
       const dayShedule = document.createElement('div');
-      if (isClassesEndedToday()) {
-        nextDate = getNextClassesDate();
+      if (isClassesEndedToday(this.sheduleData)) {
+        nextDate = getNextClassesDate(this.sheduleData);
         p.innerHTML = 'Расписание на следующий учебный день';
       } else {
         nextDate = new Date();
@@ -1519,7 +1525,7 @@ class ScheduleRenderer {
       } 
 
       // ✓ Генерируем недельное расписание
-      const grouped = this.groupByDate(groupData.shedule);
+      const grouped = this.groupByDate(this.sheduleData);
       Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
         const dayDate = new Date(dateKey + 'T00:00:00');
         if (isSameWeek(selectedDate, dayDate)) {
@@ -1542,9 +1548,9 @@ class ScheduleRenderer {
 }
 
 // ✓ Сменить контент расписания
-function changeSheduleTypeContent(type) {
+function changeSheduleTypeContent(type, shedule) {
   const sheduleContainer = document.getElementById('shedule-container');
-  const renderer = new ScheduleRenderer();
+  const renderer = new ScheduleRenderer(shedule);
   const sheduleFiller = renderer.render(type);
   sheduleContainer.innerHTML = '';
   sheduleContainer.appendChild(sheduleFiller);
@@ -1556,14 +1562,18 @@ function switchSchedule(type) {
   if (animationInProgress === true) return;
   const dayButton = document.getElementById('shedule-day');
   const weekButton = document.getElementById('shedule-week');
+
   if (type === 'day' && !dayButton.classList.contains('selected')) { // ✓ Если выбрано внутридневное расписание
     weekButton.classList.remove('selected');
     dayButton.classList.add('selected');
-    changeSheduleTypeContent('day');
+    if (DEBUG_MODE) console.log({groupData, CurrentGroup});
+    changeSheduleTypeContent('day', groupData[CurrentGroup]);
+
   } else if (type === 'week' && !weekButton.classList.contains('selected')) { // ✓ Если выбрано недельное расписание
     dayButton.classList.remove('selected');
     weekButton.classList.add('selected');
-    changeSheduleTypeContent('week');
+    if (DEBUG_MODE) console.log({groupData, CurrentGroup});
+    changeSheduleTypeContent('week', groupData[CurrentGroup]);
   }
 }
 
@@ -1802,11 +1812,25 @@ async function generatePageContent(id) {
     </div>
     `;
   } else if (id === 'nav-shedule') {   // ✓ Окно расписания
-    const renderer = new ScheduleRenderer();
-    const innerElement = renderer.render('day');
-    const sheduleContainer = document.createElement('div');
-    sheduleContainer.id = 'shedule-container';
-    sheduleContainer.appendChild(innerElement);
+    let sheduleContainer;
+    try {
+      const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
+      const innerElement = renderer.render('day');
+      sheduleContainer = document.createElement('div');
+      sheduleContainer.id = 'shedule-container';
+      sheduleContainer.appendChild(innerElement);
+    } catch(err) {
+      const dbman = new indexedStorage('group', CurrentGroup);
+      dbman.clear();
+
+      sheduleContainer = document.createElement('div');
+      sheduleContainer.innerHTML = `<h1>Упс!</h1>
+      <p>Похоже, при попытке отобразить расписание появилась ошибка. Вот инструкции, которые возможно Вам помогут:</p>
+      <p>1) Попробуйте перезапустить приложение. Это действие сбросит локально сохраненное расписание и перезапишет новое с сайта ЭЙОС КГУ.</p>
+      <p>2) Если нет подключения к интернету, попробуйте наладить подключение к сети и перезайти в приложение.</p>
+      <p>Текст ошибки (для тестировщиков):</p>
+      <p style="color: red">${err}</p>`;
+    }
 
     // ✓ Получить случайное описание 
     function getRandomDescription() {
@@ -2029,30 +2053,27 @@ async function generatePage(id, skip) {
 }
 
 // Генерация перекрывающего контента на перекрывающем окне
-function generateSubpageContent(id, data) {
+async function generateSubpageContent(id, data) {
   if (!data) {}
-  const generatePageContentContainer = document.createElement('div');
-  
-  if (id === 'lesson') {
 
-    // ✓ Получить данные о преподавателе
-    function extractTeachersData(teacher) {
-      extractedTeacher = teacher.substring(teacher.indexOf(' ') + 1);
-      let performedTeacher = extractedTeacher;
-      for (const institute of Object.values(teachersData)) {
-        for (const department of Object.values(institute)) {
-          console.log(department);
-          if (department[extractedTeacher]) {
-            performedTeacher = department[extractedTeacher]; break;
-          }
+  // ✓ Получить данные о преподавателе
+  function extractTeachersData(teacher) {
+    extractedTeacher = teacher.substring(teacher.indexOf(' ') + 1);
+    let performedTeacher = extractedTeacher;
+    for (const institute of Object.values(teachersData)) {
+      for (const department of Object.values(institute)) {
+        if (department[extractedTeacher]) {
+          performedTeacher = department[extractedTeacher]; break;
         }
       }
-      return performedTeacher;
     }
-
+    return performedTeacher;
+  }
+  
+  const generatePageContentContainer = document.createElement('div');
+  if (id === 'lesson') { // Перекравающее окно информации о занятии (data - элемент расписания)
     const extractedData = ScheduleRenderer.extractElementData(data);
-    const teacherData = extractTeachersData(extractedData.teacher); 
-
+    const teacherData = extractTeachersData(extractedData.teacher);
     generatePageContentContainer.innerHTML = `
     <div class="flex-container">  
       <img class="materials-teacher" src="${teacherData.image}"/>
@@ -2064,31 +2085,38 @@ function generateSubpageContent(id, data) {
       <div>
     </div>
     `;
-  }
+  } else if (id === 'teacher') { // Перекрывающее окно информации о преподавателе (data - инициалы преподавателя)
+    const teacherData = extractTeachersData(data);
 
-  /*
-  let performedTeacher = extractedTeacher;
-  for (const institute of Object.values(teachersData)) {
-    for (const department of Object.values(institute)) {
-      if (department[extractedTeacher]) {
-        performedTeacher = department[extractedTeacher].fullName;
-        break;
-      }
-    }
-  }
-  console.log(performedTeacher); */
+    // Получаем расписание преподавателя
+    (document.getElementById('header-group')).innerHTML = CurrentGroup;
+    if (!groupData[CurrentGroup]) { groupData[CurrentGroup] = await fetchShedule(teacherData.sheduleCode, 'teacher');  }
+    const renderer = new ScheduleRenderer(shedule);
+    const sheduleFiller = renderer.render(type);
 
+    generatePageContentContainer.innerHTML = `
+    <div class="flex-container">  
+      <img class="materials-teacher" src="${teacherData.image}"/>
+      <div class="info-container" style="padding: 0 15px !important; text-align: center;">
+        <p>${teacherData.fullName}</p>
+      <div>
+    </div>
+    `;
+    generatePageContentContainer.appendChild(sheduleFiller);
+  } else {
+
+  }
 
   return generatePageContentContainer;
 
 }
 
 // ✓ Функция генерации перекрывающего окна
-function generateSubpage(id, data) {
+async function generateSubpage(id, data) {
   if (!id) throw new Error('Страницы не существует');
 
   // ✓ Заполняем родительский контейнер сгенерированным контентом
-  const a = generateSubpageContent(id, data);
+  const a = await generateSubpageContent(id, data);
   containerUpward.appendChild(a);
 
   // ✓ Добавляем кнопку закрытия второстепенного окна
@@ -2158,7 +2186,7 @@ function openLink(link) {
 
 // Запуск
 async function init() {
-  groupData.shedule = await fetchShedule(CurrentGroup, 'group');
+  groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
   await generatePage('nav-shedule', true);
 }
 init();
