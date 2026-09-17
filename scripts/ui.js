@@ -1585,36 +1585,83 @@ class KafederRenderer {
     this.allTeachers = this.extractAllTeachers();
   }
 
-  // Извлекаем всех преподавателей с информацией об институте и кафедре
+  // ✓ Получить всех преподавателей с информацией об институте и кафедре
   extractAllTeachers() {
     const teachers = [];
-    
     Object.entries(this.data).forEach(([instituteName, departments]) => {
       Object.entries(departments).forEach(([departmentName, teachersObj]) => {
         Object.entries(teachersObj).forEach(([key, teacher]) => {
-          if (teacher.fullName) {
-            teachers.push({
-              ...teacher,
-              instituteName,
-              departmentName,
-              key
-            });
+          if (teacher.fullName) { teachers.push({...teacher, instituteName, departmentName, key });
           }
         });
       });
     });
-    
+    if (DEBUG_MODE) console.log(teachers);
     return teachers;
   }
 
+  // Создать список учителей по входящему списку
+  renderTeachers(teachers) {
+    return Object.entries(teachers)
+      .filter(([, teacher]) => teacher.fullName)
+      .map(([, teacher]) => {
+        const teacherElement = document.createElement('div');
+        teacherElement.classList.add('teacher-card');
+
+        // ✓ Обьявляем внутреннее содержимое карточки учителя
+        teacherElement.innerHTML = `
+        <img src="${teacher.image}" alt="${teacher.fullName}" class="teacher-image">
+        <div class="teacher-info">
+          <div class="teacher-name">${teacher.fullName}</div>
+          ${teacher.academicDegree ? `<div class="teacher-degree">${teacher.academicDegree}</div>` : ''}
+          ${teacher.workPost ? `<div class="teacher-post">${teacher.workPost}</div>` : 'Преподаватель кафедры'}
+        </div>`;
+
+        // Добавляем обработчик нажатия на учителя
+        teacherElement.addEventListener('click', async() => {
+          await generateSubpage('teacher', teacher);
+        });
+        return teacherElement;
+      }).join('');
+  }
+
+  // Создать список кафедр
+  renderDepartments(departments) {
+    return Object.entries(departments).map(([departmentName, teachers]) => {
+      const teachersHtml = this.renderTeachers(teachers);
+      return `
+        <details class="department">
+          <summary class="department-title">${departmentName}</summary>
+          <div class="department-content">
+            ${teachersHtml}
+          </div>
+        </details>
+      `;
+    }).join('');
+  }
+
+  // Создать список институтов (факультетов)
+  renderInstitutes() {
+    return Object.entries(this.data).map(([instituteName, departments]) => {
+      const departmentsHtml = this.renderDepartments(departments);
+      return `
+        <details class="institute">
+          <summary class="institute-title">${instituteName}</summary>
+          <div class="institute-content">
+            ${departmentsHtml}
+          </div>
+        </details>
+      `;
+    }).join('');
+  }
+
+
+
+
   // Поиск по любому совпадению букв (case-insensitive)
   searchTeachers(query) {
-    if (!query.trim()) {
-      return [];
-    }
-
+    if (!query.trim()) { return []; }
     const searchLower = query.toLowerCase();
-    
     return this.allTeachers.filter(teacher => {
       return (
         teacher.fullName.toLowerCase().includes(searchLower) ||
@@ -1624,22 +1671,6 @@ class KafederRenderer {
         teacher.departmentName.toLowerCase().includes(searchLower)
       );
     });
-  }
-
-  // Основной метод рендера с поиском
-  render() {
-    const searchHtml = this.renderSearch();
-    const institutesHtml = this.renderInstitutes();
-    
-    return `
-      <div class="teachers-container">
-        ${searchHtml}
-        <div class="teachers-hierarchy" id="hierarchy">
-          ${institutesHtml}
-        </div>
-        <div class="teachers-search-results" id="searchResults" style="display: none;"></div>
-      </div>
-    `;
   }
 
   // Рендер поисковика
@@ -1698,51 +1729,6 @@ class KafederRenderer {
     `;
   }
 
-  renderInstitutes() {
-    return Object.entries(this.data).map(([instituteName, departments]) => {
-      const departmentsHtml = this.renderDepartments(departments);
-      return `
-        <details class="institute">
-          <summary class="institute-title">${instituteName}</summary>
-          <div class="institute-content">
-            ${departmentsHtml}
-          </div>
-        </details>
-      `;
-    }).join('');
-  }
-
-  renderDepartments(departments) {
-    return Object.entries(departments).map(([departmentName, teachers]) => {
-      const teachersHtml = this.renderTeachers(teachers);
-      return `
-        <details class="department">
-          <summary class="department-title">${departmentName}</summary>
-          <div class="department-content">
-            ${teachersHtml}
-          </div>
-        </details>
-      `;
-    }).join('');
-  }
-
-  renderTeachers(teachers) {
-    return Object.entries(teachers)
-      .filter(([, teacher]) => teacher.fullName)
-      .map(([, teacher]) => {
-        return `
-          <div class="teacher-card">
-            <img src="${teacher.image}" alt="${teacher.fullName}" class="teacher-image">
-            <div class="teacher-info">
-              <div class="teacher-name">${teacher.fullName}</div>
-              <div class="teacher-degree">${teacher.academicDegree}</div>
-              <div class="teacher-post">${teacher.workPost}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
-  }
-
   // Инициализация обработчиков поиска
   initSearch() {
     const searchInput = document.getElementById('teachersSearch');
@@ -1767,6 +1753,24 @@ class KafederRenderer {
       }
     });
   }
+
+
+
+
+  // Основной метод рендера с поиском
+  render() {
+    const searchHtml = this.renderSearch();
+    const institutesHtml = this.renderInstitutes();
+    return `
+      <div class="teachers-container">
+        ${searchHtml}
+        <div class="teachers-hierarchy" id="hierarchy">
+          ${institutesHtml}
+        </div>
+        <div class="teachers-search-results" id="searchResults" style="display: none;"></div>
+      </div>
+    `;
+  } 
 }
 
 
@@ -2071,6 +2075,7 @@ async function generateSubpageContent(id, data) {
   }
   
   const generatePageContentContainer = document.createElement('div');
+  generatePageContentContainer.id = 'subpage';
   if (id === 'lesson') { // Перекравающее окно информации о занятии (data - элемент расписания)
     const extractedData = ScheduleRenderer.extractElementData(data);
     const teacherData = extractTeachersData(extractedData.teacher);
@@ -2082,8 +2087,45 @@ async function generateSubpageContent(id, data) {
         <p>${extractedData.subject}</p>
         <p>${extractedData.name}</p>
         <p><i>Аудитория</i> ${extractedData.room}</p>
-      <div>
+      </div>
     </div>
+      
+    <div id="materials-materials" class="info-container">
+      <h3>Материалы занятия</h3>  
+      <p style="font-size: 12px;">Просматривайте и прикрепляйте </p>
+      <div class="radio-container">
+        <button class="radio-button">(+) Прикрепить файл</button>
+        <button class="radio-button">(+) Добавить текст</button>
+      </div>
+      <details>
+        <summary>Просмотреть</summary>
+      </details>
+    </div>
+
+    <div id="materials-homework" class="info-container">
+      <h3>Домашнее задание</h3>  
+      <p style="font-size: 12px;"></p>
+      <div>
+        <button class="radio-button">+ Прикрепить файл</button>
+        <button class="radio-button">+ Добавить текст</button>
+      </div>
+      <details>
+        <summary>Просмотреть</summary>
+      </details>
+    </div>
+
+    <details>
+      <summary>
+        <h3>Что публиковать?</h3>
+      </summary>
+      <p></p>
+      <ul>
+        <li>Текстовые формулировки </li>
+        <li>Фотографии записей на доске</li>
+        <li>Любые документы, содержащие учебные материалы, относящиеся к теме занятия (в том числе под авторством преподавателя)</li>
+        <li>Ссылки на полезные источники информации (видео, статьи)</li>
+      </ul>
+    </details>
     `;
   } else if (id === 'teacher') { // Перекрывающее окно информации о преподавателе (data - инициалы преподавателя)
     const teacherData = extractTeachersData(data);
