@@ -1,4 +1,8 @@
+/* ============ Постоянные и переменные базы данных и пользовательские данные ============= */
+
+/* Постоянные системные настройки */
 const DEBUG_MODE = true;
+const STRINGIFY_SAVINGS = false;
 
 /* Пользовательские данные (данные группы), основной информационный контент приложения */
 // Данные по группе
@@ -602,29 +606,6 @@ const groupsID = {
   "26-ИСбо-5":8878,
 }
 
-/* Функция для смены расписания группы */
-const groupChange = document.getElementById('header-group-p');
-let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-5';
-(document.getElementById('header-group')).innerHTML = CurrentGroup;
-groupChange.addEventListener('click', async() => {
-
-  // ✓ Выбираем следующий ключ в списке
-  const groupKeys = Object.keys(groupsID);
-  const currentIndex = groupKeys.indexOf(CurrentGroup);
-  const nextIndex = (currentIndex + 1) % groupKeys.length;
-  CurrentGroup = groupKeys[nextIndex];
-  localStorage.setItem('lastSelectedGroup', CurrentGroup);
-
-  // ✓Обновляем страницу и расписание
-  (document.getElementById('header-group')).innerHTML = CurrentGroup;
-  if (!groupData[CurrentGroup]) { groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');  }
-  if (navOpened === 'nav-shedule') { 
-    const dayButton = document.getElementById('shedule-day');
-    changeSheduleTypeContent(((dayButton.classList.contains('selected')) ? "day" : "week"), groupData[CurrentGroup]);
-    return;
-  }
-});
-
 // ✓ Функции сохранения и загрузки локально сохраненных данных
 class indexedStorage {
   constructor(dbName, storeName) {
@@ -866,7 +847,7 @@ function getStorage(dbName, storeName) {
   return storageCache.get(key);
 }
 
-/* ✓ Загрузить расписание из локальной памяти */
+// ✓ Загрузить расписание из локальной памяти 
 async function loadLocalShedule(sheduleID, sheduleType) {
   if(DEBUG_MODE) console.log({sheduleID, sheduleType});
   if (!sheduleID || !sheduleType) { 
@@ -882,7 +863,7 @@ async function loadLocalShedule(sheduleID, sheduleType) {
   }
 }
 
-/* ✓ Сохранить расписание в локальной памяти */
+// ✓ Сохранить расписание в локальной памяти 
 async function saveLocalShedule(shedule, sheduleID, sheduleType) {
   if(DEBUG_MODE) console.log({shedule, sheduleID, sheduleType});
   if (!shedule || !sheduleID || !sheduleType) { 
@@ -897,7 +878,7 @@ async function saveLocalShedule(shedule, sheduleID, sheduleType) {
   }
 }
 
-/* ✓ Выгрузить календарь с расписанием с сайта ЭЙОС КГУ и распарсировать его */
+// ✓ Выгрузить календарь с расписанием с сайта ЭЙОС КГУ и распарсировать его 
 async function fetchShedule(sheduleID, sheduleType) {
 
   // ✓ Функция слияния двух массивов расписаний
@@ -964,6 +945,9 @@ async function fetchShedule(sheduleID, sheduleType) {
   return mergedShedule;
 }
 
+// ✓ Привести дату к стандартному формату
+const justifyDate = (date) => { return date instanceof Date ? date : new Date(date); };
+
 // ✓ Отрисовка расписания 
 class ScheduleRenderer {
   constructor(events) {
@@ -996,7 +980,7 @@ class ScheduleRenderer {
   // ✓ Отформатировать дату для группировки занятий по дням (YYYY-MM-DD)
   static formatDateKey(date) {
     if (!date) return undefined;
-    const value = date instanceof Date ? date : new Date(date);
+    const value = justifyDate(date);
     if (Number.isNaN(value.getTime())) return undefined;
 
     const year = value.getFullYear();
@@ -1009,7 +993,7 @@ class ScheduleRenderer {
   // ✓ Отформатировать дату для стандартного отображения
   static formatDate(date) {
     if (!date) return undefined;
-    const value = date instanceof Date ? date : new Date(date);
+    const value = justifyDate(date);
     if (Number.isNaN(value.getTime())) return undefined;
 
     const day = String(value.getDate()).padStart(2, '0');
@@ -1025,7 +1009,7 @@ class ScheduleRenderer {
     // ✓ Отформатировать время для стандартного отображения
     function formatTime(date) {
       if (!date) return undefined;
-      const value = date instanceof Date ? date : new Date(date);
+      const value = justifyDate(date);
       if (Number.isNaN(value.getTime())) return undefined;
 
       const hours = String(value.getHours()).padStart(2, '0');
@@ -1164,8 +1148,8 @@ class ScheduleRenderer {
     function calculateTime(nextEvent) {
       const now = new Date();
       let totalDuration = 0; let elapsed = 0; let remaining = 0;
-      const startTime = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
-      const endTime = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
+      const startTime = justifyDate(event.startTime);
+      const endTime = justifyDate(event.endTime);
       if (nextEvent === true) { // ✓ Время до начала пары
         remaining = startTime - now;
       } else { // ✓ Время до конца пары
@@ -1223,16 +1207,17 @@ class ScheduleRenderer {
     // ✓ Тик обновления оставшегося времени
     const updateProgress = () => {
       const nowUpdate = new Date();
+      const startTime = justifyDate(event.startTime); 
 
       // ✓ Проверяем, не началась ли пара (для следующей пары)
-      if (nowUpdate > event.startTime && next === true) {
+      if (nowUpdate > startTime && next === true) {
         dayEventContainer.classList.add('container-hidden'); 
         setTimeout(() => { dayEventContainer.remove(); changeSheduleTypeContent('day', groupData[CurrentGroup]); }, 510); 
         return;
       }
 
       // ✓ Проверяем, не закончилась ли пара (для текущей пары)
-      if (nowUpdate > event.endTime) {
+      if (nowUpdate > startTime) {
         dayEventContainer.classList.add('container-hidden'); 
         setTimeout(() => { dayEventContainer.remove(); }, 510); 
         return;
@@ -1256,7 +1241,7 @@ class ScheduleRenderer {
     });
     observer.observe(document, { childList: true, subtree: true });
 
-     setTimeout(() => { dayEventContainer.classList.remove('container-hidden'); }, 10); 
+    setTimeout(() => { dayEventContainer.classList.remove('container-hidden'); }, 10); 
     return dayEventContainer; // ✓ Возвращаем собранный контейнер
   }
 
@@ -1296,8 +1281,8 @@ class ScheduleRenderer {
 
     // ✓ Проверить совпадение дат событий
     const isSameDay = (date1, date2) => {
-      const d1 = date1 instanceof Date ? date1 : new Date(date1);
-      const d2 = date2 instanceof Date ? date2 : new Date(date2);
+      const d1 = justifyDate(date1);
+      const d2 = justifyDate(date2);
       return (
         !Number.isNaN(d1.getTime()) &&
         !Number.isNaN(d2.getTime()) &&
@@ -1311,8 +1296,8 @@ class ScheduleRenderer {
     let currentClassElement = undefined;
     console.log(this.sheduleData);
     const currentEvent = this.sheduleData.find(({ startTime, endTime }) => {
-      const start = startTime instanceof Date ? startTime : new Date(startTime);
-      const end = endTime instanceof Date ? endTime : new Date(endTime);
+      const start = justifyDate(startTime);
+      const end = justifyDate(endTime);
       return (
         !Number.isNaN(start.getTime()) &&
         !Number.isNaN(end.getTime()) &&
@@ -1325,23 +1310,23 @@ class ScheduleRenderer {
     // ✓ Ищем следующее событие в тот же день
     let nextClassElement = undefined; 
     let nextEvent = null;
-    if (currentEvent) { // Если есть текущее событие, ищем следующее после него в тот же день
+    if (currentEvent) { // ✓ Если есть текущее событие, ищем следующее после него в тот же день
       nextEvent = this.sheduleData.find(event => {
-        const startTime = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
-        const endTime = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
+        const startTime = justifyDate(event.startTime);
+        const endTime = justifyDate(event.endTime);
         return (
           event.startTime &&
           event.endTime &&
           !Number.isNaN(startTime.getTime()) &&
           !Number.isNaN(endTime.getTime()) &&
-          startTime > (currentEvent.endTime instanceof Date ? currentEvent.endTime : new Date(currentEvent.endTime)) &&
+          startTime > justifyDate(currentEvent.endTime) &&
           isSameDay(startTime, now)
         );
       });
-    } else { // Если нет текущего события, ищем первое начальное занятие
+    } else { // ✓ Если нет текущего события, ищем первое начальное занятие
       nextEvent = this.sheduleData.find(event => {
-        const startTime = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
-        const endTime = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
+        const startTime = justifyDate(event.startTime);
+        const endTime = justifyDate(event.endTime);
         return (
           event.startTime &&
           event.endTime &&
@@ -1356,7 +1341,7 @@ class ScheduleRenderer {
 
     // ✓ Добавляем следующее занятие или отсутствие занятий в ближайшее время
     if (nextEvent) {
-      const nextStartTime = nextEvent.startTime instanceof Date ? nextEvent.startTime : new Date(nextEvent.startTime); 
+      const nextStartTime = justifyDate(nextEvent.startTime); 
       const timeUntilNext = nextStartTime - now;
       const hoursUntilNext = timeUntilNext / (1000 * 60 * 60);
       
@@ -1619,18 +1604,43 @@ function switchSchedule(type) {
   }
 }
 
+/* ✓ Функция для смены расписания группы */
+const groupChange = document.getElementById('header-group-p');
+let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-5';
+(document.getElementById('header-group')).innerHTML = CurrentGroup;
+groupChange.addEventListener('click', async() => { 
+
+  // ✓ Выбираем следующий ключ в списке
+  if (navOpened === 'nav-shedule') { flag.loading = true; }
+  const groupKeys = Object.keys(groupsID);
+  const currentIndex = groupKeys.indexOf(CurrentGroup);
+  const nextIndex = (currentIndex + 1) % groupKeys.length;
+  CurrentGroup = groupKeys[nextIndex];
+  localStorage.setItem('lastSelectedGroup', CurrentGroup);
+
+  // ✓ Обновляем страницу и расписание
+  (document.getElementById('header-group')).innerHTML = CurrentGroup;
+  if (!groupData[CurrentGroup]) { groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');  }
+  if (navOpened === 'nav-shedule') { 
+    const dayButton = document.getElementById('shedule-day');
+    setTimeout(() => { 
+      changeSheduleTypeContent(((dayButton.classList.contains('selected')) ? "day" : "week"), groupData[CurrentGroup]); 
+    }, 500);
+    setTimeout(() => { flag.loading = false; return; }, 1000);
+  }
+});
+
 /* ======================================= Кафедра ======================================== */
 
 class KafederRenderer {
-  constructor(data) {
-    this.data = data;
+  constructor() {
     this.allTeachers = this.extractAllTeachers();
   }
 
   // ✓ Получить всех преподавателей с информацией об институте и кафедре
   extractAllTeachers() {
     const teachers = [];
-    Object.entries(this.data).forEach(([instituteName, departments]) => {
+    Object.entries(teachersData).forEach(([instituteName, departments]) => {
       Object.entries(departments).forEach(([departmentName, teachersObj]) => {
         Object.entries(teachersObj).forEach(([key, teacher]) => {
           if (teacher.fullName) { teachers.push({...teacher, instituteName, departmentName, key });
@@ -1638,11 +1648,10 @@ class KafederRenderer {
         });
       });
     });
-    if (DEBUG_MODE) console.log(teachers);
     return teachers;
   }
 
-  // Создать список учителей по входящему списку
+  // ✓ Создать список учителей по входящему списку
   renderTeachers(teachers) {
     return Object.entries(teachers)
       .filter(([, teacher]) => teacher.fullName)
@@ -1661,8 +1670,10 @@ class KafederRenderer {
 
         // Добавляем обработчик нажатия на учителя
         teacherElement.addEventListener('click', async() => {
-          await generateSubpage('teacher', teacher);
+          await generateSubpage('teacher', teacher); // teacher ЭТО ОБЬЕКТ!!! ЕГО НАДО ПО ДРУГОМУ ПАРСИРОВАТЬ!!!
         });
+
+        console.log(teacherElement.innerHTML);
         return teacherElement;
       }).join('');
   }
@@ -1670,30 +1681,33 @@ class KafederRenderer {
   // Создать список кафедр
   renderDepartments(departments) {
     return Object.entries(departments).map(([departmentName, teachers]) => {
-      const teachersHtml = this.renderTeachers(teachers);
-      return `
-        <details class="department">
-          <summary class="department-title">${departmentName}</summary>
-          <div class="department-content">
-            ${teachersHtml}
-          </div>
-        </details>
-      `;
+      const teachersElements = this.renderTeachers(teachers);
+      const departamentContainer = document.createElement('details');
+      departamentContainer.innerHTML = `<summary class="department-title">${departmentName}</summary>`;
+
+      const departamentContent = document.createElement('div');
+      departamentContent.classList.add('departament-content');
+      departamentContent.appendChild(teachersElements);
+      departamentContainer.appendChild(departamentContent);
+
+      console.log(departamentContainer.innerHTML);
+      return departamentContainer;
     }).join('');
   }
 
   // Создать список институтов (факультетов)
   renderInstitutes() {
-    return Object.entries(this.data).map(([instituteName, departments]) => {
-      const departmentsHtml = this.renderDepartments(departments);
-      return `
-        <details class="institute">
-          <summary class="institute-title">${instituteName}</summary>
-          <div class="institute-content">
-            ${departmentsHtml}
-          </div>
-        </details>
-      `;
+    return Object.entries(teachersData).map(([instituteName, departments]) => {
+      const departmentsElement = this.renderDepartments(departments);
+      const InstituteContainer = document.createElement('details');
+      InstituteContainer.innerHTML = `<summary class="Institute-title">${instituteName}</summary>`;
+
+      const InstituteContent = document.createElement('div');
+      InstituteContent.classList.add('Institute-content');
+      InstituteContent.appendChild(InstituteElements);
+      InstituteContainer.appendChild(InstituteContent);
+
+      return InstituteContainer;
     }).join('');
   }
 
@@ -1803,26 +1817,26 @@ class KafederRenderer {
   render() {
     const searchHtml = this.renderSearch();
     const institutesHtml = this.renderInstitutes();
-    return `
-      <div class="teachers-container">
-        ${searchHtml}
-        <div class="teachers-hierarchy" id="hierarchy">
-          ${institutesHtml}
-        </div>
-        <div class="teachers-search-results" id="searchResults" style="display: none;"></div>
-      </div>
-    `;
+    return institutesHtml;
   } 
 }
 
 
 /* ================================= Интерфейс и страницы ================================= */
 
+// Основные контейнеры страницы
+const containerMain = document.getElementById('container');
+const containerTranslate = document.getElementById('container-translate');
+const containerUpward = document.getElementById('container-upwards');
+const containerLoading = document.getElementById('container-loading');
+
+/* ======== Генерация основного контента страницы (нижнее навигационное меню) ======== */
+
 // Генерация контента на страницах приложения
 async function generatePageContent(id) {
   const generatePageContentContainer = document.createElement('div');
   if (id === 'nav-kafeder') {          // Окно кафедры
-    const renderer = new KafederRenderer(teachersData);
+    const renderer = new KafederRenderer();
     const innerElement = renderer.render(); 
 
     // ✓ Заполняем контейнер данными и возвращаем
@@ -2036,12 +2050,9 @@ async function generatePageContent(id) {
 }
 
 // ✓ Функция генерации страницы 
-const containerMain = document.getElementById('container'); // Родительский контейнер генерации
-const containerTranslate = document.getElementById('container-translate');
-const containerUpward = document.getElementById('container-upwards'); // Перекрывающий контейнер генерации
 async function generatePage(id, skip) {
   if (!id) throw new Error('Страницы не существует');
-  animationInProgress = true;
+  animationInProgress = true; flag.loading = true;
   containerMain.classList.add('animated');         // Для плавного перемещения
   containerTranslate.classList.remove('animated'); // Для мгновенного перемещения
 
@@ -2058,22 +2069,19 @@ async function generatePage(id, skip) {
     containerTranslate.appendChild(a);
     containerTranslate.classList.add('right');
     containerMain.classList.add('left');
-
   } else if (navPosition[id] < navPosition[navOpened]) { // Если открыта левая страница
     const a = await generatePageContent(id);
     containerTranslate.appendChild(a);
     containerTranslate.classList.add('left');
     containerMain.classList.add('right');
-
   } else if (skip === true) { // Если нужно первично инициализировать
     const a = await generatePageContent(id);
     containerMain.appendChild(a);
-    animationInProgress = false; return;
-
+    animationInProgress = false; flag.loading = false; return;
   } else { // Эта страница уже открыта
-    animationInProgress = false; return; 
+    animationInProgress = false; flag.loading = false; return; 
   }
-  navOpened = id;
+  navOpened = id; flag.loading = false;
   
   // ✓ Показать анимацию перелистывания
   // Прячет основной контейнер и пролистывает насередину трансляционный
@@ -2095,6 +2103,9 @@ async function generatePage(id, skip) {
     animationInProgress = false;
   }, 500);
 }
+
+
+/* ======== Генерация перекрывающего контента страницы ======== */
 
 // Генерация перекрывающего контента на перекрывающем окне
 async function generateSubpageContent(id, data) {
@@ -2218,6 +2229,61 @@ async function generateSubpage(id, data) {
   }, 10);
 } 
 
+
+/* ======== Функции загрузки контента страницы ======== */
+
+// Флаги
+let _loading = false;
+const flag = {
+  get loading() { return _loading; },
+  set loading(newLoading) {
+    _loading = newLoading;
+    if (_loading === true) { setTimeout(() => { 
+      if (_loading === true) { showLoadingPage();
+      } else { hideLoadingPage(); }  
+      }, 200);
+    } else { hideLoadingPage(); }
+  }
+};
+
+// Функция показа контейнера загрузки контента
+let showLoadingPageTimeout1; let showLoadingPageTimeout2;
+function showLoadingPage() {
+  containerLoading.innerHTML = `<img width="50px" height="50px" src="images/ui/spinner.gif"/><p>Загрузка...</p>`;
+  setTimeout(() => {
+    containerLoading.classList.remove('hidden');
+    containerLoading.classList.add('visible');
+  }, 10);
+  showLoadingPageTimeout1 = setTimeout(() => {
+    containerLoading.innerHTML = `
+    <img width="50px" height="50px" src="images/ui/spinner.gif"/>
+    <p>Пожалуйста, подождите еще немного...</p>
+    `;
+  }, 10000);
+  showLoadingPageTimeout2 = setTimeout(() => {
+    containerLoading.innerHTML = `
+    <img width="150px" height="150px" src="images/supbanners/sadcat.png"/>
+    <p>Время ожидания истекло</p>
+    `;
+  }, 20000);
+}
+
+// ✓ Функция скрытия контейнера загрузки контента
+function hideLoadingPage() {
+  clearTimeout(showLoadingPageTimeout1);
+  clearTimeout(showLoadingPageTimeout2);
+  setTimeout(() => {
+    containerLoading.classList.remove('visible');
+    containerLoading.classList.add('hidden');
+  }, 10);
+  setTimeout(() => {
+    containerLoading.innerHTML = '';
+  }, 350);
+}
+
+
+/* ======== Обработчики нажатий на основные элементы интерфейса ======== */
+
 // ✓ Объявление кнопок закрепленного интерфейса
 let navOpened = 'nav-shedule'; // Текущая открытая страница навигационного меню
 const navPosition = {          // Расположение кнопок слева направо
@@ -2252,8 +2318,6 @@ buttonWeb.addEventListener('click', async() => {
     if (animationInProgress !== true) { await generatePage('web'); }
   } catch { animationInProgress = false; }
 });
-
-
 
 // ✓ Обработка нажатий на кнопку стороннего перехода
 function openLink(link) {
