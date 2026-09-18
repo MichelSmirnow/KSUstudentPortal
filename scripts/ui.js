@@ -594,10 +594,10 @@ const teachersData = {
 }
 
 /* Коды расписания для разных групп (и полный доступный список групп для регистрации в приложении)*/
-const groupsID = {/*
+const groupsID = {
   "26-ИСбо-1":8954,
   "26-ИСбо-2":8881,
-  "26-ИСбо-3":9000,*/
+  "26-ИСбо-3":9000,
   "26-ИСбо-4":8953,
   "26-ИСбо-5":8878,
 }
@@ -787,8 +787,8 @@ class ICSParser {
       const text = await response.text();
       return this.parse(text);
     } catch (error) {
-      console.error('Ошибка доступа к серверу:', error);
-      throw new Error('Ошибка доступа к серверу:', error);
+      console.log('Ошибка доступа к серверу:', error);
+      return undefined;
     }
   }
   
@@ -916,7 +916,7 @@ async function fetchShedule(sheduleID, sheduleType) {
   function getSheduleLink(type, id) {
     if (type === 'group') {
       const groupIDtoExtract = groupsID[id];
-      if (!groupIDtoExtract) { return undefined; }
+      if (!groupIDtoExtract) { console.warn('Такой группы нету в списке ^('); return undefined; }
       return `https://eios.kosgos.ru/api/Rasp?idGroup=${groupIDtoExtract}&iCal=true`;
     } else if (type === 'teacher') {
       return `https://eios.kosgos.ru/api/Rasp?idTeacher=$${id}&iCal=true`;
@@ -926,10 +926,10 @@ async function fetchShedule(sheduleID, sheduleType) {
   let oldShedule;
   try { // ✓ Попытка загрузить данные из локального хранилища
     oldShedule = await loadLocalShedule(sheduleID, sheduleType);
-    if (!oldShedule || oldShedule.length <= 0 || !Array.isArray(oldShedule)) oldShedule = undefined;
+    if (!oldShedule || oldShedule.length === 0 || !Array.isArray(oldShedule)) oldShedule = undefined;
     if(DEBUG_MODE) console.log({oldShedule});
   } catch(error) {
-    console.warn('Ошибка при загрузке расписания из локального хранилища, используется серверное расписание', error);
+    console.log('Ошибка при загрузке расписания из локального хранилища, используется серверное расписание', error);
   }
   
   let newShedule;
@@ -937,13 +937,13 @@ async function fetchShedule(sheduleID, sheduleType) {
     const parser = new ICSParser();
     const sheduleLink = getSheduleLink(sheduleType, sheduleID);
     newShedule = await parser.fetch(sheduleLink);
-    if (!newShedule || newShedule.length <= 0 || !Array.isArray(newShedule)) newShedule = undefined; 
+    if (!newShedule || newShedule.length === 0 || !Array.isArray(newShedule)) newShedule = undefined; 
     if(DEBUG_MODE) console.log({newShedule});
   } catch(error) { // Если пришел пустой массив
-    console.warn('Ошибка при загрузке расписания с сервера, используется файл локального сохранения', error);
+    console.log('Ошибка при загрузке расписания с сервера, используется файл локального сохранения', error);
   }
 
-  if(!newShedule && !oldShedule) { console.warn('Без интернета первый раз зашел в приложение, пипец что говорить :/'); return undefined; }
+  if(!newShedule && !oldShedule) { console.log('Без интернета первый раз зашел в приложение, пипец что говорить :/'); return undefined; }
   let mergedShedule;
   try { // ✓ Слияние двух расписаний
     if (!newShedule) { mergedShedule = oldShedule;
@@ -951,13 +951,13 @@ async function fetchShedule(sheduleID, sheduleType) {
     } else { mergedShedule = mergeSchedules(oldShedule, newShedule); }
     if(DEBUG_MODE) console.log({mergedShedule});
   } catch(error) {
-    console.warn('Этот этап невозможно крашнуть але');
+    console.log('Этот этап невозможно крашнуть але');
   }
   
   // Сохраняем слитое расписание в локальное хранилище
   try { await saveLocalShedule(mergedShedule, sheduleID, sheduleType);
   } catch(error) { 
-    console.warn('Тебе прям реально не везет :(', error); 
+    console.log('Тебе прям реально не везет :(', error); 
     return mergedShedule;
   }
   console.log('Расписание успешно сохранено и обновлено');
@@ -996,18 +996,25 @@ class ScheduleRenderer {
   // ✓ Отформатировать дату для группировки занятий по дням (YYYY-MM-DD)
   static formatDateKey(date) {
     if (!date) return undefined;
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const value = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(value.getTime())) return undefined;
+
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+
     return `${year}-${month}-${day}`;
   }
   
   // ✓ Отформатировать дату для стандартного отображения
   static formatDate(date) {
     if (!date) return undefined;
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
+    const value = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(value.getTime())) return undefined;
+
+    const day = String(value.getDate()).padStart(2, '0');
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const year = value.getFullYear();
     return `${day}.${month}.${year}`;
   }
 
@@ -1017,8 +1024,12 @@ class ScheduleRenderer {
 
     // ✓ Отформатировать время для стандартного отображения
     function formatTime(date) {
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
+      if (!date) return undefined;
+      const value = date instanceof Date ? date : new Date(date);
+      if (Number.isNaN(value.getTime())) return undefined;
+
+      const hours = String(value.getHours()).padStart(2, '0');
+      const minutes = String(value.getMinutes()).padStart(2, '0');
       return `${hours}:${minutes}`;
     }
 
@@ -1057,7 +1068,7 @@ class ScheduleRenderer {
     return {startTime, endTime, room, teacher, type, name, subject, subjectMatch, subjectMatchColor};
   }
 
-   // ✓ Извлечь данные события в удобном для рендера формате
+  // ✓ Извлечь данные события в удобном для рендера формате
   extractEventData(dateKey) {
     if (!dateKey) return undefined;
 
@@ -1153,12 +1164,14 @@ class ScheduleRenderer {
     function calculateTime(nextEvent) {
       const now = new Date();
       let totalDuration = 0; let elapsed = 0; let remaining = 0;
+      const startTime = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
+      const endTime = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
       if (nextEvent === true) { // ✓ Время до начала пары
-        remaining = event.startTime - now;
+        remaining = startTime - now;
       } else { // ✓ Время до конца пары
-        totalDuration = event.endTime - event.startTime;
-        elapsed = now - event.startTime;
-        remaining = event.endTime - now;
+        totalDuration = endTime - startTime;
+        elapsed = now - startTime;
+        remaining = endTime - now;
       }
       const progressPercent = (elapsed / totalDuration) * 100;
       const remainingHours = Math.floor(remaining / (1000 * 60 * 60));
@@ -1283,39 +1296,68 @@ class ScheduleRenderer {
 
     // ✓ Проверить совпадение дат событий
     const isSameDay = (date1, date2) => {
-      return date1.getFullYear() === date2.getFullYear() &&
-            date1.getMonth() === date2.getMonth() &&
-            date1.getDate() === date2.getDate();
+      const d1 = date1 instanceof Date ? date1 : new Date(date1);
+      const d2 = date2 instanceof Date ? date2 : new Date(date2);
+      return (
+        !Number.isNaN(d1.getTime()) &&
+        !Number.isNaN(d2.getTime()) &&
+        d1.getFullYear() === d2.getFullYear() &&
+        d1.getMonth() === d2.getMonth() &&
+        d1.getDate() === d2.getDate()
+      );
     };
 
     // ✓ Ищем и добавляем текущее занятие
     let currentClassElement = undefined;
-    const currentEvent = this.sheduleData.find(event =>
-      event.startTime && event.endTime &&
-      now >= event.startTime && now <= event.endTime
-    );
+    console.log(this.sheduleData);
+    const currentEvent = this.sheduleData.find(({ startTime, endTime }) => {
+      const start = startTime instanceof Date ? startTime : new Date(startTime);
+      const end = endTime instanceof Date ? endTime : new Date(endTime);
+      return (
+        !Number.isNaN(start.getTime()) &&
+        !Number.isNaN(end.getTime()) &&
+        now >= start &&
+        now <= end
+      );
+    });
     if (currentEvent) currentClassElement = this.createDayEventElement(currentEvent, undefined);
 
     // ✓ Ищем следующее событие в тот же день
     let nextClassElement = undefined; 
     let nextEvent = null;
     if (currentEvent) { // Если есть текущее событие, ищем следующее после него в тот же день
-      nextEvent = this.sheduleData.find(event =>
-        event.startTime && event.endTime &&
-        event.startTime > currentEvent.endTime &&
-        isSameDay(event.startTime, now)
-      );
+      nextEvent = this.sheduleData.find(event => {
+        const startTime = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
+        const endTime = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
+        return (
+          event.startTime &&
+          event.endTime &&
+          !Number.isNaN(startTime.getTime()) &&
+          !Number.isNaN(endTime.getTime()) &&
+          startTime > (currentEvent.endTime instanceof Date ? currentEvent.endTime : new Date(currentEvent.endTime)) &&
+          isSameDay(startTime, now)
+        );
+      });
     } else { // Если нет текущего события, ищем первое начальное занятие
-      nextEvent = this.sheduleData.find(event =>
-        event.startTime && event.endTime &&
-        event.startTime > now &&
-        isSameDay(event.startTime, now)
-      );
+      nextEvent = this.sheduleData.find(event => {
+        const startTime = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
+        const endTime = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
+        return (
+          event.startTime &&
+          event.endTime &&
+          !Number.isNaN(startTime.getTime()) &&
+          !Number.isNaN(endTime.getTime()) &&
+          startTime > now &&
+          isSameDay(startTime, now)
+        );
+      });
     }
+    console.log(nextEvent);
 
     // ✓ Добавляем следующее занятие или отсутствие занятий в ближайшее время
     if (nextEvent) {
-      const timeUntilNext = nextEvent.startTime - now;
+      const nextStartTime = nextEvent.startTime instanceof Date ? nextEvent.startTime : new Date(nextEvent.startTime); 
+      const timeUntilNext = nextStartTime - now;
       const hoursUntilNext = timeUntilNext / (1000 * 60 * 60);
       
       // ✓ Если до следующей пары меньше 3 часов
@@ -1439,7 +1481,6 @@ class ScheduleRenderer {
   }
 
   // ✓ Произвести рендер расписания и получить элемент расписания
-  // Сделать список доступных недель для переключения
   render(type) {
     if (type === 'day') { // ✓ Сгенерировать внутридневное расписание
       const dayElementContainer = document.createElement('div');
@@ -1460,8 +1501,8 @@ class ScheduleRenderer {
       function isClassesEndedToday(sheduleData) {
         const today = ScheduleRenderer.formatDateKey(new Date());
         const now = new Date();
-        const todayEvents = sheduleData.filter(event => 
-          event.startTime && ScheduleRenderer.formatDateKey(event.startTime) === today
+        const todayEvents = sheduleData.filter(event =>
+          event.startTime && (ScheduleRenderer.formatDateKey(event.startTime) === today) 
         );
         if (todayEvents.length === 0) return true;
         const lastEvent = todayEvents.reduce((latest, event) => 
@@ -1549,6 +1590,7 @@ class ScheduleRenderer {
 
 // ✓ Сменить контент расписания
 function changeSheduleTypeContent(type, shedule) {
+  console.log({type, shedule});
   const sheduleContainer = document.getElementById('shedule-container');
   const renderer = new ScheduleRenderer(shedule);
   const sheduleFiller = renderer.render(type);
@@ -1824,16 +1866,14 @@ async function generatePageContent(id) {
       sheduleContainer.id = 'shedule-container';
       sheduleContainer.appendChild(innerElement);
     } catch(err) {
-      const dbman = new indexedStorage('group', CurrentGroup);
-      dbman.clear();
-
       sheduleContainer = document.createElement('div');
       sheduleContainer.innerHTML = `<h1>Упс!</h1>
       <p>Похоже, при попытке отобразить расписание появилась ошибка. Вот инструкции, которые возможно Вам помогут:</p>
       <p>1) Попробуйте перезапустить приложение. Это действие сбросит локально сохраненное расписание и перезапишет новое с сайта ЭЙОС КГУ.</p>
       <p>2) Если нет подключения к интернету, попробуйте наладить подключение к сети и перезайти в приложение.</p>
       <p>Текст ошибки (для тестировщиков):</p>
-      <p style="color: red">${err}</p>`;
+      <p style="color: red">${err}</p>
+      <button onclick="const dbman = new indexedStorage('group', CurrentGroup); dbman.clear();">Сбросить хранилище</button>`;
     }
 
     // ✓ Получить случайное описание 
@@ -2232,4 +2272,3 @@ async function init() {
   await generatePage('nav-shedule', true);
 }
 init();
-
