@@ -1686,6 +1686,7 @@ class KafederRenderer {
   renderDepartments(departments, container) {
     Object.entries(departments).forEach(([key, value]) => {
       const departamentContainer = document.createElement('details');
+      departamentContainer.classList.add('kafeder-department');
       departamentContainer.innerHTML = `<summary class="department-title">${key}</summary>`;
 
       const departamentContent = document.createElement('div');
@@ -1700,10 +1701,11 @@ class KafederRenderer {
   renderInstitutes(container) {
     Object.entries(teachersData).forEach(([key, value]) => {
       const InstituteContainer = document.createElement('details');
-      InstituteContainer.innerHTML = `<summary class="Institute-title">${key}</summary>`;
+      InstituteContainer.classList.add('kafeder-institute');
+      InstituteContainer.innerHTML = `<summary class="institute-title">${key}</summary>`;
 
       const InstituteContent = document.createElement('div');
-      InstituteContent.classList.add('Institute-content');
+      InstituteContent.classList.add('institute-content');
       this.renderDepartments(value, InstituteContent);
       InstituteContainer.appendChild(InstituteContent);
       container.appendChild(InstituteContainer);

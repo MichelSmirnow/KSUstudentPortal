@@ -450,14 +450,11 @@ img.banner-half {
   animation: fadeIn 0.3s ease;
 }
 
-/* Стили институтов */
-.institute {
-  width: 100%;
-  margin-bottom: 0;
-  border: 1px solid #e0e0e0;
-  background: #ffffff;
+/* ===== Стиль институтов (вложенные элементы первого порядка) ===== */
+.kafeder-institute {
+  width: calc(100% - 20px); margin: 0 auto; margin-bottom: 10px;
+  border: 1px solid #e0e0e0; border-radius: 10px; background: #fff;
 }
-
 .institute-title {
   display: block;
   padding: 16px 20px;
@@ -467,14 +464,17 @@ img.banner-half {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   user-select: none;
-  transition: all 0.3s ease;
   list-style: none;
-}
 
-.institute-title::-webkit-details-marker {
-  display: none;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(110, 6, 113, 0.5);
+  text-shadow: 0 0 7px rgba(244, 233, 245, 0.35);
+  transition: all 0.5s ease;
 }
+.institute-title:hover { filter: brightness(115%); box-shadow: 0 0 10px rgba(183, 8, 189, 0.5); transition: all 0.3s ease; }
+.institute-title:active { filter: brightness(85%); box-shadow: 0 0 10px rgba(145, 4, 150, 0.5); text-shadow: 0 0 7px rgba(244, 233, 245, 0.55); transition: all 0.3s ease; }
 
+.institute-title::-webkit-details-marker { display: none; }
 .institute-title::before {
   content: '▶';
   display: inline-block;
@@ -483,44 +483,25 @@ img.banner-half {
   transition: transform 0.3s ease;
 }
 
-.institute[open] > .institute-title::before {
-  transform: rotate(90deg);
-}
+.kafeder-institute[open] > .institute-title::before { transform: rotate(90deg); }
+.institute-content { padding: 0; }
 
-.institute-title:hover {
-  background: linear-gradient(135deg, #5568d3 0%, #6b3f99 100%);
-}
 
-.institute-content {
-  padding: 0;
+/* ===== Стиль кафедр (вложенные элементы творого порядка) ===== */
+.kafeder-department {
+  width: 100%; margin: 0;
+  border-top: 1px solid #e0e0e0; border-bottom: none; background: #fafafa;
 }
-
-/* Стили кафедр */
-.department {
-  width: 100%;
-  margin: 0;
-  border-top: 1px solid #e0e0e0;
-  border-bottom: none;
-  background: #fafafa;
-}
-
 .department-title {
-  display: block;
-  padding: 14px 20px 14px 40px;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 15px;
-  background: #f5f5f5;
-  color: #555;
-  user-select: none;
-  transition: all 0.3s ease;
-  list-style: none;
+  display: block; width: calc(100% - 60px) !important; margin: 0 auto; padding: 14px 20px 14px 40px;
+  background-color: rgba(0,0,0,0); font-weight: 500; font-size: 15px; color: #555; border-radius: 10px;
+  user-select: none; list-style: none; text-shadow: 0;
+  transition: all 0.5s ease;
 }
+.department-title:hover { color: #333; text-shadow: 0 0 7px rgba(0,0,0,0.25); transition: all 0.3s ease; }
+.department-title:active { color: #000; text-shadow: 0 0 7px rgba(0,0,0,0.5); background-color: #eaeaea; transition: all 0.3s ease; }
 
-.department-title::-webkit-details-marker {
-  display: none;
-}
-
+.department-title::-webkit-details-marker { display: none; }
 .department-title::before {
   content: '▶';
   display: inline-block;
@@ -531,18 +512,8 @@ img.banner-half {
   color: #999;
 }
 
-.department[open] > .department-title::before {
-  transform: rotate(90deg);
-}
-
-.department-title:hover {
-  background: #eeeeee;
-  color: #333;
-}
-
-.department-content {
-  padding: 0;
-}
+.kafeder-department[open] > .department-title::before { transform: rotate(90deg); }
+.department-content { padding: 0; }
 
 /* ========== КАРТОЧКИ ПРЕПОДАВАТЕЛЕЙ ========== */
 .teacher-card {
