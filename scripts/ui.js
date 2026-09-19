@@ -3,6 +3,7 @@
 /* Постоянные системные настройки */
 const DEBUG_MODE = true;
 const STRINGIFY_SAVINGS = false;
+const LOADING_ANIMATIONS = true;
 
 /* Пользовательские данные (данные группы), основной информационный контент приложения */
 // Данные по группе
@@ -900,7 +901,7 @@ async function fetchShedule(sheduleID, sheduleType) {
       if (!groupIDtoExtract) { console.warn('Такой группы нету в списке ^('); return undefined; }
       return `https://eios.kosgos.ru/api/Rasp?idGroup=${groupIDtoExtract}&iCal=true`;
     } else if (type === 'teacher') {
-      return `https://eios.kosgos.ru/api/Rasp?idTeacher=$${id}&iCal=true`;
+      return `https://eios.kosgos.ru/api/Rasp?idTeacher=${id}&iCal=true`;
     }
   }
 
@@ -917,7 +918,10 @@ async function fetchShedule(sheduleID, sheduleType) {
   try { // ✓ Попытка обновить данные с сервера
     const parser = new ICSParser();
     const sheduleLink = getSheduleLink(sheduleType, sheduleID);
-    newShedule = await parser.fetch(sheduleLink);
+    console.log(sheduleLink);
+    const newFetchedShedule = await parser.fetch(sheduleLink);
+    const newStringedShedule = JSON.stringify(newFetchedShedule);
+    newShedule = JSON.parse(newStringedShedule);
     if (!newShedule || newShedule.length === 0 || !Array.isArray(newShedule)) newShedule = undefined; 
     if(DEBUG_MODE) console.log({newShedule});
   } catch(error) { // Если пришел пустой массив
@@ -1208,6 +1212,7 @@ class ScheduleRenderer {
     const updateProgress = () => {
       const nowUpdate = new Date();
       const startTime = justifyDate(event.startTime); 
+      const endTime = justifyDate(event.endTime);
 
       // ✓ Проверяем, не началась ли пара (для следующей пары)
       if (nowUpdate > startTime && next === true) {
@@ -1217,7 +1222,7 @@ class ScheduleRenderer {
       }
 
       // ✓ Проверяем, не закончилась ли пара (для текущей пары)
-      if (nowUpdate > startTime) {
+      if (nowUpdate > endTime) {
         dayEventContainer.classList.add('container-hidden'); 
         setTimeout(() => { dayEventContainer.remove(); }, 510); 
         return;
@@ -1437,7 +1442,7 @@ class ScheduleRenderer {
 
       // ✓ Если текущая неделя, делаем её выбранной по умолчанию
       if (formatWeekDate(week.monday) === currentMondayStr) {
-        button.classList.add('selected');
+        button.classList.add('selected'); button.classList.add('current-week-button');
       }
 
       // ✓ Добавляем обработку нажатия на кнопку недели
@@ -1486,9 +1491,10 @@ class ScheduleRenderer {
       function isClassesEndedToday(sheduleData) {
         const today = ScheduleRenderer.formatDateKey(new Date());
         const now = new Date();
-        const todayEvents = sheduleData.filter(event =>
-          event.startTime && (ScheduleRenderer.formatDateKey(event.startTime) === today) 
-        );
+        const todayEvents = sheduleData.filter(event => {
+          const startTime = justifyDate(event.startTime);
+          return startTime && (ScheduleRenderer.formatDateKey(startTime) === today) 
+        });
         if (todayEvents.length === 0) return true;
         const lastEvent = todayEvents.reduce((latest, event) => 
           event.endTime > latest.endTime ? event : latest
@@ -1611,7 +1617,7 @@ let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-5';
 groupChange.addEventListener('click', async() => { 
 
   // ✓ Выбираем следующий ключ в списке
-  if (navOpened === 'nav-shedule') { flag.loading = true; }
+  if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS) { flag.loading = true; }
   const groupKeys = Object.keys(groupsID);
   const currentIndex = groupKeys.indexOf(CurrentGroup);
   const nextIndex = (currentIndex + 1) % groupKeys.length;
@@ -1626,12 +1632,13 @@ groupChange.addEventListener('click', async() => {
     setTimeout(() => { 
       changeSheduleTypeContent(((dayButton.classList.contains('selected')) ? "day" : "week"), groupData[CurrentGroup]); 
     }, 500);
-    setTimeout(() => { flag.loading = false; return; }, 1000);
+    setTimeout(() => { if (LOADING_ANIMATIONS) {flag.loading = false;} return; }, 1000);
   }
 });
 
 /* ======================================= Кафедра ======================================== */
 
+// Отрисовка кафедры
 class KafederRenderer {
   constructor() {
     this.allTeachers = this.extractAllTeachers();
@@ -1652,67 +1659,59 @@ class KafederRenderer {
   }
 
   // ✓ Создать список учителей по входящему списку
-  renderTeachers(teachers) {
-    return Object.entries(teachers)
-      .filter(([, teacher]) => teacher.fullName)
-      .map(([, teacher]) => {
-        const teacherElement = document.createElement('div');
-        teacherElement.classList.add('teacher-card');
+  renderTeachers(teachers, container) {
+    teachers.forEach((teacher, index) => {
+      const teacherElement = document.createElement('div');
+      teacherElement.classList.add('teacher-card');
 
-        // ✓ Обьявляем внутреннее содержимое карточки учителя
-        teacherElement.innerHTML = `
-        <img src="${teacher.image}" alt="${teacher.fullName}" class="teacher-image">
-        <div class="teacher-info">
-          <div class="teacher-name">${teacher.fullName}</div>
-          ${teacher.academicDegree ? `<div class="teacher-degree">${teacher.academicDegree}</div>` : ''}
-          ${teacher.workPost ? `<div class="teacher-post">${teacher.workPost}</div>` : 'Преподаватель кафедры'}
-        </div>`;
+      // ✓ Обьявляем внутреннее содержимое карточки учителя
+      teacherElement.innerHTML = `
+      <img src="${teacher.image}" alt="${teacher.fullName}" class="teacher-image">
+      <div class="teacher-info">
+        <div class="teacher-name">${teacher.fullName}</div>
+        ${teacher.academicDegree ? `<div class="teacher-degree">${teacher.academicDegree}</div>` : ''}
+        ${teacher.workPost ? `<div class="teacher-post">${teacher.workPost}</div>` : 'Преподаватель кафедры'}
+      </div>`;
 
-        // Добавляем обработчик нажатия на учителя
-        teacherElement.addEventListener('click', async() => {
-          await generateSubpage('teacher', teacher); // teacher ЭТО ОБЬЕКТ!!! ЕГО НАДО ПО ДРУГОМУ ПАРСИРОВАТЬ!!!
-        });
-
-        console.log(teacherElement.innerHTML);
-        return teacherElement;
-      }).join('');
+      // ✓ Добавляем обработчик нажатия на учителя
+      teacherElement.addEventListener('click', async() => {
+        await generateSubpage('teacher', teacher); // teacher ЭТО ОБЬЕКТ!!! ЕГО НАДО ПО ДРУГОМУ ПАРСИРОВАТЬ!!!
+      });
+      
+      container.appendChild(teacherElement);
+    });
   }
 
-  // Создать список кафедр
-  renderDepartments(departments) {
-    return Object.entries(departments).map(([departmentName, teachers]) => {
-      const teachersElements = this.renderTeachers(teachers);
+  // ✓ Создать список кафедр
+  renderDepartments(departments, container) {
+    Object.entries(departments).forEach(([key, value]) => {
       const departamentContainer = document.createElement('details');
-      departamentContainer.innerHTML = `<summary class="department-title">${departmentName}</summary>`;
+      departamentContainer.innerHTML = `<summary class="department-title">${key}</summary>`;
 
       const departamentContent = document.createElement('div');
       departamentContent.classList.add('departament-content');
-      departamentContent.appendChild(teachersElements);
+      this.renderTeachers(Object.values(value), departamentContent);
       departamentContainer.appendChild(departamentContent);
-
-      console.log(departamentContainer.innerHTML);
-      return departamentContainer;
-    }).join('');
+      container.appendChild(departamentContainer);
+    });
   }
 
-  // Создать список институтов (факультетов)
-  renderInstitutes() {
-    return Object.entries(teachersData).map(([instituteName, departments]) => {
-      const departmentsElement = this.renderDepartments(departments);
+  // ✓ Создать список институтов (факультетов)
+  renderInstitutes(container) {
+    Object.entries(teachersData).forEach(([key, value]) => {
       const InstituteContainer = document.createElement('details');
-      InstituteContainer.innerHTML = `<summary class="Institute-title">${instituteName}</summary>`;
+      InstituteContainer.innerHTML = `<summary class="Institute-title">${key}</summary>`;
 
       const InstituteContent = document.createElement('div');
       InstituteContent.classList.add('Institute-content');
-      InstituteContent.appendChild(InstituteElements);
+      this.renderDepartments(value, InstituteContent);
       InstituteContainer.appendChild(InstituteContent);
-
-      return InstituteContainer;
-    }).join('');
+      container.appendChild(InstituteContainer);
+    });
   }
 
 
-
+/*
 
   // Поиск по любому совпадению букв (case-insensitive)
   searchTeachers(query) {
@@ -1810,14 +1809,14 @@ class KafederRenderer {
     });
   }
 
-
+*/
 
 
   // Основной метод рендера с поиском
   render() {
-    const searchHtml = this.renderSearch();
-    const institutesHtml = this.renderInstitutes();
-    return institutesHtml;
+    const kafederContainer = document.createElement('div');
+    this.renderInstitutes(kafederContainer);
+    return kafederContainer;
   } 
 }
 
@@ -1830,33 +1829,48 @@ const containerTranslate = document.getElementById('container-translate');
 const containerUpward = document.getElementById('container-upwards');
 const containerLoading = document.getElementById('container-loading');
 
+// Получить персонализированный текст ошибки
+function generateErrorContainer(error) {
+  return `<h1>Упс!</h1>
+  <p>Похоже, при попытке отобразить расписание появилась ошибка. Вот инструкции, которые возможно Вам помогут:</p>
+  <p>1) Попробуйте перезапустить приложение. Это действие сбросит локально сохраненное расписание и перезапишет новое с сайта ЭЙОС КГУ.</p>
+  <p>2) Если нет подключения к интернету, попробуйте наладить подключение к сети и перезайти в приложение.</p>
+  <p>Текст ошибки (для тестировщиков):</p>
+  <p style="color: red">${error}</p>
+  <button onclick="const dbman = new indexedStorage('group', CurrentGroup); dbman.clear();">Сбросить хранилище</button>`;
+}
+
 /* ======== Генерация основного контента страницы (нижнее навигационное меню) ======== */
 
 // Генерация контента на страницах приложения
 async function generatePageContent(id) {
   const generatePageContentContainer = document.createElement('div');
-  if (id === 'nav-kafeder') {          // Окно кафедры
-    const renderer = new KafederRenderer();
-    const innerElement = renderer.render(); 
+  if (id === 'nav-kafeder') {          // ✓ Окно кафедры
+    const kafederContainer = document.createElement('div');
+    try {
+      const renderer = new KafederRenderer();
+      const innerElement = renderer.render();
+      kafederContainer.id = 'kafeder-container';
+      kafederContainer.appendChild(innerElement);
+    } catch(err) { kafederContainer.innerHTML = generateErrorContainer(err); } 
 
     // ✓ Заполняем контейнер данными и возвращаем
-    generatePageContentContainer.innerHTML = `<div class="relative-container" id="subcontainer">
-      <div class="flex-container info-container">
-        <div class="banner-half" style="z-index: 9999 !important;">
-          <h3>Кафедра</h3>
-          <p>Списки дисциплин и информация про преподавателей</p>
-          <p style="font-size: 12px; color: #777;">Вся информация взята из открытых источников</p>
-        </div>
-        <img class="banner-half" style="z-index: 1 !important;" src="images/supbanners/kafeder.png"/>
+    generatePageContentContainer.innerHTML = `
+    <div class="flex-container info-container">
+      <div class="banner-half" style="z-index: 9999 !important;">
+        <h3>Кафедра</h3>
+        <p>Списки дисциплин и информация про преподавателей</p>
+        <p style="font-size: 12px; color: #777;">Вся информация взята из открытых источников</p>
       </div>
-      <div class="flex-container radio-container">
-        <button id="kafeder-teachers" class="radio-button selected" onclick="">Преподаватели</button>
-        <button id="kafeder-lessons" class="radio-button" onclick="">Дисциплины</button>
-      </div>
-      <div id="kafeder-container">${innerElement}</div>
+      <img class="banner-half" style="z-index: 1 !important;" src="images/supbanners/kafeder.png"/>
+    </div>
+    <div class="flex-container radio-container">
+      <button id="kafeder-teachers" class="radio-button selected" onclick="">Преподаватели</button>
+      <button id="kafeder-lessons" class="radio-button" onclick="">Дисциплины</button>
     </div>`;
-
+    generatePageContentContainer.appendChild(kafederContainer);
     return generatePageContentContainer;
+
   } else if (id === 'nav-homework') {  // Окно домашних заданий, работы и материалов
 
     return `
@@ -1872,23 +1886,13 @@ async function generatePageContent(id) {
     </div>
     `;
   } else if (id === 'nav-shedule') {   // ✓ Окно расписания
-    let sheduleContainer;
+    const sheduleContainer  = document.createElement('div');;
     try {
       const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
       const innerElement = renderer.render('day');
-      sheduleContainer = document.createElement('div');
       sheduleContainer.id = 'shedule-container';
       sheduleContainer.appendChild(innerElement);
-    } catch(err) {
-      sheduleContainer = document.createElement('div');
-      sheduleContainer.innerHTML = `<h1>Упс!</h1>
-      <p>Похоже, при попытке отобразить расписание появилась ошибка. Вот инструкции, которые возможно Вам помогут:</p>
-      <p>1) Попробуйте перезапустить приложение. Это действие сбросит локально сохраненное расписание и перезапишет новое с сайта ЭЙОС КГУ.</p>
-      <p>2) Если нет подключения к интернету, попробуйте наладить подключение к сети и перезайти в приложение.</p>
-      <p>Текст ошибки (для тестировщиков):</p>
-      <p style="color: red">${err}</p>
-      <button onclick="const dbman = new indexedStorage('group', CurrentGroup); dbman.clear();">Сбросить хранилище</button>`;
-    }
+    } catch(err) { sheduleContainer.innerHTML = generateErrorContainer(err); }
 
     // ✓ Получить случайное описание 
     function getRandomDescription() {
@@ -2051,8 +2055,10 @@ async function generatePageContent(id) {
 
 // ✓ Функция генерации страницы 
 async function generatePage(id, skip) {
+
   if (!id) throw new Error('Страницы не существует');
-  animationInProgress = true; flag.loading = true;
+  animationInProgress = true; 
+  if (LOADING_ANIMATIONS) flag.loading = true;
   containerMain.classList.add('animated');         // Для плавного перемещения
   containerTranslate.classList.remove('animated'); // Для мгновенного перемещения
 
@@ -2077,11 +2083,16 @@ async function generatePage(id, skip) {
   } else if (skip === true) { // Если нужно первично инициализировать
     const a = await generatePageContent(id);
     containerMain.appendChild(a);
-    animationInProgress = false; flag.loading = false; return;
+    animationInProgress = false; 
+    if (LOADING_ANIMATIONS) flag.loading = false; 
+    return;
   } else { // Эта страница уже открыта
-    animationInProgress = false; flag.loading = false; return; 
+    animationInProgress = false; 
+    if (LOADING_ANIMATIONS) flag.loading = false;
+    return; 
   }
-  navOpened = id; flag.loading = false;
+  navOpened = id; 
+  if (LOADING_ANIMATIONS) flag.loading = false;
   
   // ✓ Показать анимацию перелистывания
   // Прячет основной контейнер и пролистывает насередину трансляционный
@@ -2179,13 +2190,12 @@ async function generateSubpageContent(id, data) {
     </details>
     `;
   } else if (id === 'teacher') { // Перекрывающее окно информации о преподавателе (data - инициалы преподавателя)
-    const teacherData = extractTeachersData(data);
+    const teacherData = data;
 
     // Получаем расписание преподавателя
-    (document.getElementById('header-group')).innerHTML = CurrentGroup;
-    if (!groupData[CurrentGroup]) { groupData[CurrentGroup] = await fetchShedule(teacherData.sheduleCode, 'teacher');  }
-    const renderer = new ScheduleRenderer(shedule);
-    const sheduleFiller = renderer.render(type);
+    if (!groupData[teacherData.fullName]) { groupData[teacherData.fullName] = await fetchShedule(teacherData.sheduleCode, 'teacher');  }
+    const renderer = new ScheduleRenderer(groupData[teacherData.fullName]);
+    const sheduleFiller = renderer.render('week');
 
     generatePageContentContainer.innerHTML = `
     <div class="flex-container">  
@@ -2207,20 +2217,22 @@ async function generateSubpageContent(id, data) {
 // ✓ Функция генерации перекрывающего окна
 async function generateSubpage(id, data) {
   if (!id) throw new Error('Страницы не существует');
-
-  // ✓ Заполняем родительский контейнер сгенерированным контентом
-  const a = await generateSubpageContent(id, data);
-  containerUpward.appendChild(a);
+  containerUpward.innerHTML = '';
 
   // ✓ Добавляем кнопку закрытия второстепенного окна
   const closeButton = document.createElement('button');
+  closeButton.id = 'subpage-close-button';
   closeButton.innerHTML = 'Закрыть'
   closeButton.addEventListener('click', async() => {
     containerUpward.classList.remove('visible');
     containerUpward.classList.add('hidden');
-    setTimeout(() => { containerUpward.innerHTML = '';}, 350);
+    setTimeout(() => { containerUpward.innerHTML = ''; }, 350);
   });
   containerUpward.appendChild(closeButton);
+
+  // ✓ Заполняем родительский контейнер сгенерированным контентом
+  const a = await generateSubpageContent(id, data);
+  containerUpward.appendChild(a);
 
   // ✓ Показываем полученный контейнер
   setTimeout(() => {

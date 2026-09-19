@@ -1,6 +1,6 @@
 /* =============================== Инициализация изображений ============================== */
 
-const PLACEHOLDER = '/images/ui/gradient.gif';
+const PLACEHOLDER = '/images/ui/vk.png';
 const ERRORHOLDER = '/images/teachers/nophoto.jpg';
 const processedImages = new WeakSet();
 
