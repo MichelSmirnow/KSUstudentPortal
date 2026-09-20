@@ -16,57 +16,158 @@
         <link rel="apple-touch-icon" href="images/logo/192x192.png">
 		
 		<!-- Импорты стилей -->
-		<link rel="stylesheet" href="styles/fonts.css"> <!-- Шрифты приложения -->
-		<link rel="stylesheet" href="styles/main.css">  <!-- Общая стилизация -->
+		<link rel="stylesheet" href="styles/fonts/fonts.css">
+		<link rel="stylesheet" href="styles/main.css">
+		<link rel="stylesheet" href="styles/auth.css">
+		<link rel="stylesheet" href="styles/ui.css">
+		<link rel="stylesheet" href="styles/pages/kafeder.css">
+		<link rel="stylesheet" href="styles/pages/materials.css">
+		<link rel="stylesheet" href="styles/pages/shedule.css">
+		<link rel="stylesheet" href="styles/pages/messager.css">
+		<link rel="stylesheet" href="styles/pages/account.css">
 	</head>
 	<body>
-		<!-- ✓ Элементы заднего фона -->
-		<div id="background"></div>
+		<div id="notifications"></div> <!-- Контейнер уведомлений -->
 
-		<!-- ✓ Нижняя панель навигации закрепленного интерфейса -->
-		<div id="filter-bottom"></div>
-		<div id="nav">
-			<div class="nav-element" id="nav-kafeder">
-				<img src="images/ui/graduation-cap.png" />
-			</div>
-			<div class="nav-element" id="nav-homework">
-				<img src="images/ui/work.png" />
-			</div>
-			<div class="nav-element" id="nav-shedule">
-				<img src="images/ui/schedule.png" />
-			</div>
-			<div class="nav-element" id="nav-messager">
-				<img src="images/ui/messager.png" />
-			</div>
-			<div class="nav-element" id="nav-account">
-				<img src="images/ui/phone.png" />
-			</div>
+		<!-- Контейнер авторизации -->
+		<div id="auth" class="relative-container hidden">
+			<div id="background-auth"></div>
+			<div id="auth-wrapper"><div class="relative-container">
+				<div class="flex-container">
+					<img id="auth-logo" src="images/logo/Логотип прозрачный фавикон 1024.png"/>
+					<h1>Студент КГУ</h1>
+				</div>
+		
+				<div class="auth-container">
+					
+
+					<!-- ФОРМА РЕГИСТРАЦИИ -->
+					<form id="register-form" class="auth-form active">
+						<h2>Регистрация</h2>
+					
+						<input 
+							type="text" 
+							id="reg-username" 
+							class="auth-input"
+							placeholder="Логин (имя пользователя)" 
+							required
+						>
+						
+						<input 
+							type="email" 
+							id="reg-email" 
+							class="auth-input"
+							placeholder="Электронная почта" 
+							required
+						>
+						
+						<input 
+							type="password" 
+							id="reg-password" 
+							class="auth-input"
+							placeholder="Пароль (минимум 6 символов)" 
+							required
+						>
+						
+						<button type="submit" class="auth-button">Зарегистрироваться</button>
+						<p class="auth-message" id="register-message"></p>
+						
+						<p class="auth-toggle">
+							Уже есть аккаунт? 
+							<a href="#" id="toggle-to-login">Войдите</a>
+						</p>
+					</form>
+
+					<!-- ФОРМА ВХОДА -->
+					<form id="login-form" class="auth-form hidden">
+					<h2>Вход</h2>
+					
+					<input 
+						type="email" 
+						id="login-email" 
+						class="auth-input"
+						placeholder="Электронная почта" 
+						required
+					>
+					
+					<input 
+						type="password" 
+						id="login-password" 
+						class="auth-input"
+						placeholder="Пароль" 
+						required
+					>
+					
+					<button type="submit" class="auth-button">Войти</button>
+					<p class="auth-message" id="login-message"></p>
+					
+					<p class="auth-toggle">
+						Нет аккаунта? 
+						<a href="#" id="toggle-to-register">Зарегистрируйтесь</a>
+					</p>
+					</form>
+
+					<!-- КНОПКА ГОСТЕВОГО РЕЖИМА -->
+					<button id="guest-mode-btn" class="guest-button">
+					Продолжить в гостевом режиме
+					</button>
+				</div>
+			</div></div>
 		</div>
 
-		<!-- ✓ Верхняя панель закрепленного интерфейса -->
-		<div id="filter-top"></div>
-		<div id="header-left">
-			<p><span id="header-name">🔑 Режим теста</span></p>
-		</div>
-		<div id="header-right">
-			<p id="header-group-p"><span id="header-group">26-ИСбо-4</span></p>
-			<div class="header-button" id="header-notifications">
-				<img src="images/ui/notification.png" />
-			</div>
-			<div class="header-button" id="header-web">
-				<img src="images/ui/web.png" />
-			</div>
-		</div>
+		<!-- Контейнер сессии -->
+		<div id="session" class="relative-container hidden">
+			<div id="background-session"></div>
 
-		<!-- ✓ Контейнер уведомлений -->
-		<div id="notifications"></div>
+			<!-- Нижняя панель навигации закрепленного интерфейса -->
+			<div id="filter-bottom"></div>
+			<div id="nav">
+				<div class="nav-element" id="nav-kafeder">
+					<img src="images/ui/graduation-cap.png" />
+				</div>
+				<div class="nav-element" id="nav-homework">
+					<img src="images/ui/work.png" />
+				</div>
+				<div class="nav-element" id="nav-shedule">
+					<img src="images/ui/schedule.png" />
+				</div>
+				<div class="nav-element" id="nav-messager">
+					<img src="images/ui/messager.png" />
+				</div>
+				<div class="nav-element" id="nav-account">
+					<img src="images/ui/phone.png" />
+				</div>
+			</div>
 
-		<div id="container"></div>                        <!-- ✓ Основной контейнер наполнителя контента -->
-		<div id="container-translate"></div>              <!-- ✓ Контейнер анимации перелистывания страницы -->
-		<div id="container-upwards" class="hidden"></div> <!-- ✓ Контейнер перекрывающего содержимого (suppages) -->
-		<div id="container-loading" class="hidden"></div> <!-- ✓ Контейнер загрузки контента -->
-			
+			<!-- Верхняя панель закрепленного интерфейса -->
+			<div id="filter-top"></div>
+			<div id="header-left">
+				<p><span id="header-name">🔑 Режим теста</span></p>
+			</div>
+			<div id="header-right">
+				<p id="header-group-p"><span id="header-group">26-ИСбо-4</span></p>
+				<div class="header-button" id="header-notifications">
+					<img src="images/ui/notification.png" />
+				</div>
+				<div class="header-button" id="header-web">
+					<img src="images/ui/web.png" />
+				</div>
+			</div>
+
+			<!-- Контейнеры наполнителей контента  -->
+			<div id="container"></div>                        <!-- Основной контейнер наполнителя контента -->
+			<div id="container-translate"></div>              <!-- Контейнер анимации перелистывания страницы -->
+			<div id="container-upwards" class="hidden"></div> <!-- Контейнер перекрывающего содержимого (suppages) -->
+		</div>
+		<div id="container-loading" class="hidden"></div> <!-- Контейнер загрузки контента -->
+
+		<!-- Библиотеки и функции Firebase -->
+		<script src="libs/firebase/firebase-app.js"></script>
+		<script src="libs/firebase/firebase-auth.js"></script>
+		<script src="libs/auth-logic.js"></script>
+
+		<!-- Основная логика -->
 		<script src="scripts/ui.js"></script>
-		<script src="scripts/loading.js"></script>
+		
 	</body>
 </html>

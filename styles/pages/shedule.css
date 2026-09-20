@@ -1,0 +1,121 @@
+/*
+ * ==================================== Интерфейс вкладки расписания ====================================
+ */
+
+/* ======== ✓ Блоки недельного расписания ======== */
+.schedule-day {
+    width: 90%; margin: 0 auto; margin-bottom: 30px;
+    overflow: hidden;
+    background: #FFF; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ✓ Заголовок и информация дня в расписании */
+.day-header { 
+  padding: 15px 20px; color: white; font-weight: 600; font-size: 16px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.day-name { font-weight: 700; }
+.day-date { font-size: 14px; opacity: 0.95; }
+.day-events { padding: 0; }
+
+/* ✓ Элемент занятия */
+.event {
+    display: flex; align-items: flex-start; padding: 15px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.35s;
+}
+.event:hover { background-color: #f5f5f5; transition: all 0.2s; }
+.event:active { background-color: #dddddd; transition: all 0.2s; }
+.event:last-child { border-bottom: none; }
+
+/* ✓ Блок времени занятия */
+.event-time-block { min-width: 70px; margin-right: 20px; padding-left: 10px; }
+.event-time { display: flex; flex-direction: column; gap: 5px; }
+.start-time { font-weight: 700; font-size: 18px; color: #333; }
+.end-time { font-size: 12px; color: #999; }
+
+/* ✓ Информация о занятии */
+.event-content { flex: 1; min-width: 0; }
+.event-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.event-subject { margin: 0; font-size: 14px; font-weight: 600; color: #333; word-break: break-word; }
+.event-type {
+  padding: 2px 8px;
+  color: #666; font-size: 11px; font-weight: 600; white-space: nowrap;
+  background-color: #e8e8e8; border-radius: 12px;
+}
+.event-details { font-size: 13px; color: #666; }
+.event-detail { margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+
+
+/* ======== ✓ Блоки внутридневного расписания ======== */
+
+/* ✓ Контейнер текущей/следующей пары */
+.lesson-container {
+  position: relative; width: 85%; min-height: 145px; padding: 10px; margin: 0 auto; margin-bottom: 20px;
+  color: #EEE; box-shadow: 0 0px 10px rgba(0, 0, 0, 0.25);
+  border-radius: 20px; filter: brightness(100%); opacity: 1; transition: all 0.5s ease;
+}
+.lesson-container:hover { 
+  filter: brightness(115%); transition: filter 0.25s ease; 
+}
+.lesson-container:active { 
+  filter: brightness(90%); transition: filter 0.25s ease; 
+}
+
+/* ✓ Убранный контейнер текущей/следующей пары */
+.container-hidden { 
+  opacity: 0 !important; height: 0px !important; min-height: 0px !important; padding: 0px !important; margin-bottom: 0px !important;
+  transition: all 0.5s ease !important; 
+}
+.container-hidden * { opacity: 0 !important; transition: opacity 0.5s ease !important; }
+
+/* ✓ Вспомогательные контейнеры пары */
+.lesson-subcontainer {
+  min-height: 80px; padding: 5px; border-radius: 10px;
+  display: flex; flex-direction: row; align-items: start; justify-content: start;
+}
+
+/* ✓ Левый блок с информацией о времени и типом занятия */
+.lesson-time-block { min-width: 70px; margin-right: 20px; padding-left: 10px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.5)); }
+.lesson-time { display: flex; flex-direction: column; gap: 5px; }
+.lesson-start-time, .lesson-end-time { font-size: 18px; font-weight: 700; color: #EEE; }
+.lesson-end-time { font-size: 14px; font-weight: 400; color: #DDD; }
+.lesson-type { color: #EEE; font-size: 14px; }
+
+/* ✓ Правый блок с общей информацией о занятии */
+.lesson-content { flex: 1; min-width: 0; filter: drop-shadow(0 0 10px rgba(0,0,0,0.5)); }
+.lesson-header { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.lesson-subject { margin: 0; font-size: 17px; color: #EEE; word-break: break-word; }
+.lesson-type2 {
+  padding: 2px 8px; border-radius: 12px; font-size: 12px; white-space: nowrap;
+  background-color: rgba(255,255,255,0.4); color: #FFF; 
+  text-shadow: 0 0 10px rgba(0,0,0,0.5); box-shadow: 0 0 10px rgba(255,255,255,0.5); 
+}
+.lesson-details { font-size: 14px; color: #DDD; }
+.lesson-detail { margin-bottom: 4px; display: flex; gap: 8px; align-items: center; }
+
+/* ✓ Контейнер прогресса */
+.lesson-progress { padding: 5px; border-radius: 10px; margin-top: 10px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.25)); }
+.class-progress-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 16px; align-items: center; }
+.class-progress-label { opacity: 0.9; }
+.class-remaining-time { font-weight: 600; font-size: 15px; }
+.class-progress-bar-container { width: 100%; height: 8px; background: rgba(255, 255, 255, 0.3); border-radius: 4px; overflow: hidden; }
+.class-progress-bar { height: 100%; width: 0%; background: white; border-radius: 4px; transition: width 0.3s ease; }
+
+/* ✓ В ближайшее время нет пар */
+.no-classes-block { 
+  display: flex; justify-content: center; align-items: center; width: 80%; padding: 5px 20px; margin: 0 auto; margin-bottom: 20px;
+  color: white; text-align: center; font-size: 16px; text-align: center;
+  background: linear-gradient(135deg, #a0a0a0 0%, #757575 100%); box-shadow: 0 0px 15px rgba(0, 0, 0, 0.25); border-radius: 10px;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.25);
+}
+.no-classes-block img { height: 50px; }
+.no-classes-block img { filter: invert(95%) drop-shadow(0 0 10px rgba(0,0,0,0.25));}
+
+
+/* ======== Перекрывающее окно информации о занятии ======== */
+
+.materials-teacher { 
+  width: 170px; 
+  border-radius: 20px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.15); 
+}

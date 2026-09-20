@@ -1,0 +1,113 @@
+/* ==================================== ✓ Закрепленный интерфейс ==================================== */
+
+/* ======== ✓ Нижний пользовательский интерфейс ======== */
+
+/* ✓ Подкладка нижнего закрепленного интерфейса */
+#filter-bottom {
+    position: fixed; height: 80px; bottom: -30px; left: -3px; right: -3px;
+    z-index: 10; background-color: rgb(241, 241, 241);
+    border-radius: 30px; border: 2px solid rgba(49,49,49,0.25); opacity: 0.9;
+    box-shadow: 0 0 20px rgba(255,255,255,0.35); 
+}
+
+/* ✓ Контейнер нижнего навигационного меню */
+#nav {
+    position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); z-index: 100;
+    display: flex; flex-direction: line; justify-content: center; align-items: center; gap: 10px;
+    width: auto; height: 60px; padding: 0 15px;
+    background-color: rgba(255, 255, 255, 0.25); border-radius: 30px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.15);
+}
+
+/* ✓ Нажимаемый элемент нижнего навигационного меню */
+.nav-element {
+    position: relative; width: 50px; height: 50px; padding: 0; margin: 0;
+    background-position: right; background-size: 200%; filter: brightness(125%);
+    box-shadow: 0 0 10px rgba(0,0,0,0.25); backdrop-filter: blur(5px); border-radius: 10px;
+    background-color: rgba(0,0,0,0.2);
+    transition: all 0.65s ease;
+}
+.nav-element:hover {
+    width: 75px; height: 75px;
+    background-position: left;
+    transition: all 0.35s ease;
+}
+.nav-element:active {
+    width: 70px; height: 70px;
+    background-position: center;
+    box-shadow: 0 0 10px rgba(0,0,0,0.25); filter: brightness(110%);
+    transition: all 0.25s ease;
+}
+
+/* ✓ Индивидуальные цвета для элементов нижнего меню*/
+#nav-kafeder  { background-image: linear-gradient(to left, rgba(0,0,255,0.25) 0%, rgba(0,255,255,0.25) 150%); }
+#nav-kafeder:hover  { box-shadow: 0 0 15px rgba(0,0,255,0.25); }
+#nav-homework { background-image: linear-gradient(to left, rgba(211, 148, 11, 0.25) 0%, rgba(255, 0, 0, 0.25) 150%); }
+#nav-homework:hover { box-shadow: 0 0 15px rgba(211, 148, 11, 0.25); }
+#nav-shedule  { background-image: linear-gradient(to left, rgba(255, 0, 149, 0.25) 0%, rgba(17, 0, 255, 0.25) 150%); }
+#nav-shedule:hover  { box-shadow: 0 0 15x rgba(255, 0, 149, 0.25); }
+#nav-messager { background-image: linear-gradient(to left, rgba(0, 217, 255, 0.25) 0%, rgba(0, 140, 255, 0.25) 150%); }
+#nav-messager:hover { box-shadow: 0 0 15px rgba(0, 217, 255, 0.25); }
+#nav-account { background-image: linear-gradient(to left, rgba(18, 212, 99, 0.25) 0%, rgba(16, 216, 216, 0.25) 150%); }
+#nav-account:hover { box-shadow: 0 0 15px rgba(0, 255, 106, 0.25); }
+
+/* ✓ Иконка на элементе нижнего пользовательского интерфейса*/
+.nav-element img {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 60%; height: 60%; 
+    filter: invert(100%) drop-shadow(0 0 10px rgba(0,0,0,0.35));
+    border: 0;
+}
+
+
+/* ======== ✓ Верхний пользовательский интерфейс ======== */
+
+/* ✓ Подкладка верхнего закрепленного интерфейса */
+#filter-top {
+    position: fixed; height: 90px; top: -30px; left: -3px; right: -3px;
+    z-index: 10; background-color: rgb(241, 241, 241);
+    border-radius: 30px; border: 2px solid rgba(49,49,49,0.25); opacity: 0.90;
+    box-shadow: 0 0 20px rgba(255,255,255,0.35);
+}
+
+/* ✓ Контейнер верхнего информационного меню */
+#header-right, #header-left {
+    position: fixed; top: 10px; z-index: 10;
+    display: flex; flex-direction: line; align-items: center; gap: 10px;
+    width: 100%; height: 50px;
+}
+#header-left { justify-content: start; left: calc(50% + 20px); transform: translateX(-50%); }
+#header-right { justify-content: end; right: calc(50% + 20px); transform: translateX(50%); }
+
+/* ✓ Название группы пользователя */
+#header-group-p {
+    padding: 5px 10px; font-size: 15px; 
+    color: rgb(255, 255, 255); background-color: rgb(114, 178, 231); text-shadow: 0 0 10px rgba(10, 83, 143, 0.25);
+    box-shadow: 0 0 10px rgba(0, 140, 255, 0.25); border-radius: 10px;
+}
+
+/* ✓ Кнопка на панели верхнего интерфейса */
+.header-button {
+    width: 30px; height: 30px; padding: 0; margin: 0;
+    box-shadow: 0 0 10px rgba(0,0,0,0.25); backdrop-filter: blur(5px); border-radius: 10px;
+    background-color: rgba(235, 229, 229, 0.25);
+    transition: all 0.55s ease;
+}
+.header-button:hover {
+    width: 35px; height: 35px;
+    filter: brightness(110%);
+    transition: all 0.35s ease;
+}
+.header-button:active {
+    width: 32px; height: 32px;
+    filter: brightness(90%);
+    transition: all 0.3s ease;
+}
+
+/* ✓ Изображение на кнопке на панели верхнего интерфейса */
+.header-button img {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 70%; height: 70%; 
+    filter: drop-shadow(0 0 10px rgba(0,0,0,0.35));
+    border: 0; opacity: 0.8;
+}
