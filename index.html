@@ -35,140 +35,139 @@
     <!-- Контейнер авторизации -->
     <div id="auth" class="relative-container hidden">
         <div id="background-auth"></div>
-        <div id="auth-wrapper">
-            <div class="relative-container">
+        <div id="auth-wrapper"><div class="relative-container">
 
-
-
-                <div class="auth-container">
-                    <!-- ФОРМА РЕГИСТРАЦИИ -->
-                    <form id="register-form" class="auth-form active">
-                        <div class="flex-container">
-                            <img id="auth-logo" src="images/logo/Логотип прозрачный фавикон 1024.png" />
-                            <h1>Студент КГУ</h1>
-                        </div>
-
-                        <div class="form-group">
-                            <!-- Ввод полного имени пользователя -->
-                            <div class="input-wrapper">
-                                <input type="text" id="reg-username" name="username" required>
-                                <label for="reg-username">Имя Фамилия</label>
-                                <span class="focus-border"></span>
-                            </div>
-                            <span class="error-message" id=""></span>
-                        </div>
-
-                        <div class="form-group">
-                            <!-- Ввод адреса электронной почты -->
-                            <div class="input-wrapper">
-                                <input type="email" id="reg-email" name="email" required>
-                                <label for="reg-email">Электронная почта</label>
-                                <span class="focus-border"></span>
-                            </div>
-                            <span class="error-message" id="emailError"></span>
-                        </div>
-
-                        <div class="form-group">
-                            <!-- Ввод пароля -->
-                            <div class="input-wrapper">
-                                <input type="password" id="reg-password" name="password" required>
-                                <label for="reg-password">Пароль</label>
-                                <span class="focus-border"></span>
-                            </div>
-                            <span class="error-message" id=""></span>
-                        </div>
-
-                        <div class="form-group">
-                            <!-- Повторный ввод пароля -->
-                            <div class="input-wrapper">
-                                <input type="password" id="reg-passwordAgain" name="passwordAgain" required>
-                                <label for="reg-passwordAgain">Повторите пароль</label>
-                                <span class="focus-border"></span>
-                            </div>
-                            <span class="error-message" id=""></span>
-                        </div>
-
-                        <div class="form-options">
-                            <!-- Дополнительные параметры авторизации -->
-                            <label class="remember-wrapper">
-								<input type="checkbox" id="remember" name="remember">
-								<span class="checkbox-label">
-									<span class="checkmark"></span>
-									Запомнить
-								</span>
-							</label>
-                            <button id="guest-mode-btn" class="guest-button">
-                                Продолжить в гостевом режиме
-                            </button>
-                        </div>
-
-                        <button type="submit" class="login-btn btn">
-							<span class="btn-text">Зарегистрироваться</span>
-							<span class="btn-loader"></span>
-						</button>
-
-                        <p class="auth-message" id="register-message"></p>
-
-                        <p class="auth-toggle">
-                            Уже есть аккаунт?
-                            <a href="#" id="toggle-to-login">Войдите</a>
-                        </p>
-                    </form>
-
-                    <!-- ФОРМА ВХОДА  -->
-                    <form id="login-form" class="auth-form form-hidden">
-                        <h2>Вход</h2>
-                        
-                        <div class="form-group">
-                            <!-- Ввод адреса электронной почты -->
-                            <div class="input-wrapper">
-                                <input type="email" id="login-email" name="email" required>
-                                <label for="reg-email">Электронная почта</label>
-                                <span class="focus-border"></span>
-                            </div>
-                            <span class="error-message" id="emailError"></span>
-                        </div>
-
-                        <div class="form-group">
-                            <!-- Ввод пароля -->
-                            <div class="input-wrapper">
-                                <input type="password" id="login-password" name="password" required>
-                                <label for="reg-password">Пароль</label>
-                                <span class="focus-border"></span>
-                            </div>
-                            <span class="error-message" id=""></span>
-                        </div>
-
-                        <div class="form-options">
-                            <!-- Дополнительные параметры авторизации -->
-                            <label class="remember-wrapper">
-								<input type="checkbox" id="remember" name="remember">
-								<span class="checkbox-label">
-									<span class="checkmark"></span>
-									
-								</span>
-							</label>
-                            <button id="guest-mode-btn" class="guest-button">
-                                Продолжить в гостевом режиме
-                            </button>
-                        </div>
-
-                        <button type="submit" class="login-btn btn">
-							<span class="btn-text">Войти</span>
-							<span class="btn-loader"></span>
-						</button>
-                        <p class="auth-message" id="login-message"></p>
-
-                        <p class="auth-toggle">
-                            Нет аккаунта?
-                            <a href="#" id="toggle-to-register">Зарегистрируйтесь</a>
-                        </p>
-                    </form>
-                    
-                </div>
-
+            <!-- Логотип окна авторизации -->
+            <div id="auth-logo-container" class="flex-container">
+                <img id="auth-logo-image" src="images/logo/logo.png" />
+                <h1 id="auth-logo-header">Студент</h1>
             </div>
-        </div>
+
+            <div id="auth-container">
+
+                <!-- ФОРМА РЕГИСТРАЦИИ -->
+                <form id="register-form" class="auth-form active">
+                    <h2>Регистрация</h2>
+                    <p>Создайте аккаунт для доступа ко всем возможностям сервиса</p>
+
+                    <div class="form-group">
+                        <!-- Ввод полного имени пользователя -->
+                        <div class="input-wrapper">
+                            <input type="text" id="reg-username" name="username" required>
+                            <label for="reg-username">Имя Фамилия</label>
+                            <span class="focus-border"></span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <!-- Ввод адреса электронной почты -->
+                        <div class="input-wrapper">
+                            <input type="email" id="reg-email" name="email" required>
+                            <label for="reg-email">Электронная почта</label>
+                            <span class="focus-border"></span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <!-- Ввод пароля -->
+                        <div class="input-wrapper">
+                            <input type="password" id="reg-password" name="password" required>
+                            <label for="reg-password">Пароль</label>
+                            <span class="focus-border"></span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <!-- Повторный ввод пароля -->
+                        <div class="input-wrapper">
+                            <input type="password" id="reg-passwordAgain" name="passwordAgain" required>
+                            <label for="reg-passwordAgain">Повторите пароль</label>
+                            <span class="focus-border"></span>
+                        </div>
+                    </div>
+
+                    <div class="form-options">
+                        <!-- Дополнительные параметры авторизации -->
+                        <label class="remember-wrapper">
+                            <input type="checkbox" id="remember" name="remember">
+                            <span class="checkbox-label">
+                                <span class="checkmark"></span> Я ознакомился(ась) с политикой конфиденциальности и принимаю ее
+                            </span>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="login-btn btn">
+                        <span class="btn-text">Зарегистрироваться</span>
+                        <span class="btn-loader"></span>
+                    </button>
+                    <button id="guest-mode-btn" class="guest-button">
+                        Продолжить в гостевом режиме
+                    </button>
+
+                    <p class="auth-message" id="register-message"></p>
+
+                    <p class="auth-toggle">
+                        Уже есть аккаунт?
+                        <a href="#" id="toggle-to-login">Войдите</a>
+                    </p>
+
+
+
+                </form>
+
+                <!-- ФОРМА ВХОДА  -->
+                <form id="login-form" class="auth-form form-hidden">
+                    <h2>Вход</h2>
+                    <p>Войдите в существующий аккаунт</p>
+                    
+                    <div class="form-group">
+                        <!-- Ввод адреса электронной почты -->
+                        <div class="input-wrapper">
+                            <input type="email" id="login-email" name="email" required>
+                            <label for="reg-email">Электронная почта</label>
+                            <span class="focus-border"></span>
+                        </div>
+                        <span class="error-message" id="emailError"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <!-- Ввод пароля -->
+                        <div class="input-wrapper">
+                            <input type="password" id="login-password" name="password" required>
+                            <label for="reg-password">Пароль</label>
+                            <span class="focus-border"></span>
+                        </div>
+                        <span class="error-message" id=""></span>
+                    </div>
+
+                    <div class="form-options">
+                        <!-- Дополнительные параметры авторизации -->
+                        <label class="remember-wrapper">
+                            <input type="checkbox" id="remember" name="remember">
+                            <span class="checkbox-label">
+                                <span class="checkmark"></span>
+                                
+                            </span>
+                        </label>
+                        <button id="guest-mode-btn" class="guest-button">Продолжить в гостевом режиме</button>
+                    </div>
+
+                    <button type="submit" class="login-btn btn">
+                        <span class="btn-text">Войти</span>
+                        <span class="btn-loader"></span>
+                    </button>
+                    <p class="auth-message" id="login-message"></p>
+
+                    <div class="flex-container">
+                        <p class="auth-toggle">Нет аккаунта?</p>
+                        <button id="toggle-to-register">Регистрация</button>
+                    <div>
+
+                </form>
+                
+            </div>
+
+        </div></div>
     </div>
 
     <!-- Контейнер сессии -->

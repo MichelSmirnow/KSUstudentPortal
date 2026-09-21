@@ -1,66 +1,96 @@
-#guest-mode-btn { 
-    padding: 5px 10px; margin: 0; border: 0;
-    background-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 10px rgba(0, 0, 0, 0.35); border-radius: 10px;
+/* =========================== ✓ Основные контейнеры и задний фон =========================== */
 
-}
-.form-hidden {
-    display: none;
-}
-
-
-
+/* ✓ Задний фон окна оавторизации */
 #background-auth {
-    position: fixed;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    z-index: 1;
-    opacity: 1;
-    background-image: url('../images/sillybg.jpg');
-    background-size: cover;
-    background-repeat: no-repeat;
+    z-index: 1; position: fixed; top: 0; left: 0; bottom: 0; right: 0; width: 100%; height: 100%;
+    opacity: 1; background-size: cover; background-repeat: no-repeat; background-position: center;
 }
 
+/* ✓ Оболочка контейнера окна авторизации */
 #auth-wrapper {
-    z-index: 100;
-    position: fixed;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 40%;
-    max-width: 500px;
-    height: auto;
-    transition: all 1s ease;
+    z-index: 5; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 40%; max-width: 500px; height: auto;
+    color: #fff; transition: all 1s ease;
 }
 
-@media((min-width: 700px) and (max-width: 1000px)) {
-    #auth-wrapper {
-        width: 70% !important;
-    }
+/* ✓ Непосредственно контейнер авторизации */
+#auth-container {
+    z-index: 10; position: relative; max-height: calc(100vh - 200px); transform: translateY(0); padding: 40px; margin: 0;
+    background: rgba(255, 255, 255, 0.1); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 24px;
+    overflow: hidden; overflow-y: scroll; text-align: center;
+    transition: all 0.5s ease;
 }
+#auth-container h1, h2, h3 { filter: drop-shadow(0 0 10px rgba(57, 114, 238, 0.5)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.35)); }
+#auth-container:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15); }
 
-@media(max-width: 700px) {
-    #auth-wrapper {
-        width: calc(100% - 70px) !important;
-    }
+/* ✓ Красивая блестяшка в верхней части контейнера авторизации*/
+#auth-container::before {
+    content: ''; position: absolute; bottom: 0; left: -100%; width: 100%; height: 2px;
+    background: linear-gradient(90deg, transparent, #06b6d4, transparent);
+    transition: left 0.5s ease;
 }
+#auth-container:hover::before { left: 100%; }
 
+
+/* ✓ Компьютеры и ноутбуки */
 @media(min-width: 1000px) {
-    #auth-wrapper {
-        width: 40% !important;
+    #auth-wrapper { width: 40% !important; }
+    #background-auth { background-image: url('../images/sillybg.jpg'); }
+}
+
+/* ✓ Планшеты и горизонтальные телефоны */
+@media((min-width: 700px) and (max-width: 1200px)) {
+    #auth-wrapper { width: 70% !important; }
+    #background-auth { background-image: url('../images/funnybg.jpg'); }
+}
+
+/* ✓ Телефонный режим */
+@media(max-width: 700px) {
+    #auth-wrapper { width: calc(100% - 70px) !important; }
+    #background-auth { background-image: url('../images/funcybg.jpg'); }
+}
+
+/* Ультра узкий режим */
+@media (max-width: 480px) {
+    #auth-container {
+        padding: 24px;
+        margin: 10px;
+        border-radius: 20px;
     }
+    /*
+    .password-wrapper input {
+        padding-right: 44px;
+    }
+    .social-login {
+        flex-direction: column;
+    }
+    .form-options {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    } */
 }
 
-#auth-wrapper {
-    color: #fff;
+
+/* =============================== ✓ Логотип окна авторизации =============================== */
+
+/* ✓ Контейнер логотипа окна авторизации */
+#auth-logo-container {
+    z-index: 100; position: relative; width: 80%; margin: 0 auto; margin-bottom: -30px; padding: 10px;
+    backdrop-filter: blur(5px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 24px;
+    background-color: rgba(255,255,255,0.1);
 }
 
-#auth-logo {
-    height: 100px;
-}
+/* ✓ Картинка и заголовок логотипа окна авторизации */
+#auth-logo-image { width: 45%; filter: drop-shadow(0 0 10px rgba(57, 114, 238, 0.5)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.15)); }
+#auth-logo-header { filter: drop-shadow(0 0 10px rgba(57, 114, 238, 0.5)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.35)); transition: font-size 0.5s ease;}
+
+/* ✓ Ультра узкий режим */
+@media (max-width: 480px) { #auth-logo-header { font-size: 6vw; } }
+
+
+/* ============================== Общая стилизация элементов ============================== */
 
 .login-container {
     width: 100%;
@@ -69,80 +99,74 @@
 }
 
 
-/* Form Group & Input Styles */
-
-.form-group {
-    margin-bottom: 24px;
-    position: relative;
+.form-hidden {
+    display: none;
 }
 
-.input-wrapper {
-    position: relative;
-    display: flex;
-    flex-direction: column;
+
+
+#guest-mode-btn { 
+    padding: 5px 10px; margin: 0; border: 0;
+    background-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 10px rgba(0, 0, 0, 0.35); border-radius: 10px;
+
 }
 
+
+/* =================================== ✓ Стилизация ввода =================================== */
+
+/* ✓ Основные контейнеры ввода */
+.form-group { position: relative; margin-bottom: 24px; }
+.input-wrapper { position: relative; display: flex; flex-direction: column; }
 .input-wrapper input {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
-    padding: 16px 16px 8px 16px;
-    color: white;
-    font-size: 16px;
-    font-weight: 400;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    width: 90%;
-    outline: none;
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    width: 90%; padding: 16px 16px 8px 16px;
+    color: #fff; font-size: 16px;
+    background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; outline: none;
+    backdrop-filter: blur(10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.input-wrapper input::placeholder {
-    color: transparent;
-}
-
-.input-wrapper label {
-    position: absolute;
-    left: 16px;
-    top: 16px;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 16px;
-    font-weight: 400;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    pointer-events: none;
-    transform-origin: left top;
-}
-
-.input-wrapper input:focus,
-.input-wrapper input:valid {
-    border-color: #06b6d4;
-    background: rgba(255, 255, 255, 0.15);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(6, 182, 212, 0.2);
-}
-
-.input-wrapper input:focus+label,
-.input-wrapper input:valid+label {
-    transform: translateY(-8px) scale(0.85);
-    color: #06b6d4;
-    font-weight: 500;
-}
-
+/* ✓ Фокусный декоративный элемент ввода */
 .focus-border {
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    width: 0;
-    height: 2px;
-    background: linear-gradient(90deg, #06b6d4, #6366f1);
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 0; height: 2px;
+    background: linear-gradient(90deg, #06b6d4, #1051a0); border-radius: 2px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    transform: translateX(-50%);
-    border-radius: 2px;
+}
+.input-wrapper input:focus~.focus-border { width: 100%; }
+
+/* ✓ Подпись к полю ввода */
+.input-wrapper input::placeholder { color: transparent; }
+.input-wrapper label {
+    position: absolute; left: 16px; top: 12px;
+    color: rgba(255, 255, 255, 0.7); background-color: rgba(104, 137, 173, 0);
+    border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0);
+    font-size: 16px; pointer-events: none; transform-origin: left top;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.input-wrapper input:focus~.focus-border {
-    width: 100%;
+/* ✓ Стилизация элементов ввода при их фокусе */
+.input-wrapper input:focus, .input-wrapper input:valid { 
+    transform: translateY(-2px); padding-top: 18px;
+    border-color: #06b6d4; background: rgba(255, 255, 255, 0.15); box-shadow: 0 8px 25px rgba(6, 182, 212, 0.2);
 }
+.input-wrapper input:focus+label, .input-wrapper input:valid+label {
+    transform: translateY(-26px) scale(0.85); padding: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.1); background-color: rgba(104, 136, 172, 1);
+    color: #2bceeb; text-shadow: 0 0 10px rgba(6, 46, 48, 0.25); box-shadow: 0 0 10px rgba(79, 153, 233, 0.5);
+}
+/*
+.input-wrapper input:invalid {
+    transform: translateY(-2px); padding-top: 18px;
+    border-color: #d40606; background: rgba(255, 255, 255, 0.15); box-shadow: 0 8px 25px rgba(212, 6, 6, 0.2);
+}*/
+
+
+/* ===================================  =================================== */
+
+
+
+
+
+
+
 
 
 /* Error States */
@@ -397,42 +421,6 @@
     }
 }
 
-.auth-container {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 24px;
-    padding: 40px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    transform: translateY(0);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-    overflow-y: scroll;
-    max-height: calc(100vh - 200px);
-}
-
-.auth-container::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #06b6d4, transparent);
-    transition: left 0.5s ease;
-}
-
-.auth-container:hover::before {
-    left: 100%;
-}
-
-.auth-container:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-}
-
 .login-header {
     text-align: center;
     margin-bottom: 32px;
@@ -657,27 +645,7 @@
 
 /* Mobile Responsive */
 
-@media (max-width: 480px) {
-    .auth-container {
-        padding: 24px;
-        margin: 10px;
-        border-radius: 20px;
-    }
-    .login-header h2 {
-        font-size: 1.75rem;
-    }
-    .password-wrapper input {
-        padding-right: 44px;
-    }
-    .social-login {
-        flex-direction: column;
-    }
-    .form-options {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
-    }
-}
+
 
 
 /* === Accessibility: keyboard focus indicators === */
