@@ -1,200 +1,234 @@
 <!DOCTYPE html>
 <html lang="ru">
-	<head>
-		<meta charset="utf-8">
-        <meta name="language" content="ru">
-		<title>Студент КГУ</title>
-		<meta name="description" content="">
-        <link type="image/x-icon" href="favicon.ico" rel="shortcut icon">
-        <link type="Image/x-icon" href="favicon.ico" rel="icon">
-        <meta name="version" content="alpha 2.0">
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-		<!-- Совместимость с IOS -->
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <link rel="apple-touch-icon" href="images/logo/192x192.png">
-		
-		<!-- Импорты стилей -->
-		<link rel="stylesheet" href="styles/fonts/fonts.css">
-		<link rel="stylesheet" href="styles/main.css">
-		<link rel="stylesheet" href="styles/auth.css">
-		<link rel="stylesheet" href="styles/ui.css">
-		<link rel="stylesheet" href="styles/pages/kafeder.css">
-		<link rel="stylesheet" href="styles/pages/materials.css">
-		<link rel="stylesheet" href="styles/pages/shedule.css">
-		<link rel="stylesheet" href="styles/pages/messager.css">
-		<link rel="stylesheet" href="styles/pages/account.css">
-	</head>
-	<body>
-		<div id="notifications"></div> <!-- Контейнер уведомлений -->
+<head>
+    <meta charset="utf-8">
+    <meta name="language" content="ru">
+    <title>Студент КГУ</title>
+    <meta name="description" content="">
+    <link type="image/x-icon" href="favicon.ico" rel="shortcut icon">
+    <link type="Image/x-icon" href="favicon.ico" rel="icon">
+    <meta name="version" content="alpha 2.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
-		<!-- Контейнер авторизации -->
-		<div id="auth" class="relative-container hidden">
-			<div id="background-auth"></div>
-			<div id="auth-wrapper"><div class="relative-container">
+    <!-- Совместимость с IOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="images/logo/192x192.png">
 
-				
-		
-				<div class="auth-container">
-					<!-- ФОРМА РЕГИСТРАЦИИ -->
-					<form id="register-form" class="auth-form active">
-						<div class="flex-container">
-							<img id="auth-logo" src="images/logo/Логотип прозрачный фавикон 1024.png"/>
-							<h1>Студент КГУ</h1>
-						</div>
-					
-						<div class="form-group"> <!-- Ввод полного имени пользователя -->
-							<div class="input-wrapper">
-								<input type="text" id="reg-username" name="username" required>
-								<label for="reg-username">Имя Фамилия</label>
-								<span class="focus-border"></span>
-							</div>
-							<span class="error-message" id=""></span>
-						</div>
+    <!-- Импорты стилей -->
+    <link rel="stylesheet" href="styles/fonts/fonts.css">
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/auth.css">
+    <link rel="stylesheet" href="styles/ui.css">
+    <link rel="stylesheet" href="styles/pages/kafeder.css">
+    <link rel="stylesheet" href="styles/pages/materials.css">
+    <link rel="stylesheet" href="styles/pages/shedule.css">
+    <link rel="stylesheet" href="styles/pages/messager.css">
+    <link rel="stylesheet" href="styles/pages/account.css">
+</head>
 
-						<div class="form-group"> <!-- Ввод адреса электронной почты -->
-							<div class="input-wrapper">
-								<input type="email" id="reg-email" name="email" required>
-								<label for="reg-email">Электронная почта</label>
-								<span class="focus-border"></span>
-							</div>
-							<span class="error-message" id="emailError"></span>
-						</div>
+<body>
+    <div id="notifications"></div>
+    <!-- Контейнер уведомлений -->
 
-						<div class="form-group"> <!-- Ввод пароля -->
-							<div class="input-wrapper">
-								<input type="password" id="reg-password" name="password" required>
-								<label for="reg-password">Пароль</label>
-								<span class="focus-border"></span>
-							</div>
-							<span class="error-message" id=""></span>
-						</div>
+    <!-- Контейнер авторизации -->
+    <div id="auth" class="relative-container hidden">
+        <div id="background-auth"></div>
+        <div id="auth-wrapper">
+            <div class="relative-container">
 
-						<div class="form-group"> <!-- Повторный ввод пароля -->
-							<div class="input-wrapper">
-								<input type="password" id="reg-passwordAgain" name="passwordAgain" required>
-								<label for="reg-passwordAgain">Повторите пароль</label>
-								<span class="focus-border"></span>
-							</div>
-							<span class="error-message" id=""></span>
-						</div>
 
-						<div class="form-options"> <!-- Дополнительные параметры авторизации -->
-							<label class="remember-wrapper">
+
+                <div class="auth-container">
+                    <!-- ФОРМА РЕГИСТРАЦИИ -->
+                    <form id="register-form" class="auth-form active">
+                        <div class="flex-container">
+                            <img id="auth-logo" src="images/logo/Логотип прозрачный фавикон 1024.png" />
+                            <h1>Студент КГУ</h1>
+                        </div>
+
+                        <div class="form-group">
+                            <!-- Ввод полного имени пользователя -->
+                            <div class="input-wrapper">
+                                <input type="text" id="reg-username" name="username" required>
+                                <label for="reg-username">Имя Фамилия</label>
+                                <span class="focus-border"></span>
+                            </div>
+                            <span class="error-message" id=""></span>
+                        </div>
+
+                        <div class="form-group">
+                            <!-- Ввод адреса электронной почты -->
+                            <div class="input-wrapper">
+                                <input type="email" id="reg-email" name="email" required>
+                                <label for="reg-email">Электронная почта</label>
+                                <span class="focus-border"></span>
+                            </div>
+                            <span class="error-message" id="emailError"></span>
+                        </div>
+
+                        <div class="form-group">
+                            <!-- Ввод пароля -->
+                            <div class="input-wrapper">
+                                <input type="password" id="reg-password" name="password" required>
+                                <label for="reg-password">Пароль</label>
+                                <span class="focus-border"></span>
+                            </div>
+                            <span class="error-message" id=""></span>
+                        </div>
+
+                        <div class="form-group">
+                            <!-- Повторный ввод пароля -->
+                            <div class="input-wrapper">
+                                <input type="password" id="reg-passwordAgain" name="passwordAgain" required>
+                                <label for="reg-passwordAgain">Повторите пароль</label>
+                                <span class="focus-border"></span>
+                            </div>
+                            <span class="error-message" id=""></span>
+                        </div>
+
+                        <div class="form-options">
+                            <!-- Дополнительные параметры авторизации -->
+                            <label class="remember-wrapper">
 								<input type="checkbox" id="remember" name="remember">
 								<span class="checkbox-label">
 									<span class="checkmark"></span>
 									Запомнить
 								</span>
 							</label>
-						</div>
-						
-						<button type="submit" class="login-btn btn">
+                            <button id="guest-mode-btn" class="guest-button">
+                                Продолжить в гостевом режиме
+                            </button>
+                        </div>
+
+                        <button type="submit" class="login-btn btn">
 							<span class="btn-text">Зарегистрироваться</span>
 							<span class="btn-loader"></span>
 						</button>
 
-						<p class="auth-message" id="register-message"></p>
-						
-						<p class="auth-toggle">
-							Уже есть аккаунт? 
-							<a href="#" id="toggle-to-login">Войдите</a>
-						</p>
-					</form>
+                        <p class="auth-message" id="register-message"></p>
 
-					<!-- ФОРМА ВХОДА  -->
-					<form id="login-form" class="auth-form hidden">
-						<!--
-						<h2>Вход</h2>
-						
-						<input 
-							type="email" 
-							id="login-email" 
-							class="auth-input"
-							placeholder="Электронная почта" 
-							required
-						>
-						
-						<input 
-							type="password" 
-							id="login-password" 
-							class="auth-input"
-							placeholder="Пароль" 
-							required
-						>
-						
-						<button type="submit" class="auth-button">Войти</button>
-						<p class="auth-message" id="login-message"></p> -->
-						
-						<p class="auth-toggle">
-							Нет аккаунта? 
-							<a href="#" id="toggle-to-register">Зарегистрируйтесь</a>
-						</p> 
-					</form>
+                        <p class="auth-toggle">
+                            Уже есть аккаунт?
+                            <a href="#" id="toggle-to-login">Войдите</a>
+                        </p>
+                    </form>
 
-					<!-- КНОПКА ГОСТЕВОГО РЕЖИМА -->
-					<button id="guest-mode-btn" class="guest-button">
-						Продолжить в гостевом режиме
-					</button>
-				</div>
+                    <!-- ФОРМА ВХОДА  -->
+                    <form id="login-form" class="auth-form form-hidden">
+                        <h2>Вход</h2>
+                        
+                        <div class="form-group">
+                            <!-- Ввод адреса электронной почты -->
+                            <div class="input-wrapper">
+                                <input type="email" id="login-email" name="email" required>
+                                <label for="reg-email">Электронная почта</label>
+                                <span class="focus-border"></span>
+                            </div>
+                            <span class="error-message" id="emailError"></span>
+                        </div>
 
-			</div></div>
-		</div>
+                        <div class="form-group">
+                            <!-- Ввод пароля -->
+                            <div class="input-wrapper">
+                                <input type="password" id="login-password" name="password" required>
+                                <label for="reg-password">Пароль</label>
+                                <span class="focus-border"></span>
+                            </div>
+                            <span class="error-message" id=""></span>
+                        </div>
 
-		<!-- Контейнер сессии -->
-		<div id="session" class="relative-container hidden">
-			<div id="background-session"></div>
+                        <div class="form-options">
+                            <!-- Дополнительные параметры авторизации -->
+                            <label class="remember-wrapper">
+								<input type="checkbox" id="remember" name="remember">
+								<span class="checkbox-label">
+									<span class="checkmark"></span>
+									
+								</span>
+							</label>
+                            <button id="guest-mode-btn" class="guest-button">
+                                Продолжить в гостевом режиме
+                            </button>
+                        </div>
 
-			<!-- Нижняя панель навигации закрепленного интерфейса -->
-			<div id="filter-bottom"></div>
-			<div id="nav">
-				<div class="nav-element" id="nav-kafeder">
-					<img src="images/ui/graduation-cap.png" />
-				</div>
-				<div class="nav-element" id="nav-homework">
-					<img src="images/ui/work.png" />
-				</div>
-				<div class="nav-element" id="nav-shedule">
-					<img src="images/ui/schedule.png" />
-				</div>
-				<div class="nav-element" id="nav-messager">
-					<img src="images/ui/messager.png" />
-				</div>
-				<div class="nav-element" id="nav-account">
-					<img src="images/ui/phone.png" />
-				</div>
-			</div>
+                        <button type="submit" class="login-btn btn">
+							<span class="btn-text">Войти</span>
+							<span class="btn-loader"></span>
+						</button>
+                        <p class="auth-message" id="login-message"></p>
 
-			<!-- Верхняя панель закрепленного интерфейса -->
-			<div id="filter-top"></div>
-			<div id="header-left">
-				<p><span id="header-name">🔑 Режим теста</span></p>
-			</div>
-			<div id="header-right">
-				<p id="header-group-p"><span id="header-group">26-ИСбо-4</span></p>
-				<div class="header-button" id="header-notifications">
-					<img src="images/ui/notification.png" />
-				</div>
-				<div class="header-button" id="header-web">
-					<img src="images/ui/web.png" />
-				</div>
-			</div>
+                        <p class="auth-toggle">
+                            Нет аккаунта?
+                            <a href="#" id="toggle-to-register">Зарегистрируйтесь</a>
+                        </p>
+                    </form>
+                    
+                </div>
 
-			<!-- Контейнеры наполнителей контента  -->
-			<div id="container"></div>                        <!-- Основной контейнер наполнителя контента -->
-			<div id="container-translate"></div>              <!-- Контейнер анимации перелистывания страницы -->
-			<div id="container-upwards" class="hidden"></div> <!-- Контейнер перекрывающего содержимого (suppages) -->
-		</div>
-		<div id="container-loading" class="hidden"></div> <!-- Контейнер загрузки контента -->
+            </div>
+        </div>
+    </div>
 
-		<!-- Библиотеки и функции Firebase -->
-		<script src="libs/firebase/firebase-app.js"></script>
-		<script src="libs/firebase/firebase-auth.js"></script>
-		<script src="libs/auth-logic.js"></script>
+    <!-- Контейнер сессии -->
+    <div id="session" class="relative-container hidden">
+        <div id="background-session"></div>
 
-		<!-- Основная логика -->
-		<script src="scripts/ui.js"></script>
-		
-	</body>
+        <!-- Нижняя панель навигации закрепленного интерфейса -->
+        <div id="filter-bottom"></div>
+        <div id="nav">
+            <div class="nav-element" id="nav-kafeder">
+                <img src="images/ui/graduation-cap.png" />
+            </div>
+            <div class="nav-element" id="nav-homework">
+                <img src="images/ui/work.png" />
+            </div>
+            <div class="nav-element" id="nav-shedule">
+                <img src="images/ui/schedule.png" />
+            </div>
+            <div class="nav-element" id="nav-messager">
+                <img src="images/ui/messager.png" />
+            </div>
+            <div class="nav-element" id="nav-account">
+                <img src="images/ui/phone.png" />
+            </div>
+        </div>
+
+        <!-- Верхняя панель закрепленного интерфейса -->
+        <div id="filter-top"></div>
+        <div id="header-left">
+            <p><span id="header-name">🔑 Режим теста</span></p>
+        </div>
+        <div id="header-right">
+            <p id="header-group-p"><span id="header-group">26-ИСбо-4</span></p>
+            <div class="header-button" id="header-notifications">
+                <img src="images/ui/notification.png" />
+            </div>
+            <div class="header-button" id="header-web">
+                <img src="images/ui/web.png" />
+            </div>
+        </div>
+
+        <!-- Контейнеры наполнителей контента  -->
+        <div id="container"></div>
+        <!-- Основной контейнер наполнителя контента -->
+        <div id="container-translate"></div>
+        <!-- Контейнер анимации перелистывания страницы -->
+        <div id="container-upwards" class="hidden"></div>
+        <!-- Контейнер перекрывающего содержимого (suppages) -->
+    </div>
+    <div id="container-loading" class="hidden"></div>
+    <!-- Контейнер загрузки контента -->
+
+    <!-- Библиотеки и функции Firebase -->
+    <script src="libs/firebase/firebase-app.js"></script>
+    <script src="libs/firebase/firebase-auth.js"></script>
+    <script src="libs/auth-logic.js"></script>
+
+    <!-- Основная логика -->
+    <script src="scripts/ui.js"></script>
+
+</body>
+
 </html>
