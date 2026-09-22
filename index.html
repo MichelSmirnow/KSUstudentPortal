@@ -28,9 +28,12 @@
     <link rel="stylesheet" href="styles/pages/account.css">
 </head>
 
-<body>
-    <div id="notifications"></div>
+<body id="body">
     <!-- Контейнер уведомлений -->
+    <div id="notifications"></div>
+
+    <!-- Контейнер загрузки контента -->
+    <div id="container-loading" class="hidden"></div>
 
     <!-- Контейнер авторизации -->
     <div id="auth" class="relative-container hidden">
@@ -110,9 +113,6 @@
                         Уже есть аккаунт?
                         <a href="#" id="toggle-to-login">Войдите</a>
                     </p>
-
-
-
                 </form>
 
                 <!-- ФОРМА ВХОДА  -->
@@ -161,12 +161,11 @@
                     <div class="flex-container">
                         <p class="auth-toggle">Нет аккаунта?</p>
                         <button id="toggle-to-register">Регистрация</button>
-                    <div>
+                    </div>
 
                 </form>
                 
             </div>
-
         </div></div>
     </div>
 
@@ -217,8 +216,6 @@
         <div id="container-upwards" class="hidden"></div>
         <!-- Контейнер перекрывающего содержимого (suppages) -->
     </div>
-    <div id="container-loading" class="hidden"></div>
-    <!-- Контейнер загрузки контента -->
 
     <!-- Библиотеки и функции Firebase -->
     <script src="libs/firebase/firebase-app.js"></script>

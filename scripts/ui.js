@@ -933,164 +933,167 @@ const justifyDate = (date) => { return date instanceof Date ? date : new Date(da
 
 // ✓ Отрисовка расписания 
 class ScheduleRenderer {
-    constructor(events) {
-        this.sheduleData = events;
-        if (DEBUG_MODE) console.log('Вот проинициализировано все правильно', this.sheduleData);
-    }
+  constructor(events) {
+      this.sheduleData = events;
+      if (DEBUG_MODE) console.log('Вот проинициализировано все правильно', this.sheduleData);
+  }
 
-    // ✓ Отсортировать и сгруппировать даты
-    groupByDate(events) {
-        if (!events) return undefined;
-        const grouped = {};
-        events.forEach(event => {
-            if (!event.startTime) return;
-            const dateKey = ScheduleRenderer.formatDateKey(event.startTime);
-            if (!grouped[dateKey]) {
-                grouped[dateKey] = [];
-            }
-            grouped[dateKey].push(event);
-        });
-        return Object.keys(grouped)
-            .sort()
-            .reduce((acc, key) => {
-                acc[key] = grouped[key].sort((a, b) =>
-                    a.startTime - b.startTime
-                );
-                return acc;
-            }, {});
-    }
+  // ✓ Отсортировать и сгруппировать даты
+  groupByDate(events) {
+      if (!events) return undefined;
+      const grouped = {};
+      events.forEach(event => {
+          if (!event.startTime) return;
+          const dateKey = ScheduleRenderer.formatDateKey(event.startTime);
+          if (!grouped[dateKey]) {
+              grouped[dateKey] = [];
+          }
+          grouped[dateKey].push(event);
+      });
+      return Object.keys(grouped)
+          .sort()
+          .reduce((acc, key) => {
+              acc[key] = grouped[key].sort((a, b) =>
+                  a.startTime - b.startTime
+              );
+              return acc;
+          }, {});
+  }
 
-    // ✓ Отформатировать дату для группировки занятий по дням (YYYY-MM-DD)
-    static formatDateKey(date) {
+  // ✓ Отформатировать дату для группировки занятий по дням (YYYY-MM-DD)
+  static formatDateKey(date) {
+      if (!date) return undefined;
+      const value = justifyDate(date);
+      if (Number.isNaN(value.getTime())) return undefined;
+
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const day = String(value.getDate()).padStart(2, '0');
+
+      return `${year}-${month}-${day}`;
+  }
+
+  // ✓ Отформатировать дату для стандартного отображения
+  static formatDate(date) {
+      if (!date) return undefined;
+      const value = justifyDate(date);
+      if (Number.isNaN(value.getTime())) return undefined;
+
+      const day = String(value.getDate()).padStart(2, '0');
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const year = value.getFullYear();
+      return `${day}.${month}.${year}`;
+  }
+
+  // ✓ Извлечь данные пары в удобном для рендера формате
+  static extractElementData(event) {
+    if (!event) return undefined;
+
+    // ✓ Отформатировать время для стандартного отображения
+    function formatTime(date) {
         if (!date) return undefined;
         const value = justifyDate(date);
         if (Number.isNaN(value.getTime())) return undefined;
 
-        const year = value.getFullYear();
-        const month = String(value.getMonth() + 1).padStart(2, '0');
-        const day = String(value.getDate()).padStart(2, '0');
-
-        return `${year}-${month}-${day}`;
+        const hours = String(value.getHours()).padStart(2, '0');
+        const minutes = String(value.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
     }
 
-    // ✓ Отформатировать дату для стандартного отображения
-    static formatDate(date) {
-        if (!date) return undefined;
-        const value = justifyDate(date);
-        if (Number.isNaN(value.getTime())) return undefined;
-
-        const day = String(value.getDate()).padStart(2, '0');
-        const month = String(value.getMonth() + 1).padStart(2, '0');
-        const year = value.getFullYear();
-        return `${day}.${month}.${year}`;
+    // ✓ Определить преподавателя занятия
+    function extractTeacher(description) {
+        const match = description.match(/([А-Яа-яЁё\s\.]+)/);
+        const extractedTeacher = match ? match[0].trim() : '';
+        return extractedTeacher;
     }
 
-    // ✓ Извлечь данные пары в удобном для рендера формате
-    static extractElementData(event) {
-        if (!event) return undefined;
-
-        // ✓ Отформатировать время для стандартного отображения
-        function formatTime(date) {
-            if (!date) return undefined;
-            const value = justifyDate(date);
-            if (Number.isNaN(value.getTime())) return undefined;
-
-            const hours = String(value.getHours()).padStart(2, '0');
-            const minutes = String(value.getMinutes()).padStart(2, '0');
-            return `${hours}:${minutes}`;
-        }
-
-        // ✓ Определить преподавателя занятия
-        function extractTeacher(description) {
-            const match = description.match(/([А-Яа-яЁё\s\.]+)/);
-            const extractedTeacher = match ? match[0].trim() : '';
-            return extractedTeacher;
-        }
-
-        // Определить список групп, для которых актуально данное занятие
-        function extractGroups(description) {
-            const match = description.match(/группа:\s*(.*)$/i);
-            return match ? match[1].trim() : '';
-        }
-
-        // ✓ Получаем основную информацию по занятию
-        const startTime = event.startTime ? formatTime(event.startTime) : '67:67';
-        const endTime = event.endTime ? formatTime(event.endTime) : 'Никогда';
-        const room = event.location ? event.location : 'туалет';
-        const teacher = event.description ? extractTeacher(event.description) : 'Преподаватель С.';
-        const groups = event.description ? extractGroups(event.description) : 'Группы не указаны';
-
-        // ✓ Получаем дополнительную информацию по занятию
-        const typeMatch = event.summary.match(/\(([^)]+)\)/);
-        const type = typeMatch ? String(typeMatch[1]).substring(0, 7) : '';
-
-        // ✓ Получаем название и цвет предмета
-        const colors = {
-            'пр.': 'rgba(252,184,38,1)',
-            'лек': 'rgba(37, 204, 37, 1)',
-            'лаб': 'rgba(190, 38, 190, 1)',
-        }
-        const nameMatch = {
-            'лаб': 'Лаба',
-            'лек': 'Лекция',
-            'пр.': 'Практика',
-        };
-        const subjectMatch = event.summary.slice(0, 3);
-        const subjectMatchColor = colors[subjectMatch] ? colors[subjectMatch] : colors['пр.'];
-        const name = nameMatch[subjectMatch] ? nameMatch[subjectMatch] : 'Занятие';
-        const subject = event.summary.slice(4).trim();
-        return { startTime, endTime, room, teacher, groups, type, name, subject, subjectMatch, subjectMatchColor };
+    // Определить список групп, для которых актуально данное занятие
+    function extractGroups(description) {
+        const match = description.match(/группа:\s*(.*)$/i);
+        return match ? match[1].trim() : '';
     }
 
-    // ✓ Извлечь данные события в удобном для рендера формате
-    extractEventData(dateKey) {
-        if (!dateKey) return undefined;
+    // ✓ Получаем основную информацию по занятию
+    const startTime = event.startTime ? formatTime(event.startTime) : '67:67';
+    const endTime = event.endTime ? formatTime(event.endTime) : 'Никогда';
+    const room = event.location ? event.location : 'туалет';
+    const teacher = event.description ? extractTeacher(event.description) : 'Преподаватель С.';
+    const groups = event.description ? extractGroups(event.description) : 'Группы не указаны';
 
-        // ✓ Определить день недели по дате
-        function getDayName(date) {
-            const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
-            return days[date.getDay() - 1];
-        }
+    // ✓ Получаем дополнительную информацию по занятию
+    const typeMatch = event.summary.match(/\(([^)]+)\)/);
+    const type = typeMatch ? String(typeMatch[1]).substring(0, 7) : '';
 
-        // ✓ Определить цвет дня недели
-        function getDayColor(date) {
-            const today = new Date();
-            const dayOfWeek = date.getDay();
-            const colors = {
-                1: '#4a6e8fff', // Понедельник
-                2: '#4a5f8fff', // Вторник
-                3: '#3a538fff', // Среда
-                4: '#4a548fff', // Четверг
-                5: '#574a8fff', // Пятница
-                6: '#64147cff', // Суббота
-                0: '#660f0fff' // Воскресенье
-            };
-            if (date.toDateString() === today.toDateString()) {
-                return '#a01212ff'; // return '#12a01eff';
-            } else {
-                return colors[dayOfWeek] || '#4a6e8fff';
-            }
-        }
-
-        // ✓ Получаем данные дня недели
-        const dayDate = new Date(dateKey + 'T00:00:00');
-        const dayName = getDayName(dayDate);
-        const formattedDate = ScheduleRenderer.formatDate(dayDate);
-        const dayColor = getDayColor(dayDate);
-        return { dayName, formattedDate, dayColor };
+    // ✓ Получаем название и цвет предмета
+    const colors = {
+        'пр.': 'rgba(252,184,38,1)',
+        'пр ': 'rgba(252,184,38,1)',
+        'лек': 'rgba(37, 204, 37, 1)',
+        'лаб': 'rgba(190, 38, 190, 1)',
     }
+    const nameMatch = {
+        'лаб': 'Лаба',
+        'лек': 'Лекция',
+        'пр.': 'Практика',
+        'пр ': 'Практика',
+    };
+    const subjectMatch = event.summary.slice(0, 3);
+    const subjectMatchColor = colors[subjectMatch] ? colors[subjectMatch] : colors['пр.'];
+    const name = nameMatch[subjectMatch] ? nameMatch[subjectMatch] : 'Занятие';
+    const subject = (event.summary).match(/ (.*?)(?=\(|,[^,]*$|$)/)?.[1].trim() ?? "";
+    const subgroup = (event.summary).match(/,([^,]*)$/)?.[1].trim() ?? "";;
+    return { startTime, endTime, room, teacher, groups, type, name, subject, subgroup, subjectMatch, subjectMatchColor };
+  }
 
-    //  ✓ Рендер элемента недельного расписания 
-    createEventElement(event, teachery) {
-            if (!event) return undefined;
+  // ✓ Извлечь данные события в удобном для рендера формате
+  extractEventData(dateKey) {
+      if (!dateKey) return undefined;
 
-            // ✓ Создаем элемент и экстрактируем данные события
-            const eventElementContainer = document.createElement('div');
-            eventElementContainer.classList.add('event');
-            const extractedData = ScheduleRenderer.extractElementData(event);
+      // ✓ Определить день недели по дате
+      function getDayName(date) {
+          const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+          return days[date.getDay() - 1];
+      }
 
-            // ✓ HTML структура
-            eventElementContainer.innerHTML = `
+      // ✓ Определить цвет дня недели
+      function getDayColor(date) {
+          const today = new Date();
+          const dayOfWeek = date.getDay();
+          const colors = {
+              1: '#4a6e8fff', // Понедельник
+              2: '#4a5f8fff', // Вторник
+              3: '#3a538fff', // Среда
+              4: '#4a548fff', // Четверг
+              5: '#574a8fff', // Пятница
+              6: '#64147cff', // Суббота
+              0: '#660f0fff' // Воскресенье
+          };
+          if (date.toDateString() === today.toDateString()) {
+              return '#a01212ff'; // return '#12a01eff';
+          } else {
+              return colors[dayOfWeek] || '#4a6e8fff';
+          }
+      }
+
+      // ✓ Получаем данные дня недели
+      const dayDate = new Date(dateKey + 'T00:00:00');
+      const dayName = getDayName(dayDate);
+      const formattedDate = ScheduleRenderer.formatDate(dayDate);
+      const dayColor = getDayColor(dayDate);
+      return { dayName, formattedDate, dayColor };
+  }
+
+  //  ✓ Рендер элемента недельного расписания 
+  createEventElement(event, teachery) {
+    if (!event) return undefined;
+
+    // ✓ Создаем элемент и экстрактируем данные события
+    const eventElementContainer = document.createElement('div');
+    eventElementContainer.classList.add('event');
+    const extractedData = ScheduleRenderer.extractElementData(event);
+
+    // ✓ HTML структура
+    eventElementContainer.innerHTML = `
     <div class="event-time-block" style="border-left: 5px solid ${extractedData.subjectMatchColor}">
       <div class="event-time">
         <span class="start-time">${extractedData.startTime}</span>
@@ -1101,7 +1104,10 @@ class ScheduleRenderer {
     <div class="event-content">
       <div class="event-header">
         <p class="event-subject"><b>${extractedData.subject}</b></p>
-        ${extractedData.type ? `<span class="event-type">${extractedData.type}</span>` : ''}
+        <div>
+          ${extractedData.type ? `<span class="event-type">${extractedData.type}</span>` : ''}
+          ${extractedData.subgroup ? `<span class="event-type">${extractedData.subgroup}</span>` : ''}
+        </div>
       </div>
       <div class="event-details">
         ${teachery ? `<div class="event-detail">${extractedData.groups}</div>` : `<div class="event-detail">${extractedData.teacher}</div>`}
@@ -1596,34 +1602,11 @@ function switchSchedule(type) {
   }
 }
 
-/* ✓ Функция для смены расписания группы */
-const groupChange = document.getElementById('header-group-p');
+
+
 let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-5';
-(document.getElementById('header-group')).innerHTML = CurrentGroup;
-groupChange.addEventListener('click', async() => { 
 
-  // ✓ Выбираем следующий ключ в списке
-  if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS) { flag.loading = true; }
-  const groupKeys = Object.keys(groupsID);
-  const currentIndex = groupKeys.indexOf(CurrentGroup);
-  const nextIndex = (currentIndex + 1) % groupKeys.length;
-  CurrentGroup = groupKeys[nextIndex];
-  localStorage.setItem('lastSelectedGroup', CurrentGroup);
 
-  // ✓ Обновляем страницу и расписание
-  (document.getElementById('header-group')).innerHTML = CurrentGroup;
-  if (!groupData[CurrentGroup]) {
-    groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
-    if (DEBUG_MODE) console.log('Отлично, недостающее расписание было загружено: ', groupData[CurrentGroup]); 
-  }
-  if (navOpened === 'nav-shedule') { 
-    const dayButton = document.getElementById('shedule-day');
-    setTimeout(() => { 
-      changeSheduleTypeContent(((dayButton.classList.contains('selected')) ? "day" : "week"), groupData[CurrentGroup]); 
-    }, 500);
-    setTimeout(() => { if (LOADING_ANIMATIONS) {flag.loading = false;} return; }, 1000);
-  }
-});
 
 /* ======================================= Кафедра ======================================== */
 
@@ -2232,9 +2215,9 @@ async function generateSubpage(id, data) {
 } 
 
 
-/* ======== Функции загрузки контента страницы ======== */
+/* ======== ✓ Функции загрузки контента страницы ======== */
 
-// Флаги
+// ✓ Флаги
 let _loading = false;
 const flag = {
   get loading() { return _loading; },
@@ -2248,7 +2231,7 @@ const flag = {
   }
 };
 
-// Функция показа контейнера загрузки контента
+// ✓ Функция показа контейнера загрузки контента
 let showLoadingPageTimeout1; let showLoadingPageTimeout2;
 function showLoadingPage() {
   containerLoading.innerHTML = `<img width="50px" height="50px" src="images/ui/spinner.gif"/><p>Загрузка...</p>`;
@@ -2283,9 +2266,6 @@ function hideLoadingPage() {
   }, 350);
 }
 
-
-/* ======== Обработчики нажатий на основные элементы интерфейса ======== */
-
 // ✓ Объявление кнопок закрепленного интерфейса
 let navOpened = 'nav-shedule'; // Текущая открытая страница навигационного меню
 const navPosition = {          // Расположение кнопок слева направо
@@ -2299,28 +2279,6 @@ const navPosition = {          // Расположение кнопок слев
   'notifications':7,
 }
 
-// ✓ Добавление слушателей нажатия на все кнопки интерфейса
-const navButtons = document.querySelectorAll('.nav-element');
-const buttonNotifications = document.getElementById('header-notifications');
-const buttonWeb = document.getElementById('header-web');
-navButtons.forEach(button => {
-  button.addEventListener('click', async() => {
-    try { 
-      if (animationInProgress !== true) { await generatePage(button.id); }
-    } catch { animationInProgress = false; }
-  });
-});
-buttonNotifications.addEventListener('click', async() => {
-  try { 
-    if (animationInProgress !== true) { await generatePage('notifications'); }
-  } catch { animationInProgress = false; }
-});
-buttonWeb.addEventListener('click', async() => {
-  try { 
-    if (animationInProgress !== true) { await generatePage('web'); }
-  } catch { animationInProgress = false; }
-});
-
 // ✓ Обработка нажатий на кнопку стороннего перехода
 function openLink(link) {
   if (link.startsWith('tg://') || link.startsWith('mailto:') || link.startsWith('tel:') || link.startsWith('viber://') || link.startsWith('whatsapp://')) {
@@ -2330,247 +2288,286 @@ function openLink(link) {
   }
 }
 
-/* ===================================== Инициализация ==================================== */
+/* ============================ Аутентификация и инициализация ============================ */
 
 const authContainer = document.getElementById("auth");
 const sessionContainer = document.getElementById("session");
 
-// ============================================
-// ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ
-// ============================================
-
-/**
- * Главная функция инициализации
- * Проверяет авторизацию и запускает соответствующий блок
- */
-async function init() {
-  flag.loading = true;
-  console.log("🚀 Инициализация приложения...");
-
-  // Даем Firebase время на инициализацию текущего пользователя
-  await new Promise((resolve) => {
-    const unsubscribe = window.auth.auth.onAuthStateChanged(() => {
-      unsubscribe();
-      resolve();
-    });
-  });
-
-  const currentUser = window.auth.getCurrentUser();
-
-  if (currentUser) {
-    // Пользователь авторизован
-    console.log("✅ Пользователь авторизован:", currentUser.email);
-    initSession();
-  } else {
-    // Пользователь не авторизован
-    console.log("❌ Пользователь не авторизован");
-    renderAuthUI();
-  }
-  flag.loading = false;
-}
-
-// ============================================
-// СЕССИЯ ПОЛЬЗОВАТЕЛЯ (после авторизации)
-// ============================================
-
-/**
- * Инициализирует сессию авторизованного пользователя
- * Загружает расписание и инициализирует интерфейс приложения
- */
-async function initSession() {
-  console.log("🔓 Инициализация сессии пользователя");
-
-  // Скрываем auth блок, показываем session
-  authContainer.classList.add('hidden');
-  authContainer.classList.remove('visible');
-  sessionContainer.classList.remove('hidden');
-  sessionContainer.classList.add('visible');
-
-  // Обновляем имя в шапке
-  const user = window.auth.getCurrentUser();
-  const headerName = document.querySelector("#header-name");
-  if (headerName) {
-    headerName.textContent = `👤 ${user.displayName || user.email}`;
+// Функции аутентификации
+class AuthProcessor {
+  constructor() {
   }
 
-  // Загружаем расписание и генерируем страницу
-  try {
-    groupData[CurrentGroup] = await fetchShedule(CurrentGroup, "group");
-    await generatePage("nav-shedule", true);
-    console.log("✅ Сессия успешно инициализирована");
-  } catch (error) {
-    console.error("❌ Ошибка при инициализации сессии:", error);
-    showNotification("Ошибка при загрузке данных", "error");
-  }
-}
+  // Функция инициализации сессии
+  async startSession() {
+    if (DEBUG_MODE) console.log("🔓 Инициализация сессии пользователя");
+    flag.loading = true;
 
-/**
- * Завершает сессию пользователя
- * Вызывается при выходе или удалении аккаунта
- */
-function endSession() {
-  console.log("🔐 Завершение сессии");
-
-  // Показываем auth блок, скрываем session
-  sessionContainer.classList.add('hidden');
-  sessionContainer.classList.remove('visible');
-  authContainer.classList.remove('hidden');
-  authContainer.classList.add('visible');
-
-  // Очищаем данные
-  groupData = {};
-
-  // Возвращаем UI авторизации
-  renderAuthUI();
-}
-
-// ============================================
-// РЕНДЕРИНГ UI АВТОРИЗАЦИИ
-// ============================================
-
-/**
- * Динамически создает HTML для авторизации
- * и вставляет в контейнер #auth
- */
-function renderAuthUI() {
-  console.log("🎨 Рендеринг UI авторизации");
-  setTimeout(() => {
-    sessionContainer.classList.add('hidden');
-    sessionContainer.classList.remove('visible');
-    authContainer.classList.remove('hidden');
-    authContainer.classList.add('visible');
-  }, 200);
-
-  // Получаем элементы форм
-  const registerForm = document.getElementById("register-form");
-  const loginForm = document.getElementById("login-form");
-  const toggleToLogin = document.getElementById("toggle-to-login");
-  const toggleToRegister = document.getElementById("toggle-to-register");
-  const guestModeBtn = document.getElementById("guest-mode-btn");
-
-  // ============================================
-  // ПЕРЕКЛЮЧЕНИЕ МЕЖДУ ФОРМАМИ
-  // ============================================
-
-  toggleToLogin.addEventListener("click", (e) => {
-    e.preventDefault();
-    registerForm.classList.add("form-hidden");
-    loginForm.classList.remove("form-hidden");
-  });
-
-  toggleToRegister.addEventListener("click", (e) => {
-    e.preventDefault();
-    loginForm.classList.add("form-hidden");
-    registerForm.classList.remove("form-hidden");
-  });
-
-  // ============================================
-  // ОБРАБОТЧИК РЕГИСТРАЦИИ
-  // ============================================
-
-  registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const username = document.querySelector("#reg-username").value.trim();
-    const email = document.querySelector("#reg-email").value.trim();
-    const password = document.querySelector("#reg-password").value;
-    const messageEl = document.querySelector("#register-message");
-
-    // Валидация
-    if (!username || !email || !password) {
-      showAuthMessage(messageEl, "❌ Заполните все поля", "error");
-      return;
-    }
-
-    // Отключаем кнопку во время регистрации
-    const submitBtn = registerForm.querySelector("button[type='submit']");
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Загрузка...";
-
-    // Вызываем метод регистрации из класса Authentication
-    const result = await window.auth.register(email, password, username);
-
-    if (result.success) {
-      showAuthMessage(messageEl, "✅ " + result.message, "success");
-      registerForm.reset();
-
-      // Инициализируем сессию после успешной регистрации
-      setTimeout(() => initSession(), 1500);
-    } else {
-      showAuthMessage(messageEl, "❌ " + result.message, "error");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Зарегистрироваться";
-    }
-  });
-
-  // ============================================
-  // ОБРАБОТЧИК ВХОДА
-  // ============================================
-
-  loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const email = document.querySelector("#login-email").value.trim();
-    const password = document.querySelector("#login-password").value;
-    const messageEl = document.querySelector("#login-message");
-
-    // Валидация
-    if (!email || !password) {
-      showAuthMessage(messageEl, "❌ Заполните все поля", "error");
-      return;
-    }
-
-    // Отключаем кнопку во время входа
-    const submitBtn = loginForm.querySelector("button[type='submit']");
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Загрузка...";
-
-    // Вызываем метод входа из класса Authentication
-    const result = await window.auth.login(email, password);
-
-    if (result.success) {
-      showAuthMessage(messageEl, "✅ " + result.message, "success");
-      loginForm.reset();
-
-      // Инициализируем сессию после успешного входа
-      setTimeout(() => initSession(), 1500);
-    } else {
-      showAuthMessage(messageEl, "❌ " + result.message, "error");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Войти";
-    }
-  });
-
-  // ============================================
-  // ОБРАБОТЧИК ГОСТЕВОГО РЕЖИМА
-  // ============================================
-
-  guestModeBtn.addEventListener("click", async () => {
-    console.log("👤 Включен гостевой режим");
-    authContainer.style.display = "none";
-    sessionContainer.style.display = "block";
-
-    // Обновляем имя в шапке
-    const headerName = document.querySelector("#header-name");
-    if (headerName) {
-      headerName.textContent = "👤 Гостевой режим";
-    }
-
-    // Инициализируем приложение для гостя
+    // ✓ Скрываем блок аутентификации, показываем блок сессии
+    // sessionContainer.innerHTML = '';
+    containerLoading.style.zIndex = '1000';
     authContainer.classList.add('hidden');
     authContainer.classList.remove('visible');
-    sessionContainer.classList.remove('hidden');
-    sessionContainer.classList.add('visible');
+    setTimeout(() => {
+      sessionContainer.classList.remove('hidden');
+      sessionContainer.classList.add('visible');
+      authContainer.style.display = 'none';
+    }, 350);     
+ 
+    // authContainer.innerHTML = ''; 
+
+    // ✓ Добавление слушателей нажатия на все кнопки интерфейса
+    const navButtons = document.querySelectorAll('.nav-element');
+    const buttonNotifications = document.getElementById('header-notifications');
+    const buttonWeb = document.getElementById('header-web');
+    navButtons.forEach(button => {
+      button.addEventListener('click', async() => {
+        if (DEBUG_MODE) console.log('📌 Нажата кнопка ', button.id);
+        try { 
+          if (animationInProgress !== true) { await generatePage(button.id); }
+        } catch { animationInProgress = false; }
+      });
+    });
+    buttonNotifications.addEventListener('click', async() => {
+      if (DEBUG_MODE) console.log('📌 Нажата кнопка ', buttonNotifications.id);
+      try { 
+        if (animationInProgress !== true) { await generatePage('notifications'); }
+      } catch { animationInProgress = false; }
+    });
+    buttonWeb.addEventListener('click', async() => {
+      if (DEBUG_MODE) console.log('📌 Нажата кнопка ', buttonWeb.id);
+      try { 
+        if (animationInProgress !== true) { await generatePage('web'); }
+      } catch { animationInProgress = false; }
+    });
+
+    // Функция для смены расписания группы
+    // Сделать выбор из выпадающего списка
+    const groupChange = document.getElementById('header-group-p');
+    (document.getElementById('header-group')).innerHTML = CurrentGroup;
+    groupChange.addEventListener('click', async() => { 
+      if (DEBUG_MODE) console.log('📌 Нажата кнопка ', groupChange.id);
+
+      // ✓ Выбираем следующий ключ в списке
+      if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS && flag.loading !== true) { flag.loading = true; }
+      const groupKeys = Object.keys(groupsID);
+      const currentIndex = groupKeys.indexOf(CurrentGroup);
+      const nextIndex = (currentIndex + 1) % groupKeys.length;
+      CurrentGroup = groupKeys[nextIndex];
+      localStorage.setItem('lastSelectedGroup', CurrentGroup);
+
+      // ✓ Обновляем страницу и расписание
+      (document.getElementById('header-group')).innerHTML = CurrentGroup;
+      if (!groupData[CurrentGroup]) {
+        groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
+        if (DEBUG_MODE) console.log('Отлично, недостающее расписание было загружено: ', groupData[CurrentGroup]); 
+      }
+      if (navOpened === 'nav-shedule') { 
+        const dayButton = document.getElementById('shedule-day');
+        setTimeout(() => { 
+          changeSheduleTypeContent(((dayButton.classList.contains('selected')) ? "day" : "week"), groupData[CurrentGroup]); 
+        }, 500);
+        setTimeout(() => { if (LOADING_ANIMATIONS) { flag.loading = false; } return; }, 1000);
+      }
+    });
+
+    // Обновляем имя в шапке
+    const user = window.auth.getCurrentUser();
+    const headerName = document.querySelector("#header-name");
+    if (headerName) {
+      // headerName.textContent = `👤 ${user.email}`;
+    }
+
+    // Загружаем расписание и генерируем страницу
     try {
       groupData[CurrentGroup] = await fetchShedule(CurrentGroup, "group");
       await generatePage("nav-shedule", true);
-      console.log("✅ Гостевой режим инициализирован");
+      if (DEBUG_MODE) console.log("✅ Сессия успешно инициализирована");
     } catch (error) {
-      console.error("❌ Ошибка при инициализации гостевого режима:", error);
+      if (DEBUG_MODE) console.error("❌ Ошибка при инициализации сессии:", error);
       showNotification("Ошибка при загрузке данных", "error");
     }
-  });
+
+    setTimeout(()=>{ containerLoading.style.zIndex = '7'; flag.loading = false; }, 250);
+  }
+
+  // Функция завершения сессии (и выхода на главный экран)
+  endSession() {
+    if (DEBUG_MODE) console.log("🔐 Завершение сессии");
+
+    // Скрываем блок сессии, показываем блок аутентификации
+    sessionContainer.classList.add('hidden');
+    sessionContainer.classList.remove('visible');
+    authContainer.innerHTML = '';
+    authContainer.classList.remove('hidden');
+    authContainer.classList.add('visible');
+    setTimeout(() => {
+      sessionContainer.innerHTML = ''; 
+    }, 400);
+
+    // Очищаем данные
+    groupData = {};
+
+    // Возвращаем UI авторизации
+    renderAuth();
+  }
+
+  // Главная функция рендера и добавления обработчиков нажатия элементов авторизации
+  renderAuth() {
+    console.log("🎨 Рендеринг UI авторизации");
+    setTimeout(() => {
+      sessionContainer.classList.add('hidden');
+      sessionContainer.classList.remove('visible');
+      authContainer.classList.remove('hidden');
+      authContainer.classList.add('visible');
+    }, 200);
+
+    // Получаем элементы форм
+    const registerForm = document.getElementById("register-form");
+    const loginForm = document.getElementById("login-form");
+    const toggleToLogin = document.getElementById("toggle-to-login");
+    const toggleToRegister = document.getElementById("toggle-to-register");
+    const guestModeBtn = document.getElementById("guest-mode-btn");
+
+    // ============================================
+    // ПЕРЕКЛЮЧЕНИЕ МЕЖДУ ФОРМАМИ
+    // ============================================
+
+    toggleToLogin.addEventListener("click", (e) => {
+      e.preventDefault();
+      registerForm.classList.add("form-hidden");
+      loginForm.classList.remove("form-hidden");
+    });
+
+    toggleToRegister.addEventListener("click", (e) => {
+      e.preventDefault();
+      loginForm.classList.add("form-hidden");
+      registerForm.classList.remove("form-hidden");
+    });
+
+    // ============================================
+    // ОБРАБОТЧИК РЕГИСТРАЦИИ
+    // ============================================
+
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const username = document.querySelector("#reg-username").value.trim();
+      const email = document.querySelector("#reg-email").value.trim();
+      const password = document.querySelector("#reg-password").value;
+      const messageEl = document.querySelector("#register-message");
+
+      // Валидация
+      if (!username || !email || !password) {
+        showAuthMessage(messageEl, "❌ Заполните все поля", "error");
+        return;
+      }
+
+      // Отключаем кнопку во время регистрации
+      const submitBtn = registerForm.querySelector("button[type='submit']");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Загрузка...";
+
+      // Вызываем метод регистрации из класса Authentication
+      const result = await window.auth.register(email, password, username);
+
+      if (result.success) {
+        showAuthMessage(messageEl, "✅ " + result.message, "success");
+        registerForm.reset();
+
+        // Инициализируем сессию после успешной регистрации
+        setTimeout(() => initSession(), 1500);
+      } else {
+        showAuthMessage(messageEl, "❌ " + result.message, "error");
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Зарегистрироваться";
+      }
+    });
+
+    // ============================================
+    // ОБРАБОТЧИК ВХОДА
+    // ============================================
+
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const email = document.querySelector("#login-email").value.trim();
+      const password = document.querySelector("#login-password").value;
+      const messageEl = document.querySelector("#login-message");
+
+      // Валидация
+      if (!email || !password) {
+        showAuthMessage(messageEl, "❌ Заполните все поля", "error");
+        return;
+      }
+
+      // Отключаем кнопку во время входа
+      const submitBtn = loginForm.querySelector("button[type='submit']");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Загрузка...";
+
+      // Вызываем метод входа из класса Authentication
+      const result = await window.auth.login(email, password);
+
+      if (result.success) {
+        showAuthMessage(messageEl, "✅ " + result.message, "success");
+        loginForm.reset();
+
+        // Инициализируем сессию после успешного входа
+        setTimeout(() => initSession(), 1500);
+      } else {
+        showAuthMessage(messageEl, "❌ " + result.message, "error");
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Войти";
+      }
+    });
+
+    // ============================================
+    // ОБРАБОТЧИК ГОСТЕВОГО РЕЖИМА
+    // ============================================
+
+    guestModeBtn.addEventListener("click", async () => {
+      console.log("👤 Включен гостевой режим");
+
+      // Обновляем имя в шапке
+      const headerName = document.querySelector("#header-name");
+      if (headerName) {
+        headerName.textContent = "👤 Гостевой режим";
+      }
+
+      // Инициализируем приложение для гостя
+      await this.startSession();
+
+    });
+  }
+
+  // Главная функция инициализации процессора аутентификации
+  async init() {
+    if (DEBUG_MODE) console.log("🚀 Инициализация приложения...");
+    flag.loading = true;
+
+    // Инициализируем Firebase и получаем текущий вход в аккаунт
+    await new Promise((resolve) => {
+      const unsubscribe = window.auth.auth.onAuthStateChanged(() => {
+        unsubscribe();
+        resolve();
+      });
+    });
+    const currentUser = window.auth.getCurrentUser();
+
+    if (currentUser) { // Если вход в аккаунт выполнен
+      console.log("✅ Пользователь авторизован:", currentUser.email);
+      await this.startSession();
+
+    } else { // Если аутентификация не выполнена на данном устройстве
+      console.log("❌ Пользователь не авторизован");
+      this.renderAuth();
+    }
+    flag.loading = false;
+  }
+
 }
+
 
 // ============================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -2679,7 +2676,8 @@ function setupDeleteAccountHandler() {
 // ============================================
 
 // Когда приложение загружается, проверяем авторизацию
-init();
+const auth = new AuthProcessor();
+auth.init();
 
 // Когда инициализируется сессия, устанавливаем обработчики для выхода и удаления
 window.addEventListener("load", () => {
