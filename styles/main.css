@@ -98,13 +98,12 @@ img.banner-half {
 /* ✓ Дополнительная стилизация радиокнопок с выбором дней недели */
 .radio-week-container { 
   position: sticky; top: -10px; z-index: 9999; width: 90%; padding: 0px 10px; margin: 10px auto; height: 70px !important; 
-  justify-content: end !important; align-items: center !important; gap: 10px; flex-direction: row-reverse;
-  overflow-x: scroll; direction: rtl;
+  justify-content: start !important; align-items: center !important; gap: 10px; overflow-x: scroll;
   background-color: rgba(255,255,255,0.75); border-radius: 10px; backdrop-filter: blur(5px); box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
   scrollbar-width: none; &::-webkit-scrollbar { display: none; }
 }
 .radio-week-button {
-  min-width: 70px; max-width: 75px; padding: 5px 10px; 
+  min-width: 75px; max-width: 75px; padding: 5px 10px; 
   border-radius: 10px; border: 0; font-size: 15px;  
   background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.35); color: #000; direction: ltr; 
   transition: all 0.5s ease;
