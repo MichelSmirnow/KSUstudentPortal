@@ -1815,6 +1815,19 @@ function generateErrorContainer(error) {
 
 /* ======== Генерация основного контента страницы (нижнее навигационное меню) ======== */
 
+// ✓ Объявление кнопок закрепленного интерфейса
+let navOpened = 'nav-shedule'; // Текущая открытая страница навигационного меню
+const navPosition = {          // Расположение кнопок слева направо
+  'web':          0,
+  'nav-kafeder':  1,
+  'nav-homework': 2,
+  'nav-shedule':  3,
+  'nav-messager': 4,
+  'nav-account': 5,
+  'lesson':       6,
+  'notifications':7,
+}
+
 // Генерация контента на страницах приложения
 async function generatePageContent(id) {
   const generatePageContentContainer = document.createElement('div');
@@ -1970,15 +1983,12 @@ async function generatePageContent(id) {
     </div>
     `;
   } else if (id === 'nav-account') {   // Окно аккаунта
-    return `
-    <div class="relative-container" id="subcontainer">
-      <div class="flex-container info-container">
-
-        <img class="banner-half" src="images/supbanners/services.png"/>
-      </div>
-      <div id="services-container"><p></p></div>
-    </div>
+    
+    generatePageContentContainer.innerHTML = `
+      <button onclick="clearAllIndexedDB();">Вылечить расписание</button>
     `;
+    return generatePageContentContainer;
+
   } else if (id === 'notifications') { // Окно уведомлений администрации
 
     return `
@@ -2028,7 +2038,6 @@ async function generatePageContent(id) {
 
 // ✓ Функция генерации страницы 
 async function generatePage(id, skip) {
-
   if (!id) throw new Error('Страницы не существует');
   animationInProgress = true; 
   if (LOADING_ANIMATIONS) flag.loading = true;
@@ -2264,19 +2273,6 @@ function hideLoadingPage() {
   setTimeout(() => {
     containerLoading.innerHTML = '';
   }, 350);
-}
-
-// ✓ Объявление кнопок закрепленного интерфейса
-let navOpened = 'nav-shedule'; // Текущая открытая страница навигационного меню
-const navPosition = {          // Расположение кнопок слева направо
-  'web':          0,
-  'nav-kafeder':  1,
-  'nav-homework': 2,
-  'nav-shedule':  3,
-  'nav-messager': 4,
-  'nav-services': 5,
-  'lesson':       6,
-  'notifications':7,
 }
 
 // ✓ Обработка нажатий на кнопку стороннего перехода
