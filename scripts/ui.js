@@ -719,11 +719,6 @@ async function clearAllIndexedDB() {
 }
 
 
-/* =============================== Авторизация и Firebase ================================= */
-
-
-
-
 /* ====================================== Расписание ====================================== */
 
 // ✓ Парсер ICS календаря с сайта ЕЙОС КГУ
@@ -856,22 +851,25 @@ async function saveLocalShedule(shedule, sheduleID, sheduleType) {
     }
 }
 
-// ✓ Выгрузить календарь с расписанием с сайта ЭЙОС КГУ и распарсировать его 
+// Выгрузить календарь с расписанием с сайта ЭЙОС КГУ и распарсировать его
+// Исправить ВСЕ ошибки, в том числе
+// 1) Невозможность активной загрузки расписания при смене группы - уход в бесконечную загрузку
+// 2) При мерджинге расписаний поверх старого расписания накладывается  
 async function fetchShedule(sheduleID, sheduleType) {
 
-    // ✓ Функция слияния двух массивов расписаний
+    // Функция слияния двух массивов расписаний
     function mergeSchedules(oldShedule, newShedule) {
         const merged = [...oldShedule]; // ✓ Создаём копию старого расписания
         newShedule.forEach(newItem => { // ✓ Проходим по каждому элементу нового расписания
             const existingIndex = merged.findIndex(oldItem => oldItem.uid === newItem.uid);
             if (existingIndex !== -1) { // ✓ Если найден элемент с таким же uid, обновляем его
-                merged[existingIndex] = newItem;
+                // merged[existingIndex] = newItem;
             } else { merged.push(newItem); } // ✓ Если элемента нет в старом массиве, добавляем его
         });
         return merged;
     }
 
-    // ✓ Сгенерировать ссылку для получения расписания (добавить учительское расписание)
+    // ✓ Сгенерировать ссылку для получения расписания (добавить расписание аудиторий)
     function getSheduleLink(type, id) {
         if (type === 'group') {
             const groupIDtoExtract = groupsID[id];
@@ -879,6 +877,10 @@ async function fetchShedule(sheduleID, sheduleType) {
             return `https://eios.kosgos.ru/api/Rasp?idGroup=${groupIDtoExtract}&iCal=true`;
         } else if (type === 'teacher') {
             return `https://eios.kosgos.ru/api/Rasp?idTeacher=${id}&iCal=true`;
+        } else if (type === 'room') {
+
+        } else { // Вернуть обьект с содержимым что расписания не существует / не заложено в системе
+
         }
     }
 
@@ -911,7 +913,9 @@ async function fetchShedule(sheduleID, sheduleType) {
             mergedShedule = oldShedule;
         } else if (!oldShedule) {
             mergedShedule = newShedule;
-        } else { mergedShedule = mergeSchedules(oldShedule, newShedule); }
+        } else { 
+          mergedShedule = mergeSchedules(oldShedule, newShedule); 
+        }
         if (DEBUG_MODE) console.log({ mergedShedule });
     } catch (error) {
         console.warn('Этот этап невозможно крашнуть');
@@ -1083,7 +1087,7 @@ class ScheduleRenderer {
       return { dayName, formattedDate, dayColor };
   }
 
-  //  ✓ Рендер элемента недельного расписания 
+  // ✓ Рендер элемента расписания 
   createEventElement(event, teachery) {
     if (!event) return undefined;
 
@@ -1123,6 +1127,23 @@ class ScheduleRenderer {
     return eventElementContainer;
   }
 
+  // ✓ Рендер элемента перерыва
+  createPauseElement(timeout, breakfast) { 
+    const pauseContainer = document.createElement('div');
+    if (!timeout || typeof timeout !== 'number') return pauseContainer;
+    const hours = Math.floor(timeout / 60);
+    const minutes = timeout - (hours * 60);
+    pauseContainer.classList.add('pauseEvent');
+    const textContainer = document.createElement('p');
+    if (breakfast === true) {
+      textContainer.innerHTML = `Обеденный перерыв`;
+    } else {
+      textContainer.innerHTML = `Свободное время между занятиями: ${(hours > 0) ? `${hours}ч`:``} ${(minutes > 0) ? `${minutes}мин`: ``}`;
+    }
+    pauseContainer.appendChild(textContainer);
+    return pauseContainer;
+  }
+
   // ✓ Сгенерировать самообновляющийся элемент текущего/следующего занятия 
   createDayEventElement(event, next) {
     if (!event) return undefined;
@@ -1136,6 +1157,7 @@ class ScheduleRenderer {
       'лаб':  'linear-gradient(to bottom right, #667eea 0%, #764ba2 100%)',
       'лек':  'linear-gradient(to bottom right, #2dac14 0%, #1c6e0bff 100%)',
       'пр.':  'linear-gradient(to bottom right, #c28b16 0%, #bbac2a 50%, #c28b16 100%)',
+      'пр ':  'linear-gradient(to bottom right, #c28b16 0%, #bbac2a 50%, #c28b16 100%)',
       'next': 'linear-gradient(to bottom right, #66b5ea 0%, #31459e 100%)',
     };
     dayEventContainer.style.backgroundImage = next ? colors['next'] : colors[extractedData.subjectMatch];
@@ -1251,7 +1273,7 @@ class ScheduleRenderer {
       .sort((a, b) => a.startTime - b.startTime);
     const extractedData = this.extractEventData(dateKey);
 
-    // ✓ Генерируем список занятий
+    // ✓ Подготовка к генерации списка занятий
     const eventsContainer = document.createElement('div');
     eventsContainer.classList.add('schedule-day');
     eventsContainer.innerHTML = `<div class="day-header" style="background-color: ${extractedData.dayColor};">
@@ -1260,8 +1282,24 @@ class ScheduleRenderer {
     </div>`;
     const dayEventsContainer = document.createElement('div');
     dayEventsContainer.classList.add('day-events');
+    
+    // ✓ Генерируем список занятий
+    let prevEvent;
     dayEvents.forEach((event, index) => {
+      if (prevEvent) {
+        const prevStartDate = justifyDate(prevEvent.startTime);
+        const endDate = justifyDate(prevEvent.endTime);
+        const startDate = justifyDate(event.startTime);
+        const minutes = Math.abs(startDate - endDate) / 1000 / 60;
+        if (minutes >= 90 && prevStartDate < startDate) { // Если обнаружен большой перерыв между занятиями
+          dayEventsContainer.appendChild(this.createPauseElement(minutes, false));
+        }
+        if (minutes >= 30 && minutes <= 60 && prevStartDate < startDate) { // Если обнаружен обеденный перерыв между занятиями
+          dayEventsContainer.appendChild(this.createPauseElement(minutes, true));
+        }
+      }
       dayEventsContainer.appendChild(this.createEventElement(event, teachery));
+      prevEvent = event; 
     });
     if (!dayEventsContainer.hasChildNodes()) dayEventsContainer.innerHTML = '<p style="text-align: center;">На этот день нет расписания</p>'
     eventsContainer.appendChild(dayEventsContainer);
@@ -1489,9 +1527,9 @@ class ScheduleRenderer {
         });
         if (todayEvents.length === 0) return true;
         const lastEvent = todayEvents.reduce((latest, event) => 
-          event.endTime > latest.endTime ? event : latest
+          justifyDate(event.endTime) > justifyDate(latest.endTime) ? event : latest
         );
-        return now > lastEvent.endTime;
+        return now > justifyDate(lastEvent.endTime);
       }
 
       // ✓ Возвращает дату следующего учебного дня
@@ -1602,10 +1640,7 @@ function switchSchedule(type) {
   }
 }
 
-
-
 let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-5';
-
 
 
 /* ======================================= Кафедра ======================================== */

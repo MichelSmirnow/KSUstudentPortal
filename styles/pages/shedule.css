@@ -19,13 +19,18 @@
 .day-events { padding: 0; }
 
 /* ✓ Элемент занятия */
-.event {
-    display: flex; align-items: flex-start; padding: 15px 20px;
-    border-bottom: 1px solid #f0f0f0;
-    transition: all 0.35s;
+.event, .pauseEvent {
+  display: flex; align-items: flex-start; padding: 15px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  transition: all 0.35s;
 }
-.event:hover { background-color: #f5f5f5; transition: all 0.2s; }
-.event:active { background-color: #dddddd; transition: all 0.2s; }
+.pauseEvent { 
+  padding: 0px !important; height: 40px;
+  align-items: center !important; justify-content: center;
+  color: #777; font-size: 15px;
+}
+.event:hover, .pauseEvent:hover { background-color: #f5f5f5; transition: all 0.2s; }
+.event:active, .pauseEvent:active { background-color: #dddddd; transition: all 0.2s; }
 .event:last-child { border-bottom: none; }
 
 /* ✓ Блок времени занятия */
