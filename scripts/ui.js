@@ -605,7 +605,7 @@ const groupsID = {
   "26-ИСбо-3": 9000,
   "26-ИСбо-4": 8953,
   "26-ИСбо-5": 8878,
-
+  "26-ИБбо-6": 8949,
   "26-ПМбо-1": 8948,
 }
 
@@ -823,20 +823,24 @@ function getStorage(dbName, storeName) {
 
 // ✓ Загрузить расписание из локальной памяти 
 async function loadLocalShedule(sheduleID, sheduleType) {
-  if (!sheduleID || !sheduleType) {
-    throw new Error('Данные для загрузки расписания объявлены неверным образом');
-  }
+  if (!sheduleID || !sheduleType) { throw new Error('Данные для загрузки расписания объявлены неверным образом'); }
   try {
     const storage = getStorage(sheduleType, sheduleID);
-    const loadedData = await storage.load();
+    const timeout = new Promise(resolve => setTimeout(() => resolve(), 7000));
+    const loadedData = await Promise.race([storage.load(), timeout]);
+    if (loadedData === undefined) {
+      if (DEBUG_MODE) console.warn(`Загрузка ${sheduleID} прервана по таймауту`);
+      return undefined;
+    }
     const parsedData = JSON.parse(loadedData);
     if (DEBUG_MODE) console.log(`Босс, я загрузил ${sheduleID} расписание: `, parsedData);
-    return (!parsedData) ? [] : parsedData;
+    return parsedData ?? [];
   } catch (error) {
     if (DEBUG_MODE) console.warn('Ошибка загрузки данных из локальной памяти: ', error);
-    throw new Error('Ошибка загрузки данных из локальной памяти: ', error);
+    throw new Error('Ошибка загрузки данных из локальной памяти');
   }
 }
+
 
 // ✓ Сохранить расписание в локальной памяти 
 async function saveLocalShedule(inputShedule, sheduleID, sheduleType) {
@@ -950,7 +954,7 @@ async function fetchShedule(sheduleID, sheduleType) {
     oldShedule = await loadLocalShedule(sheduleID, sheduleType);
     if (!oldShedule || oldShedule.length === 0 || !Array.isArray(oldShedule)) {
       oldShedule = undefined;
-      throw new Error('Расписание отсутствует либо было записано неверно')
+      throw new Error('Расписание отсутствует либо было записано неверно');
     }
     if (DEBUG_MODE) console.log('Получилось выгрузить старое расписание: ', oldShedule);
   } catch (error) {
@@ -1173,7 +1177,7 @@ class ScheduleRenderer {
     <div class="event-content">
       <div class="event-header">
         <p class="event-subject"><b>${extractedData.subject}</b></p>
-        <div>
+        <div class="event-type-container">
           ${extractedData.type ? `<span class="event-type">${extractedData.type}</span>` : ''}
           ${extractedData.subgroup ? `<span class="event-type">${extractedData.subgroup}</span>` : ''}
         </div>
@@ -1263,7 +1267,10 @@ class ScheduleRenderer {
       <div class="lesson-content">
         <div class="lesson-header">
           <p class="lesson-subject">${extractedData.subject}</p>
-          ${extractedData.type ? `<span class="lesson-type2">${extractedData.type}</span>` : ''}
+          <div class="event-type-container">
+            ${extractedData.type ? `<span class="lesson-type2">${extractedData.type}</span>` : ''}
+            ${extractedData.subgroup ? `<span class="lesson-type2">${extractedData.subgroup}</span>` : ''}
+          </div>
         </div>
         <div class="lesson-details">
           <div class="lesson-detail">${extractedData.teacher}</div>
@@ -1436,7 +1443,6 @@ class ScheduleRenderer {
         );
       });
     }
-    console.log(nextEvent);
 
     // ✓ Добавляем следующее занятие или отсутствие занятий в ближайшее время
     if (nextEvent) {
@@ -1654,6 +1660,8 @@ class ScheduleRenderer {
       const grouped = this.groupByDate(this.sheduleData);
       Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
         const dayDate = new Date(dateKey + 'T00:00:00');
+
+        // Добавить пустой день == нет занятий
         if (isSameWeek(selectedDate, dayDate)) {
           weekSheduleContainer.appendChild(this.createDateElement(dayDate, teachery));
         }
@@ -1921,6 +1929,18 @@ function generateErrorContainer(error) {
   <p style="color: red">${error}</p>`;
 }
 
+// Если расписание невозможно подключить из-за отсутствия интернет-соединения
+function generateNoEthernetContainer() {
+  const ethernetContainer = document.createElement('div');
+  ethernetContainer.innerHTML = `
+  <p><b>Нет подключения к интернету</b></p>
+  <p>1) Если у вас выключен интернет, попробуйте подключиться к сети и обновить данную страницу</p>
+  <p>2) Если у вас выключен VPN или PROXY сервис, попробуйте отключить его и обновить страницу</p>
+  <p>Код ошибки: большая задница (со слов Егора)</p>
+  `;
+  return ethernetContainer;
+}
+
 /* ======== Генерация основного контента страницы (нижнее навигационное меню) ======== */
 
 // ✓ Объявление кнопок закрепленного интерфейса
@@ -1982,16 +2002,20 @@ async function generatePageContent(id) {
   } else if (id === 'nav-shedule') {   // ✓ Окно расписания
     const sheduleContainer = document.createElement('div');
     sheduleContainer.id = 'shedule-container';
-    try {
+    exitBlock: { try {
       if (!groupData[CurrentGroup]) {
         groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
+        if (!groupData[CurrentGroup]) {
+          sheduleContainer.appendChild(generateNoEthernetContainer());
+          break exitBlock;
+        }
       }
       const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
       const innerElement = renderer.render('day');
       sheduleContainer.appendChild(innerElement);
     } catch (err) { console.warn(err); 
       sheduleContainer.innerHTML = generateErrorContainer(err); 
-    }
+    }}
 
     // ✓ Получить случайное описание 
     function getRandomDescription() {
@@ -2285,15 +2309,19 @@ async function generateSubpageContent(id, data) {
     </details>
     `;
   } else if (id === 'teacher') { // Перекрывающее окно информации о преподавателе (data - инициалы преподавателя)
-    const teacherData = data;
+    const teacherData = data; let sheduleFiller;
 
     // Получаем расписание преподавателя
-    if (!groupData[teacherData.fullName]) { 
+    exitBlock: { if (!groupData[teacherData.fullName]) { 
       groupData[teacherData.fullName] = await fetchShedule(teacherData.sheduleCode, 'teacher'); 
+      if (!groupData[teacherData.fullName]) {
+        sheduleContainer.appendChild(generateNoEthernetContainer());
+        break exitBlock;
+      }
     }
     const renderer = new ScheduleRenderer(groupData[teacherData.fullName]);
-    const sheduleFiller = renderer.render('week', true);
-
+    sheduleFiller = renderer.render('week', true);
+    }
     generatePageContentContainer.innerHTML = `
     <div class="flex-container">  
       <img class="materials-teacher" src="${teacherData.image}"/>
@@ -2375,8 +2403,8 @@ function showLoadingPage() {
   }, 10000);
   showLoadingPageTimeout2 = setTimeout(() => {
     containerLoading.innerHTML = `
-    <img width="150px" height="150px" src="images/supbanners/sadcat.png"/>
-    <p>Время ожидания истекло</p>
+    <img width="50px" height="50px" src="images/ui/spinner.gif"/>
+    <p>Загрузка занимает очень много времени. Ожидайте.</p>
     `;
   }, 20000);
 }
@@ -2472,13 +2500,33 @@ class AuthProcessor {
       localStorage.setItem('lastSelectedGroup', CurrentGroup);
       if (DEBUG_MODE) console.log('Текущая группа была сменена на ', CurrentGroup);
 
-      // Обновляем страницу и расписание
+      // ✓ Обновляем страницу и расписание
       (document.getElementById('header-group')).innerHTML = CurrentGroup;
       if (navOpened === 'nav-shedule') {
         try {
           const dayButton = document.getElementById('shedule-day');
-          if (!groupData[CurrentGroup]) { groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group'); console.log(groupData[CurrentGroup]); }
-          setTimeout(() => { changeSheduleTypeContent(((dayButton.classList.contains('selected')) ? "day" : "week")); }, 500);
+          /*
+          if (!groupData[CurrentGroup]) { 
+            groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group'); console.log(groupData[CurrentGroup]); 
+          }
+          */
+          setTimeout(async () => { 
+            const sheduleContainer = document.getElementById('shedule-container');
+            sheduleContainer.innerHTML = '';
+            const moduleSelected = (dayButton.classList.contains('selected')) ? "day" : "week";
+            let innerElement;
+            exitBlock: { if (!groupData[CurrentGroup]) {
+              groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
+              if (!groupData[CurrentGroup]) {
+                sheduleContainer.appendChild(generateNoEthernetContainer());
+                break exitBlock;
+              }
+            }
+            const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
+            innerElement = renderer.render(moduleSelected);
+            }
+            sheduleContainer.appendChild(innerElement);
+          }, 500);
         } catch (err) { if (DEBUG_MODE) console.warn('Ошибка смены расписания: ', err); }
         setTimeout(() => { if (LOADING_ANIMATIONS) { flag.loading = false; } return; }, 1000);
       }
