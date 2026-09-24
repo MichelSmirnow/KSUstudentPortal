@@ -861,16 +861,74 @@ async function saveLocalShedule(inputShedule, sheduleID, sheduleType) {
 async function fetchShedule(sheduleID, sheduleType) {
 
   // ✓ Функция слияния двух массивов расписаний
-  function mergeSchedules(oldShedule, newShedule) {
-    const merged = [...oldShedule];    // ✓ Создаём копию старого расписания
-    newShedule.forEach(newItem => {    // ✓ Проходим по каждому элементу нового расписания
-      const existingIndex = merged.findIndex(oldItem => oldItem.uid === newItem.uid);
-      if (existingIndex !== -1) {      // ✓ Если найден элемент с таким же uid, обновляем его
-        // merged[existingIndex] = newItem;
-      } else { merged.push(newItem); } // ✓ Если элемента нет в старом массиве, добавляем его
-    });
+  function mergeSchedules(oldSchedule = [], newSchedule = []) {
+    const merged = [];
+
+    // Нормализация текста для корректного сравнения
+    const normalize = value => {
+      return String(value ?? '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+    };
+    
+    const getSubgroup = item => { // Извлекаем признак подгруппы. Поддерживаются варианты: "п/г 1", "п/г 2", "подгруппа 1", "подгруппа 2"
+      const text = `${item.summary ?? ''} ${item.description ?? ''}`;
+      const match = text.match(/(?:п\/г|подгруппа|подгр\.?)\s*№?\s*(\d+)/i);
+      return match ? `subgroup:${match[1]}` : 'subgroup:none';
+    };
+    const getAdditionalKey = item => {
+      return [
+        getSubgroup(item),
+        normalize(item.description),
+        normalize(item.location)
+      ].join('|');
+    };
+    const getStartTime = item => { return normalize(item.startTime); };
+    const getSummary = item => { return normalize(item.summary); };
+    const getDay = item => { return String(item.startTime ?? '').slice(0, 10); };
+
+    const isSameItem = (oldItem, newItem) => {
+      // 1. Основная проверка — UID
+      if (
+        oldItem.uid &&
+        newItem.uid &&
+        String(oldItem.uid) === String(newItem.uid)
+      ) {
+        return true;
+      }
+
+      // 2. Запасная проверка — startTime + подгруппа + описание + аудитория
+      const sameStartTime = (getStartTime(oldItem) === getStartTime(newItem));
+      const sameAdditionalData = (getAdditionalKey(oldItem) === getAdditionalKey(newItem));
+      if (sameStartTime && sameAdditionalData) return true;
+
+      // 3. Если время занятия изменилось, пробуем найти его по дню + summary + подгруппе.
+      const sameDay = (getDay(oldItem) !== '') && (getDay(oldItem) === getDay(newItem));
+      const sameSummary = (getSummary(oldItem) !== '') && (getSummary(oldItem) === getSummary(newItem));
+      const sameSubgroup = (getSubgroup(oldItem) === getSubgroup(newItem));
+      if (sameDay && sameSummary && sameSubgroup) return true;
+      return false;
+    };
+
+    const addOrUpdate = item => {
+      const existingIndex = merged.findIndex(existingItem => isSameItem(existingItem, item));
+      if (existingIndex === -1) { // Такого занятия ещё нет
+        merged.push(item);
+      } else { // Занятие уже есть, обновляем
+        merged[existingIndex] = {
+          ...merged[existingIndex],
+          ...item
+        };
+      }
+    };
+
+    // Очистка старого расписания от дубликатов
+    for (const item of oldSchedule) { addOrUpdate(item); }
+    for (const item of newSchedule) { addOrUpdate(item); }
     return merged;
   }
+
 
   // ✓ Сгенерировать ссылку для получения расписания (добавить расписание аудиторий)
   function getSheduleLink(type, id) {
@@ -2292,6 +2350,8 @@ const flag = {
     if (_loading === true) {
       setTimeout(() => {
         if (_loading === true) {
+          clearTimeout(showLoadingPageTimeout1);
+          clearTimeout(showLoadingPageTimeout2);
           showLoadingPage();
         } else { hideLoadingPage(); }
       }, 200);
@@ -2402,7 +2462,7 @@ class AuthProcessor {
     (document.getElementById('header-group')).innerHTML = CurrentGroup;
     groupChange.addEventListener('click', async () => {
       if (DEBUG_MODE) console.log('📌 Нажата кнопка ', groupChange.id);
-      if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS && flag.loading !== true) { flag.loading = true; }
+      if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS) { flag.loading = true; }
 
       // ✓ Выбираем следующий ключ в списке
       const groupKeys = Object.keys(groupsID);
