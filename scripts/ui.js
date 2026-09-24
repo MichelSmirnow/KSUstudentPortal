@@ -707,6 +707,7 @@ class indexedStorage {
 
 // ✓ Полное удаление базы данных
 async function clearAllIndexedDB() {
+  groupData = {};
   if (!indexedDB.databases) {
     console.log("Метод indexedDB.databases() не поддерживается этим браузером.");
     return;
@@ -845,8 +846,8 @@ async function saveLocalShedule(inputShedule, sheduleID, sheduleType) {
   try {
     const storage = getStorage(sheduleType, sheduleID);
     const stringedShedule = JSON.stringify(inputShedule);
-    const result = await storage.save(stringedShedule);
-    if (DEBUG_MODE) console.log(`Босс, ${result} я сохранил ${sheduleID} расписание: `, stringShedule);
+    await storage.save(stringedShedule);
+    if (DEBUG_MODE) console.log(`Босс, я сохранил ${sheduleID} расписание`);
   } catch (error) {
     if (DEBUG_MODE) console.warn('Ошибка загрузки данных в локальную память: ', error);
     throw new Error('Ошибка загрузки данных в локальную память: ', error);
@@ -902,7 +903,7 @@ async function fetchShedule(sheduleID, sheduleType) {
   try { // ✓ Попытка обновить данные с сервера
     const parser = new ICSParser();
     const sheduleLink = getSheduleLink(sheduleType, sheduleID);
-    const newShedule = await parser.fetch(sheduleLink);
+    newShedule = await parser.fetch(sheduleLink);
     if (!newShedule || newShedule.length === 0 || !Array.isArray(newShedule)) {
       newShedule = undefined;
       throw new Error('Не получилось соединиться с сервером или формат расписания на сервере неверен');
@@ -1616,12 +1617,20 @@ class ScheduleRenderer {
 
 // ✓ Сменить контент расписания
 function changeSheduleTypeContent(type) {
-  console.log(groupData[CurrentGroup]);
+  if (DEBUG_MODE) console.log('Получен запрос на изменение типа расписания, вот текущее расписание: ', groupData[CurrentGroup]);
   const sheduleContainer = document.getElementById('shedule-container');
-  const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
-  const sheduleFiller = renderer.render(type);
-  sheduleContainer.innerHTML = '';
-  sheduleContainer.appendChild(sheduleFiller);
+  if (groupData[CurrentGroup]) {
+    const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
+    const sheduleFiller = renderer.render(type);
+    sheduleContainer.innerHTML = '';
+    sheduleContainer.appendChild(sheduleFiller);
+  } else {
+    const errorFiller = document.createElement('div');
+    errorFiller.innerHTML = '<p>Расписание отсутствует в оперативной памяти</p>';
+    sheduleContainer.innerHTML = '';
+    sheduleContainer.appendChild(errorFiller);
+  }
+  
 }
 
 // ✓ Изменение режима просмотра расписания
@@ -1634,13 +1643,13 @@ function switchSchedule(type) {
   if (type === 'day' && !dayButton.classList.contains('selected')) { // ✓ Если выбрано внутридневное расписание
     weekButton.classList.remove('selected');
     dayButton.classList.add('selected');
-    if (DEBUG_MODE) console.log({ groupData, CurrentGroup });
+    if (DEBUG_MODE) console.log('Меняем блок расписания на day: ', { groupData, CurrentGroup });
     changeSheduleTypeContent('day');
 
   } else if (type === 'week' && !weekButton.classList.contains('selected')) { // ✓ Если выбрано недельное расписание
     dayButton.classList.remove('selected');
     weekButton.classList.add('selected');
-    if (DEBUG_MODE) console.log({ groupData, CurrentGroup });
+    if (DEBUG_MODE) console.log('Меняем блок расписания на week: ', { groupData, CurrentGroup });
     changeSheduleTypeContent('week');
   }
 }
@@ -1913,17 +1922,18 @@ async function generatePageContent(id) {
     </div>
     `;
   } else if (id === 'nav-shedule') {   // ✓ Окно расписания
-    const sheduleContainer = document.createElement('div');;
+    const sheduleContainer = document.createElement('div');
+    sheduleContainer.id = 'shedule-container';
     try {
-      let renderShedule;
       if (!groupData[CurrentGroup]) {
-        renderShedule = await fetchShedule(CurrentGroup, 'group');
-      } else { renderShedule = groupData[CurrentGroup]; }
-      const renderer = new ScheduleRenderer(renderShedule);
+        groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
+      }
+      const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
       const innerElement = renderer.render('day');
-      sheduleContainer.id = 'shedule-container';
       sheduleContainer.appendChild(innerElement);
-    } catch (err) { sheduleContainer.innerHTML = generateErrorContainer(err); }
+    } catch (err) { console.warn(err); 
+      sheduleContainer.innerHTML = generateErrorContainer(err); 
+    }
 
     // ✓ Получить случайное описание 
     function getRandomDescription() {
@@ -2392,26 +2402,24 @@ class AuthProcessor {
     (document.getElementById('header-group')).innerHTML = CurrentGroup;
     groupChange.addEventListener('click', async () => {
       if (DEBUG_MODE) console.log('📌 Нажата кнопка ', groupChange.id);
+      if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS && flag.loading !== true) { flag.loading = true; }
 
       // ✓ Выбираем следующий ключ в списке
-      if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS && flag.loading !== true) { flag.loading = true; }
       const groupKeys = Object.keys(groupsID);
       const currentIndex = groupKeys.indexOf(CurrentGroup);
       const nextIndex = (currentIndex + 1) % groupKeys.length;
       CurrentGroup = groupKeys[nextIndex];
       localStorage.setItem('lastSelectedGroup', CurrentGroup);
+      if (DEBUG_MODE) console.log('Текущая группа была сменена на ', CurrentGroup);
 
-      // ✓ Обновляем страницу и расписание
+      // Обновляем страницу и расписание
       (document.getElementById('header-group')).innerHTML = CurrentGroup;
-      if (!groupData[CurrentGroup]) {
-        groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
-        if (DEBUG_MODE) console.log('Отлично, недостающее расписание было загружено: ', groupData[CurrentGroup]);
-      }
       if (navOpened === 'nav-shedule') {
-        const dayButton = document.getElementById('shedule-day');
-        setTimeout(() => {
-          changeSheduleTypeContent(((dayButton.classList.contains('selected')) ? "day" : "week"));
-        }, 500);
+        try {
+          const dayButton = document.getElementById('shedule-day');
+          if (!groupData[CurrentGroup]) { groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group'); console.log(groupData[CurrentGroup]); }
+          setTimeout(() => { changeSheduleTypeContent(((dayButton.classList.contains('selected')) ? "day" : "week")); }, 500);
+        } catch (err) { if (DEBUG_MODE) console.warn('Ошибка смены расписания: ', err); }
         setTimeout(() => { if (LOADING_ANIMATIONS) { flag.loading = false; } return; }, 1000);
       }
     });
