@@ -609,6 +609,11 @@ const groupsID = {
   "26-ПМбо-1": 8948,
 }
 
+/* Аудитории университета */
+const roomsData = {
+
+}
+
 // ✓ Функции сохранения и загрузки локально сохраненных данных
 class indexedStorage {
   constructor(dbName, storeName) {
@@ -1204,10 +1209,12 @@ class ScheduleRenderer {
     const minutes = timeout - (hours * 60);
     pauseContainer.classList.add('pauseEvent');
     const textContainer = document.createElement('p');
-    if (breakfast === true) {
+    if (breakfast === 'lanch') {
       textContainer.innerHTML = `Обеденный перерыв`;
-    } else {
+    } else if (breakfast === 'timeout') {
       textContainer.innerHTML = `Свободное время между занятиями: ${(hours > 0) ? `${hours}ч` : ``} ${(minutes > 0) ? `${minutes}мин` : ``}`;
+    } else if (breakfast === 'noclass') {
+      textContainer.innerHTML = `Нет учебных занятий в этот день`;
     }
     pauseContainer.appendChild(textContainer);
     return pauseContainer;
@@ -1337,7 +1344,7 @@ class ScheduleRenderer {
   }
 
   // ✓ Рендер дня расписания из элементов по дате 
-  createDateElement(date, teachery) {
+  createDateElement(date, teachery, emptie) {
     // ✓ Получаем данные дня
     const dateKey = ScheduleRenderer.formatDateKey(date);
     const dayEvents = this.sheduleData
@@ -1355,6 +1362,11 @@ class ScheduleRenderer {
     const dayEventsContainer = document.createElement('div');
     dayEventsContainer.classList.add('day-events');
 
+    if (emptie === true) { // Если в этот день нет занятий
+      eventsContainer.appendChild(this.createPauseElement(100, 'noclass'));
+      return eventsContainer;
+    }
+
     // ✓ Генерируем список занятий
     let prevEvent;
     dayEvents.forEach((event, index) => {
@@ -1364,10 +1376,10 @@ class ScheduleRenderer {
         const startDate = justifyDate(event.startTime);
         const minutes = Math.abs(startDate - endDate) / 1000 / 60;
         if (minutes >= 90 && prevStartDate < startDate) { // Если обнаружен большой перерыв между занятиями
-          dayEventsContainer.appendChild(this.createPauseElement(minutes, false));
+          dayEventsContainer.appendChild(this.createPauseElement(minutes, 'timeout'));
         }
         if (minutes >= 30 && minutes <= 60 && prevStartDate < startDate) { // Если обнаружен обеденный перерыв между занятиями
-          dayEventsContainer.appendChild(this.createPauseElement(minutes, true));
+          dayEventsContainer.appendChild(this.createPauseElement(minutes, 'lanch'));
         }
       }
       dayEventsContainer.appendChild(this.createEventElement(event, teachery));
@@ -1545,6 +1557,18 @@ class ScheduleRenderer {
         button.classList.add('selected'); button.classList.add('current-week-button');
       }
 
+      // ✓ Найти список дней, нахожящихся между двумя датами
+      function getDaysBetween(startDate, endDate) {
+        const days = [];
+        const current = new Date(startDate);
+        current.setDate(current.getDate() + 1);
+        while (current < endDate) {
+          days.push(new Date(current));
+          current.setDate(current.getDate() + 1);
+        }
+        return days;
+      }
+
       // ✓ Добавляем обработку нажатия на кнопку недели
       button.addEventListener('click', () => {
         if (!button.classList.contains('selected')) {
@@ -1554,13 +1578,24 @@ class ScheduleRenderer {
 
           // Перерендриваем блок расписания
           selectedDate = new Date(week.monday);
-          const grouped = this.groupByDate(this.sheduleData);
+          let previousDate = null;
           sheduleContainer.innerHTML = '';
-          Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
+          const grouped = this.groupByDate(this.sheduleData);
+          const sortedDateKeys = Object.keys(grouped).sort();
+          sortedDateKeys.forEach((dateKey) => {
             const dayDate = new Date(dateKey + 'T00:00:00');
+            if (previousDate !== null) {
+              const daysBetween = getDaysBetween(previousDate, dayDate);
+              daysBetween.forEach((gapDate) => {
+                if (isSameWeek(selectedDate, gapDate) && gapDate.getDay() !== 0) {
+                  sheduleContainer.appendChild(this.createDateElement(gapDate, teachery, true));
+                }
+              });
+            }
             if (isSameWeek(selectedDate, dayDate)) {
               sheduleContainer.appendChild(this.createDateElement(dayDate, teachery));
             }
+            previousDate = dayDate;
           });
         }
       });
@@ -1656,15 +1691,37 @@ class ScheduleRenderer {
         return date.getFullYear() === selectedDate.getFullYear() && getWeekNumber(date) === getWeekNumber(selectedDate);
       }
 
+      // ✓ Найти список дней, нахожящихся между двумя датами
+      function getDaysBetween(startDate, endDate) {
+        const days = [];
+        const current = new Date(startDate);
+        current.setDate(current.getDate() + 1);
+        while (current < endDate) {
+          days.push(new Date(current));
+          current.setDate(current.getDate() + 1);
+        }
+        return days;
+      }
+
       // ✓ Генерируем недельное расписание
       const grouped = this.groupByDate(this.sheduleData);
-      Object.entries(grouped).forEach(([dateKey, dayEvents]) => {
+      console.log(grouped);
+      const sortedDateKeys = Object.keys(grouped).sort();
+      let previousDate = null;
+      sortedDateKeys.forEach((dateKey) => {
         const dayDate = new Date(dateKey + 'T00:00:00');
-
-        // Добавить пустой день == нет занятий
+        if (previousDate !== null) {
+          const daysBetween = getDaysBetween(previousDate, dayDate);
+          daysBetween.forEach((gapDate) => {
+            if (isSameWeek(selectedDate, gapDate) && gapDate.getDay() !== 0) {
+              weekSheduleContainer.appendChild(this.createDateElement(gapDate, teachery, true));
+            }
+          });
+        }
         if (isSameWeek(selectedDate, dayDate)) {
           weekSheduleContainer.appendChild(this.createDateElement(dayDate, teachery));
         }
+        previousDate = dayDate;
       });
       weekElementContainer.appendChild(weekSheduleContainer);
 
