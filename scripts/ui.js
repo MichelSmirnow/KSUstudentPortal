@@ -846,7 +846,6 @@ async function loadLocalShedule(sheduleID, sheduleType) {
   }
 }
 
-
 // ✓ Сохранить расписание в локальной памяти 
 async function saveLocalShedule(inputShedule, sheduleID, sheduleType) {
   if (!inputShedule || !sheduleID || !sheduleType) {
@@ -2317,33 +2316,38 @@ async function generateSubpageContent(id, data) {
   if (id === 'lesson') { // Перекравающее окно информации о занятии (data - элемент расписания)
     const extractedData = ScheduleRenderer.extractElementData(data);
     const teacherData = extractTeachersData(extractedData.teacher);
+    const extractedSubject = extractedData.subject 
+      ? ((extractedData.subject).length > 66
+        ? `${(extractedData.subject).substring(0,66)}...`
+        : extractedData.subject)
+      : `Безымянная пара`;
     generatePageContentContainer.innerHTML = `
-    <div class="flex-container">  
+    <div class="info-container"><div class="relative-container" style="height: 227px">
       <img class="materials-teacher" src="${teacherData.image}"/>
-      <div class="info-container" style="padding: 0 15px !important; text-align: center;">
-        <p>${teacherData.fullName}</p>
-        <p>${extractedData.subject}</p>
-        <p>${extractedData.name}</p>
-        <p><i>Аудитория</i> ${extractedData.room}</p>
+      <div class="materials-teacher-info" style="border-left: 5px solid ${extractedData.subjectMatchColor ? extractedData.subjectMatchColor : `rgb(0,0,0)`}">
+        <p><span>${teacherData.fullName ? teacherData.fullName : `Преподаватель С.`}<span></p>
+        <p><b>${extractedSubject}</b></p>
+        <p><span style="font-size: 14px;">${extractedData.name ? extractedData.name : `Занятие`}</span></p>
+        <p><span style="font-size: 14px;">Аудитория - </span><b>${extractedData.room ? extractedData.room : `Туалет`}</b></p>
       </div>
-    </div>
+    </div></div>
       
-    <div id="materials-materials" class="info-container">
+    <div class="info-container materials-info-container" id="materials-materials">
       <h3>Материалы занятия</h3>  
-      <p style="font-size: 12px;">Просматривайте и прикрепляйте </p>
-      <div class="radio-container">
-        <button class="radio-button">(+) Прикрепить файл</button>
-        <button class="radio-button">(+) Добавить текст</button>
+      <p style="font-size: 14px;">Просматривайте и прикрепляйте </p>
+      <div class="radio-container flex-container">
+        <button class="radio-button">+ Прикрепить файл</button>
+        <button class="radio-button">+ Добавить текст</button>
       </div>
       <details>
         <summary>Просмотреть</summary>
       </details>
     </div>
 
-    <div id="materials-homework" class="info-container">
+    <div class="info-container materials-info-container" id="materials-homework">
       <h3>Домашнее задание</h3>  
       <p style="font-size: 12px;"></p>
-      <div>
+      <div class="radio-container flex-container">
         <button class="radio-button">+ Прикрепить файл</button>
         <button class="radio-button">+ Добавить текст</button>
       </div>

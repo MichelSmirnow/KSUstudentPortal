@@ -1,6 +1,4 @@
-/*
- * ==================================== Интерфейс вкладки расписания ====================================
- */
+/* ==================================== Интерфейс вкладки расписания ==================================== */
 
 /* ======== ✓ Блоки недельного расписания ======== */
 .schedule-day {
@@ -121,7 +119,19 @@
 
 /* ======== Перекрывающее окно информации о занятии ======== */
 
+/* ✓ Информация по преподавателю и лекции */
 .materials-teacher { 
-  width: 170px; 
-  border-radius: 20px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.15); 
+  position: absolute; left: -25px; top: 0; width: 170px; height: 227px;
+  border-radius: 30px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.15); 
+}
+.materials-teacher-info {
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 0px;
+  position: absolute; right: -25px; top: 0; width: calc(100% - 170px); height: 227px; padding: 0 15px !important;
+  border-radius: 30px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); text-align: center;
+}
+.materials-teacher-info p { line-height: 1.0 !important; margin-bottom: -5px !important; }
+
+/**/
+.materials-info-container h1, .materials-info-container h2, .materials-info-container h3 {
+  text-align: center; box-shadow: 0 0 0 rgba(0,0,0,0) !important;
 }

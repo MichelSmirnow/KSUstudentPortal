@@ -89,7 +89,7 @@ img.banner-half {
   justify-content: center !important; align-items: center !important;
 }
 .radio-button {
-    width: 40%; padding: 5px 10px; 
+    min-width: 40%; padding: 5px 10px; 
     border-radius: 10px; border: 0; font-size: 15px;  
     background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.35); color: #000; 
     transition: all 0.5s ease;
