@@ -41,7 +41,7 @@
 .event-content { flex: 1; min-width: 0; }
 .event-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .event-subject { margin: 0; font-size: 14px; font-weight: 600; color: #333; word-break: break-word; }
-.event-type-container { display: flex; flex-direction: column; justify-content: center; align-items: end; gap: 5px; }
+.event-type-container { display: flex; flex-direction: column; justify-content: center; align-items: end; gap: 5px; margin-bottom: -15px;}
 .event-type {
   padding: 2px 8px;
   color: #666; font-size: 11px; font-weight: 600; white-space: nowrap;
@@ -121,13 +121,13 @@
 
 /* ✓ Информация по преподавателю и лекции */
 .materials-teacher { 
-  position: absolute; left: -25px; top: 0; width: 170px; height: 227px;
+  position: absolute; left: -20px; top: 5px; width: 142px; height: 190px;
   border-radius: 30px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.15); 
 }
 .materials-teacher-info {
   display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 0px;
-  position: absolute; right: -25px; top: 0; width: calc(100% - 170px); height: 227px; padding: 0 15px !important;
-  border-radius: 30px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); text-align: center;
+  position: absolute; right: -20px; top: 5px; width: calc(100% - 147px); height: 190px; padding: 0 15px;
+  border-radius: 30px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); text-align: center; overflow: hidden;
 }
 .materials-teacher-info p { line-height: 1.0 !important; margin-bottom: -5px !important; }
 
