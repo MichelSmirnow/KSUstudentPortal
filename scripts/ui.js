@@ -1896,23 +1896,134 @@ function openLink(link) {
   }
 }
 
+/* ======== Уведомления и другое ======== */
+
+// Функция для показа уведомления в приложении
+function showNotification(message, type = "info") {
+  const notificationsContainer = document.querySelector("#notifications");
+  if (!notificationsContainer) return;
+
+  const notification = document.createElement("div");
+  notification.className = `notification notification-${type}`;
+  notification.innerHTML = `<span>${message}</span>`;
+
+  // Добавляем обработчики для свайпа влево/вправо
+  let startX = 0;
+  let currentX = 0;
+  let isSwiping = false;
+
+  notification.addEventListener("touchstart", (e) => {
+    startX = e.touches[0].clientX;
+    isSwiping = true;
+  });
+
+  notification.addEventListener("touchmove", (e) => {
+    if (!isSwiping) return;
+    currentX = e.touches[0].clientX - startX;
+    notification.style.transform = `translateX(${currentX}px)`;
+    notification.style.opacity = 1 - Math.abs(currentX) / notification.offsetWidth;
+  });
+
+  notification.addEventListener("touchend", () => {
+    isSwiping = false;
+    // Если свайп больше чем 30% ширины уведомления — удаляем
+    if (Math.abs(currentX) > notification.offsetWidth * 0.3) {
+      removeNotification(notification);
+    } else {
+      // Возвращаем на место
+      notification.style.transform = "translateX(0)";
+      notification.style.opacity = "1";
+    }
+  });
+
+  // Добавляем поддержку мыши для десктопа
+  let isMouseDown = false;
+  notification.addEventListener("mousedown", (e) => {
+    startX = e.clientX;
+    isMouseDown = true;
+    notification.style.cursor = "grabbing";
+  });
+
+  notification.addEventListener("mousemove", (e) => {
+    if (!isMouseDown) return;
+    currentX = e.clientX - startX;
+    notification.style.transform = `translateX(${currentX}px)`;
+    notification.style.opacity = 1 - Math.abs(currentX) / notification.offsetWidth;
+  });
+
+  notification.addEventListener("mouseup", () => {
+    isMouseDown = false;
+    notification.style.cursor = "grab";
+    if (Math.abs(currentX) > notification.offsetWidth * 0.3) {
+      removeNotification(notification);
+    } else {
+      notification.style.transform = "translateX(0)";
+      notification.style.opacity = "1";
+    }
+  });
+
+  // Удаляем уведомление при клике на нём
+  notification.addEventListener("click", () => {
+    removeNotification(notification);
+  });
+
+  notificationsContainer.appendChild(notification);
+
+  // Триггерим анимацию входа (reflow заставляет браузер пересчитать стили)
+  notification.offsetHeight;
+  notification.classList.add("notification-enter");
+
+  // Если уведомлений больше 3х — удаляем самое старое
+  const notifications = notificationsContainer.querySelectorAll(".notification");
+  if (notifications.length > 3) {
+    removeNotification(notifications[0]);
+  }
+
+  // Удаляем уведомление через 3,5 секунды
+  const timeoutId = setTimeout(() => {
+    removeNotification(notification);
+  }, 3500);
+
+  // Сохраняем timeout ID для возможности отмены при удалении
+  notification.dataset.timeoutId = timeoutId;
+}
+
+// Функция для плавного удаления уведомления
+function removeNotification(notification) {
+  // Очищаем timeout если уведомление удаляется досрочно
+  if (notification.dataset.timeoutId) {
+    clearTimeout(parseInt(notification.dataset.timeoutId));
+  }
+
+  notification.classList.remove("notification-enter");
+  notification.classList.add("notification-exit");
+
+  // Удаляем элемент после завершения анимации
+  setTimeout(() => {
+    notification.remove();
+  }, 300);
+}
+
+
+
+
+
+
 /* ============================ Аутентификация и инициализация ============================ */
 
+// Основные контейнеры приложения
 const authContainer = document.getElementById("auth");
 const sessionContainer = document.getElementById("session");
 
 // Функции аутентификации
 class AuthProcessor {
-  constructor() {
-  }
 
-  // Функция инициализации сессии
+  // ✓ Функция инициализации сессии
   async startSession() {
     if (DEBUG_MODE) console.log("🔓 Инициализация сессии пользователя");
     flag.loading = true;
 
     // ✓ Скрываем блок аутентификации, показываем блок сессии
-    // sessionContainer.innerHTML = '';
     containerLoading.style.zIndex = '1000';
     authContainer.classList.add('hidden');
     authContainer.classList.remove('visible');
@@ -1921,8 +2032,6 @@ class AuthProcessor {
       sessionContainer.classList.add('visible');
       authContainer.style.display = 'none';
     }, 350);
-
-    // authContainer.innerHTML = ''; 
 
     // ✓ Добавление слушателей нажатия на все кнопки интерфейса
     const navButtons = document.querySelectorAll('.nav-element');
@@ -1997,200 +2106,245 @@ class AuthProcessor {
       }
     });
 
-    // Обновляем имя в шапке
+    // ✓ Обновляем имя в шапке
     const user = window.auth.getCurrentUser();
     const headerName = document.querySelector("#header-name");
     if (headerName) {
-      // headerName.textContent = `👤 ${user.email}`;
+      headerName.textContent = (user && typeof user !== 'null') ? `🧑 ${user.email}` : `🕵🏻 Гостевой режим`;
     }
 
-    // Загружаем расписание и генерируем страницу
+    // ✓ Загружаем расписание и генерируем страницу
     try {
-      await generatePage("nav-shedule", true);
       if (DEBUG_MODE) console.log("✅ Сессия успешно инициализирована");
+      await generatePage("nav-shedule", true);
     } catch (error) {
-      if (DEBUG_MODE) console.error("❌ Ошибка при инициализации сессии:", error);
-      showNotification("Ошибка при загрузке данных", "error");
+      if (DEBUG_MODE) console.error("❌ Ошибка при рендере страницы сессии:", error);
+      showNotification(`Ошибка при загрузке страницы: ${error}`, "error");
     }
 
     setTimeout(() => { containerLoading.style.zIndex = '7'; flag.loading = false; }, 250);
   }
 
-  // Функция завершения сессии (и выхода на главный экран)
+  // ✓ Функция завершения сессии и открытия окна авторизации
   endSession() {
-    if (DEBUG_MODE) console.log("🔐 Завершение сессии");
+    if (DEBUG_MODE) console.log("🔐 Завершение сессии пользователя");
+    flag.loading = true;
 
-    // Скрываем блок сессии, показываем блок аутентификации
+    // ✓ Скрываем блок сессии, показываем блок аутентификации
+    containerLoading.style.zIndex = '1000';
     sessionContainer.classList.add('hidden');
     sessionContainer.classList.remove('visible');
-    authContainer.innerHTML = '';
-    authContainer.classList.remove('hidden');
-    authContainer.classList.add('visible');
     setTimeout(() => {
-      sessionContainer.innerHTML = '';
-    }, 400);
-
-    // Очищаем данные
-    groupData = {};
-
-    // Возвращаем UI авторизации
-    renderAuth();
-  }
-
-  // Главная функция рендера и добавления обработчиков нажатия элементов авторизации
-  renderAuth() {
-    console.log("🎨 Рендеринг UI авторизации");
-    setTimeout(() => {
-      sessionContainer.classList.add('hidden');
-      sessionContainer.classList.remove('visible');
       authContainer.classList.remove('hidden');
       authContainer.classList.add('visible');
-    }, 200);
+      sessionContainer.style.display = 'none';
+    }, 350);
 
-    // Получаем элементы форм
+    // ✓ Очищаем пользовательские сохраненные данные
+    groupData = {};
+    localStorage.clear();
+
+    renderAuth(false); // ✓ Генерируем окно авторизации
+  }
+
+  // Функция рендера и добавления обработчиков нажатия элементов авторизации
+  renderAuth(progressed) {
+
+    // ✓ Обьявление элементов авторизации 
     const registerForm = document.getElementById("register-form");
     const loginForm = document.getElementById("login-form");
-    const toggleToLogin = document.getElementById("toggle-to-login");
-    const toggleToRegister = document.getElementById("toggle-to-register");
-    const guestModeBtn = document.getElementById("guest-mode-btn");
+    const AdditionalForm = document.getElementById("additional-form");
+    const toggleToLogin = document.getElementById("auth-button-toggleLogin");
+    const toggleToRegister = document.getElementById("auth-button-toggleRegister");
+    const backOnTrack = document.getElementById('auth-button-backOnTrack');
+    const guestModeButton1 = document.getElementById("auth-button-guestMode1");
+    const guestModeButton2 = document.getElementById("auth-button-guestMode2");
+    sessionContainer.classList.add('hidden');
+    sessionContainer.classList.remove('visible');
+    setTimeout(() => { 
+      authContainer.classList.remove('hidden'); 
+      authContainer.classList.add('visible');
+    }, 200);
+    if (progressed) { // ✓ Если пользователь начал регистрацию но не допрошел ее
+      registerForm.classList.add("form-hidden");
+      loginForm.classList.add("form-hidden");
+      AdditionalForm.classList.remove("form-hidden");
+      backOnTrack.innerHTML = 'Выйти из аккаунта';
+    }
 
-    // ============================================
-    // ПЕРЕКЛЮЧЕНИЕ МЕЖДУ ФОРМАМИ
-    // ============================================
-
+    // ✓ Инициализируем кнопки переключения между режимами авторизации
     toggleToLogin.addEventListener("click", (e) => {
       e.preventDefault();
       registerForm.classList.add("form-hidden");
+      AdditionalForm.classList.add("form-hidden");
       loginForm.classList.remove("form-hidden");
     });
-
     toggleToRegister.addEventListener("click", (e) => {
       e.preventDefault();
       loginForm.classList.add("form-hidden");
+      AdditionalForm.classList.add("form-hidden");
       registerForm.classList.remove("form-hidden");
     });
+    backOnTrack.addEventListener("click", async(e) => {
+      e.preventDefault();
+      AdditionalForm.classList.add("form-hidden");
+      loginForm.classList.add("form-hidden");
+      registerForm.classList.remove("form-hidden");
+      await window.auth.logout();
+    });
 
-    // ============================================
-    // ОБРАБОТЧИК РЕГИСТРАЦИИ
-    // ============================================
+    // ✓ Установка переключателя режима просмотра пароля
+    function setupPasswordToggle(passwordInput, toggleButton) {
+      toggleButton.addEventListener('click', () => {
+        const isPassword = passwordInput.type === 'password';
+        passwordInput.type = isPassword ? 'text' : 'password';
+        const eyeIcon = toggleButton.querySelector('.eye-icon');
+        eyeIcon?.classList.toggle('show-password', isPassword);
+      });
+    }
+    const passwordInput1 = document.getElementById('auth-input-registerPassword');
+    const toggleButton1 = document.getElementById('auth-register-passwordToggle');
+    const passwordInput2 = document.getElementById('auth-input-registerPasswordAgain');
+    const toggleButton2 = document.getElementById('auth-register-passwordAgainToggle');
+    const passwordInput3 = document.getElementById('auth-input-loginPassword');
+    const toggleButton3 = document.getElementById('auth-login-passwordToggle');
+    setupPasswordToggle(passwordInput1, toggleButton1);
+    setupPasswordToggle(passwordInput2, toggleButton2);
+    setupPasswordToggle(passwordInput3, toggleButton3);
 
+    // ✓ Обработка регистрации
     registerForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const username = document.querySelector("#reg-username").value.trim();
-      const email = document.querySelector("#reg-email").value.trim();
-      const password = document.querySelector("#reg-password").value;
-      const messageEl = document.querySelector("#register-message");
+      // ✓ Обьявление значений введенных элементов
+      const username = document.querySelector("#auth-input-registerUsername").value.trim();
+      const email = document.querySelector("#auth-input-registerEmail").value.trim();
+      const password = document.querySelector("#auth-input-registerPassword").value;
+      const passwordAgain = document.querySelector("#auth-input-registerPasswordAgain").value;
+      const policy = document.querySelector("#auth-chechmark-policy").value;
 
-      // Валидация
-      if (!username || !email || !password) {
-        showAuthMessage(messageEl, "❌ Заполните все поля", "error");
-        return;
+      // ✓ Валидация полей ввода и совпадения паролей
+      if (!username || !email || !password || !passwordAgain) {
+        showNotification("Необходимо заполнить все регистрационные поля", "error"); return;
+      }
+      if (password !== passwordAgain) {
+        showNotification("Введенные пароли не совпадают", "error"); return;
+      }
+      if (!policy) {
+        showNotification("Необходимо согласиться с политикой конфиденциальности", "error"); return;
       }
 
-      // Отключаем кнопку во время регистрации
-      const submitBtn = registerForm.querySelector("button[type='submit']");
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Загрузка...";
+      // ✓ Отключаем кнопку на время осуществения связи с сервером
+      const submitButton = registerForm.querySelector("button[type='submit']");
+      submitButton.disabled = true; toggleToLogin.disabled = true; toggleToRegister.disabled = true;
+      submitButton.textContent = "Загрузка...";
 
-      // Вызываем метод регистрации из класса Authentication
+      // ✓ Вызываем метод регистрации из класса Authentication
       const result = await window.auth.register(email, password, username);
-
-      if (result.success) {
-        showAuthMessage(messageEl, "✅ " + result.message, "success");
+      if (result.success) { // ✓ Если регистрация прошла успешно
+        showNotification(result.message, "success");
         registerForm.reset();
-
-        // Инициализируем сессию после успешной регистрации
-        setTimeout(() => initSession(), 1500);
-      } else {
-        showAuthMessage(messageEl, "❌ " + result.message, "error");
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Зарегистрироваться";
+        setTimeout(async() => {
+          loginForm.classList.add("form-hidden");
+          registerForm.classList.add("form-hidden");
+          AdditionalForm.classList.remove("form-hidden");
+          backOnTrack.innerHTML = 'Выйти из аккаунта';
+        }, 200);
+      } else { // ✓ Если произошла ошибка во время авторизации
+        showNotification(result.message, "error");
+        submitButton.textContent = "Зарегистрироваться";
       }
+      submitButton.disabled = false; toggleToLogin.disabled = false; toggleToRegister.disabled = false;
     });
 
-    // ============================================
-    // ОБРАБОТЧИК ВХОДА
-    // ============================================
+    // Обработка ввода формы дополнительной информации
+    AdditionalForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
 
+      setTimeout(async() => {
+        await this.startSession();
+      }, 200);
+    });
+
+    // ✓ Обработка входа в аккаунт
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const email = document.querySelector("#login-email").value.trim();
-      const password = document.querySelector("#login-password").value;
-      const messageEl = document.querySelector("#login-message");
+      // ✓ Обьявление значений введенных элементов
+      const email = document.querySelector("#auth-input-loginEmail").value.trim();
+      const password = document.querySelector("#auth-input-loginPassword").value;
 
-      // Валидация
-      if (!email || !password) {
-        showAuthMessage(messageEl, "❌ Заполните все поля", "error");
-        return;
+      if (!email || !password) { // ✓ Валидация полей ввода
+        showNotification("Необходимо заполнить все регистрационные поля", "error"); return;
       }
 
-      // Отключаем кнопку во время входа
-      const submitBtn = loginForm.querySelector("button[type='submit']");
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Загрузка...";
+      // ✓ Отключаем кнопку на время осуществения связи с сервером
+      const submitButton = loginForm.querySelector("button[type='submit']");
+      submitButton.disabled = true; toggleToLogin.disabled = true; toggleToRegister.disabled = true;
+      submitButton.textContent = "Загрузка...";
 
-      // Вызываем метод входа из класса Authentication
+      // ✓ Вызываем метод регистрации из класса Authentication
       const result = await window.auth.login(email, password);
-
       if (result.success) {
-        showAuthMessage(messageEl, "✅ " + result.message, "success");
-        loginForm.reset();
-
-        // Инициализируем сессию после успешного входа
-        setTimeout(() => initSession(), 1500);
-      } else {
-        showAuthMessage(messageEl, "❌ " + result.message, "error");
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Войти";
+        showNotification(result.message, "success");
+        registerForm.reset();
+        setTimeout(async() => {
+          loginForm.classList.add("form-hidden");
+          registerForm.classList.add("form-hidden");
+          AdditionalForm.classList.remove("form-hidden");
+          backOnTrack.innerHTML = 'Выйти из аккаунта';
+        }, 200);
+      } else { // ✓ Если произошла ошибка во время авторизации
+        showNotification(result.message, "error");
+        submitButton.textContent = "Зарегистрироваться";
       }
+      submitButton.disabled = false; toggleToLogin.disabled = false; toggleToRegister.disabled = false;
     });
 
-    // ============================================
-    // ОБРАБОТЧИК ГОСТЕВОГО РЕЖИМА
-    // ============================================
-
-    guestModeBtn.addEventListener("click", async () => {
-      console.log("👤 Включен гостевой режим");
-
-      // Обновляем имя в шапке
-      const headerName = document.querySelector("#header-name");
-      if (headerName) {
-        headerName.textContent = "👤 Гостевой режим";
+    // ✓ Обработка запуска гостевого режима
+    async function guestModeEventListener() {
+      console.log("🕵🏻 Включен гостевой режим");
+      if (localStorage.getItem('userData')) { // ✓ Если это не первый случай запуска гостевого режима
+        await this.startSession();
+      } else { // ✓ Если человек еще ни разу не запускал гостевой режим
+        registerForm.classList.add("form-hidden");
+        loginForm.classList.add("form-hidden");
+        AdditionalForm.classList.remove("form-hidden");
       }
-
-      // Инициализируем приложение для гостя
-      await this.startSession();
-
-    });
+    }
+    guestModeButton1.addEventListener("click", async () => guestModeEventListener());
+    guestModeButton2.addEventListener("click", async () => guestModeEventListener());
   }
 
-  // Главная функция инициализации процессора аутентификации
+  // ✓ Главная функция инициализации процессора аутентификации
   async init() {
     if (DEBUG_MODE) console.log("🚀 Инициализация приложения...");
     flag.loading = true;
 
-    // Инициализируем Firebase и получаем текущий вход в аккаунт
+    // ✓ Инициализируем Firebase и получаем текущий вход в аккаунт
     await new Promise((resolve) => {
       const unsubscribe = window.auth.auth.onAuthStateChanged(() => {
         unsubscribe();
         resolve();
       });
     });
+
     const currentUser = window.auth.getCurrentUser();
-
-    if (currentUser) { // Если вход в аккаунт выполнен
-      console.log("✅ Пользователь авторизован:", currentUser.email);
+    if (currentUser && localStorage.getItem('userData')) { // ✓ Если вход в аккаунт выполнен и выбраны данные
+      if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
+      showNotification('Найден локально сохраненный аккаунт. Выполняем вход...', 'info');
       await this.startSession();
-
-    } else { // Если аутентификация не выполнена на данном устройстве
-      console.log("❌ Пользователь не авторизован");
-      this.renderAuth();
+    } else if (currentUser) { // ✓ Если прошла регистрация, но пользователь не довыбирал
+      if (DEBUG_MODE) console.log("❓ Пользователь авторизован, но не допрошел регистрацию: ", currentUser.email);
+      showNotification('Для доступа к приложению необходимо завершить регистрацию', 'info');
+      this.renderAuth(true);
+    } else { // ✓ Если авторизация не выполнена на данном устройстве
+      if (DEBUG_MODE) console.log("❌ Пользователь не авторизован");
+      showNotification('Сохраненный аккаунт не обнаружен. Запускаем авторизацию...', 'info');
+      this.renderAuth(false);
     }
     flag.loading = false;
   }
-
 }
 
 
@@ -2206,24 +2360,8 @@ function showAuthMessage(element, message, type) {
   element.style.color = type === "success" ? "green" : "red";
 }
 
-/**
- * Показывает уведомление в приложении
- */
-function showNotification(message, type = "info") {
-  const notificationsContainer = document.querySelector("#notifications");
-  if (!notificationsContainer) return;
 
-  const notification = document.createElement("div");
-  notification.className = `notification notification-${type}`;
-  notification.textContent = message;
 
-  notificationsContainer.appendChild(notification);
-
-  // Удаляем уведомление через 3 секунды
-  setTimeout(() => {
-    notification.remove();
-  }, 3000);
-}
 
 /**
  * Обработчик выхода из аккаунта
