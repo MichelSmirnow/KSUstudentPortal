@@ -125,10 +125,22 @@
                 </form>
 
                 <form id="additional-form" class="form-hidden"> <!-- Форма заполнения студенческой информации -->
-                    <h2>Дополнительная информация</h2>
+                    <h2>Дополнительно</h2>
                     <p>Заполните поля ниже, чтобы персонализировать студенческое приложение</p>
                     
-                    
+                    <div class="group-selector">
+                        <input 
+                            type="text" 
+                            id="groupInput" 
+                            class="group-input" 
+                            placeholder="Выберите свою группу"
+                            readonly
+                            required
+                        >
+                        <div id="groupDropdown" class="group-dropdown">
+                            <div id="dropdownContent" class="dropdown-content"></div>
+                        </div>
+                    </div>
 
                     <button type="submit" class="auth-submit-button">Завершить</button>
                     <button id="auth-button-backOnTrack" class="auth-supbutton">Вернуться к регистрации</button>

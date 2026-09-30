@@ -11,97 +11,199 @@ let groupData = {}
 
 // ✓ Функции сохранения и загрузки локально сохраненных данных
 class indexedStorage {
-  constructor(dbName, storeName) {
+  constructor(dbName, storeName = 'schedules') {
     this.dbName = dbName;
-    this.storeName = storeName;
+    this.storeName = storeName; // Одно имя для всех расписаний
     this.db = null;
-    this.initPromise = null;
+    this.dbVersion = 1;
   }
 
-  // ✓ Инициализация базы данных
   async initDB() {
-    if (this.initPromise) return this.initPromise;
-
-    this.initPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName);
-      request.onerror = () => reject(request.error);
+    if (this.db) {
+      console.log('[initDB] БД уже инициализирована');
+      return this.db;
+    }
+    
+    console.log('[initDB] Инициализация БД');
+    
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.dbVersion);
+      
+      request.onerror = () => {
+        console.error('[initDB] onerror:', request.error);
+        reject(request.error);
+      };
+      
       request.onsuccess = () => {
+        console.log('[initDB] onsuccess');
         this.db = request.result;
+        
+        // Проверяем, что хранилище создано
+        if (!this.db.objectStoreNames.contains(this.storeName)) {
+          console.warn('[initDB] Store не найден после открытия БД!');
+          this.db.close();
+          this.db = null;
+          reject(new Error(`Store "${this.storeName}" не был создан`));
+          return;
+        }
+        
         resolve(this.db);
       };
+      
       request.onupgradeneeded = (event) => {
+        console.log('[initDB] onupgradeneeded');
         const db = event.target.result;
+        
+        // Создаём одно хранилище для всех расписаний
         if (!db.objectStoreNames.contains(this.storeName)) {
+          console.log('[initDB] Создаю store:', this.storeName);
           db.createObjectStore(this.storeName);
-          console.log(`Хранилище "${this.storeName}" создано`);
         }
       };
+      
+      request.onblocked = () => {
+        console.warn('[initDB] onblocked: Другая вкладка использует эту БД');
+      };
     });
-
-    return this.initPromise;
   }
 
-  // ✓ Создание ячейки с данными и расширение БД
   async ensureStore() {
-    if (!this.db) await this.initDB();
-
-    if (!this.db.objectStoreNames.contains(this.storeName)) {
-      const currentVersion = this.db.version;
-      this.db.close();
-      this.db = null;
-      this.initPromise = null;
-
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.open(this.dbName, currentVersion + 1);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          this.db = request.result;
-          resolve();
-        };
-        request.onupgradeneeded = (event) => {
-          const db = event.target.result;
-          if (!db.objectStoreNames.contains(this.storeName)) {
-            db.createObjectStore(this.storeName);
-            console.log(`Хранилище "${this.storeName}" создано`);
-          }
-        };
-      });
+    console.log('[ensureStore] Начало проверки хранилища');
+    
+    try {
+      if (!this.db) {
+        console.log('[ensureStore] БД не инициализирована, вызываю initDB');
+        await this.initDB();
+      }
+      
+      if (!this.db.objectStoreNames.contains(this.storeName)) {
+        console.error('[ensureStore] Store не найден!');
+        this.db = null;
+        throw new Error(`Store "${this.storeName}" не существует в БД`);
+      }
+      
+      console.log('[ensureStore] Store готов к работе');
+    } catch (err) {
+      console.error('[ensureStore] Ошибка:', err);
+      throw err;
     }
   }
 
-  // ✓ Аппаратная функция сохранения данных
-  async save(data) {
-    await this.ensureStore();
-    return new Promise((resolve, reject) => {
-      try {
-        const transaction = this.db.transaction(this.storeName, 'readwrite');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.put(data, 'groupData');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(data);
-        transaction.onerror = () => reject(transaction.error);
-      } catch (err) {
-        console.log('Ошибка ', err);
-        reject(err);
-      }
-    });
+  async load(key) {
+    console.log(`[load] === НАЧАЛО load(${key}) ===`);
+    
+    try {
+      await this.ensureStore();
+      console.log('[load] ensureStore() завершён');
+      
+      return new Promise((resolve, reject) => {
+        console.log('[load] Начало загрузки');
+        
+        try {
+          const transaction = this.db.transaction(this.storeName, 'readonly');
+          const store = transaction.objectStore(this.storeName);
+          const request = store.get(key); // Используем key вместо hardcoded 'groupData'
+          
+          request.onsuccess = () => {
+            console.log(`[load] onsuccess для ${key}, result:`, request.result ? 'данные есть' : 'null');
+            resolve(request.result || null);
+          };
+          
+          request.onerror = () => {
+            console.error('[load] request.onerror:', request.error);
+            reject(request.error);
+          };
+          
+          transaction.onerror = () => {
+            console.error('[load] transaction.onerror:', transaction.error);
+            reject(transaction.error);
+          };
+          
+        } catch (err) {
+          console.error('[load] catch (внутри Promise):', err);
+          reject(err);
+        }
+      });
+      
+    } catch (err) {
+      console.error('[load] catch (outer):', err);
+      throw err;
+    }
   }
 
-  // ✓ Аппаратная функция загрузки данных
-  async load() {
-    await this.ensureStore();
-    return new Promise((resolve, reject) => {
-      try {
-        const transaction = this.db.transaction(this.storeName, 'readonly');
+  async save(key, data) {
+    console.log(`[save] === НАЧАЛО save(${key}) ===`);
+    
+    try {
+      await this.ensureStore();
+      console.log('[save] ensureStore() завершён');
+      
+      return new Promise((resolve, reject) => {
+        console.log('[save] Начало сохранения');
+        
+        try {
+          const transaction = this.db.transaction(this.storeName, 'readwrite');
+          const store = transaction.objectStore(this.storeName);
+          const request = store.put(data, key); // Используем key
+          
+          transaction.oncomplete = () => {
+            console.log(`[save] transaction.oncomplete для ${key}`);
+            resolve(data);
+          };
+          
+          transaction.onerror = () => {
+            console.error('[save] transaction.onerror:', transaction.error);
+            reject(transaction.error);
+          };
+          
+          request.onerror = () => {
+            console.error('[save] request.onerror:', request.error);
+            reject(request.error);
+          };
+          
+        } catch (err) {
+          console.error('[save] catch (внутри Promise):', err);
+          reject(err);
+        }
+      });
+      
+    } catch (err) {
+      console.error('[save] catch (outer):', err);
+      throw err;
+    }
+  }
+
+  async clearDB() {
+    console.log('[clearDB] Очистка БД');
+    try {
+      await this.ensureStore();
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(this.storeName, 'readwrite');
         const store = transaction.objectStore(this.storeName);
-        const request = store.get('groupData');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result || null);
-        transaction.onerror = () => reject(transaction.error);
-      } catch (err) {
-        reject(err);
-      }
-    });
+        const request = store.clear();
+        
+        request.onsuccess = () => {
+          console.log('[clearDB] БД очищена');
+          resolve();
+        };
+        
+        request.onerror = () => {
+          console.error('[clearDB] Ошибка очистки:', request.error);
+          reject(request.error);
+        };
+      });
+    } catch (err) {
+      console.error('[clearDB] catch:', err);
+      throw err;
+    }
+  }
+
+  closeDB() {
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+      console.log('[closeDB] БД закрыта');
+    }
   }
 }
 
@@ -122,7 +224,7 @@ async function clearAllIndexedDB() {
 }
 
 
-/* ====================================== Расписание ====================================== */
+/* ====================================== ✓ Расписание ====================================== */
 
 // ✓ Парсер ICS календаря с сайта ЕЙОС КГУ
 class ICSParser {
@@ -210,57 +312,66 @@ class ICSParser {
   }
 }
 
-// ✓ Глобальный кэш хранилищ
+// ✓ Глобальный кэш хранилищ — теперь используем одно для всех
 const storageCache = new Map();
-
-function getStorage(dbName, storeName) {
-  const key = `${dbName}:${storeName}`;
+function getStorage(dbName) {
+  const key = dbName;
   if (!storageCache.has(key)) {
-    storageCache.set(key, new indexedStorage(dbName, storeName));
+    storageCache.set(key, new indexedStorage(dbName, 'schedules'));
   }
   return storageCache.get(key);
 }
 
-// ✓ Загрузить расписание из локальной памяти 
+// ✓ Загрузить расписание из локальной памяти
 async function loadLocalShedule(sheduleID, sheduleType) {
-  if (!sheduleID || !sheduleType) { throw new Error('Данные для загрузки расписания объявлены неверным образом'); }
+  if (!sheduleID || !sheduleType) { 
+    throw new Error('Данные для загрузки расписания объявлены неверным образом'); 
+  }
   try {
-    const storage = getStorage(sheduleType, sheduleID);
-    const timeout = new Promise(resolve => setTimeout(() => resolve(), 7000));
-    const loadedData = await Promise.race([storage.load(), timeout]);
-    if (loadedData === undefined) {
-      if (DEBUG_MODE) console.warn(`Загрузка ${sheduleID} прервана по таймауту`);
+    const storage = getStorage(sheduleType);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Load timeout')), 15000)
+    );
+    const loadedData = await Promise.race([
+      storage.load(sheduleID), // Передаем sheduleID как ключ
+      timeoutPromise
+    ]);
+    if (loadedData === null || loadedData === undefined) {
+      if (DEBUG_MODE) console.warn(`Данные ${sheduleID} не найдены в локальной памяти`);
       return undefined;
     }
     const parsedData = JSON.parse(loadedData);
-    if (DEBUG_MODE) console.log(`Босс, я загрузил ${sheduleID} расписание: `, parsedData);
+    if (DEBUG_MODE) console.log(`Загруженное расписание ${sheduleID}:`, parsedData);
     return parsedData ?? [];
   } catch (error) {
-    if (DEBUG_MODE) console.warn('Ошибка загрузки данных из локальной памяти: ', error);
-    throw new Error('Ошибка загрузки данных из локальной памяти');
+    if (DEBUG_MODE) console.warn(`Ошибка загрузки ${sheduleID}:`, error.message);
+    return undefined;
   }
 }
 
-// ✓ Сохранить расписание в локальной памяти 
+// ✓ Сохранить расписание в локальной памяти
 async function saveLocalShedule(inputShedule, sheduleID, sheduleType) {
-  if (!inputShedule || !sheduleID || !sheduleType) {
-    throw new Error('Данные для сохранения расписания объявлены неверным образом');
+  if (!inputShedule || !sheduleID || !sheduleType) { 
+    throw new Error('Данные для сохранения расписания объявлены неверным образом'); 
   }
   try {
-    const storage = getStorage(sheduleType, sheduleID);
+    const storage = getStorage(sheduleType);
     const stringedShedule = JSON.stringify(inputShedule);
-    await storage.save(stringedShedule);
-    if (DEBUG_MODE) console.log(`Босс, я сохранил ${sheduleID} расписание`);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Save timeout')), 20000)
+    );
+    await Promise.race([
+      storage.save(sheduleID, stringedShedule), // Передаем sheduleID как ключ
+      timeoutPromise
+    ]);
+    if (DEBUG_MODE) console.log(`✓ Расписание ${sheduleID} успешно сохранено`);
   } catch (error) {
-    if (DEBUG_MODE) console.warn('Ошибка загрузки данных в локальную память: ', error);
-    throw new Error('Ошибка загрузки данных в локальную память: ', error);
+    if (DEBUG_MODE) console.warn(`Ошибка сохранения данных ${sheduleID}:`, error.message);
+    throw new Error(`Ошибка сохранения данных: ${error.message}`);
   }
 }
 
-// Выгрузить календарь с расписанием с сайта ЭЙОС КГУ и распарсировать его
-// Исправить ВСЕ ошибки, в том числе
-// 1) Невозможность активной загрузки расписания при смене группы - уход в бесконечную загрузку
-// 2) При мерджинге расписаний поверх старого расписания накладывается  
+// ✓ Выгрузить календарь с расписанием с сайта ЭЙОС КГУ и распарсировать его
 async function fetchShedule(sheduleID, sheduleType) {
 
   // ✓ Функция слияния двух массивов расписаний
@@ -332,12 +443,11 @@ async function fetchShedule(sheduleID, sheduleType) {
     return merged;
   }
 
-
   // ✓ Сгенерировать ссылку для получения расписания (добавить расписание аудиторий)
   function getSheduleLink(type, id) {
     if (type === 'group') {
-      const groupIDtoExtract = groupsID[id];
-      if (!groupIDtoExtract) { console.warn('Такой группы нету в списке ^('); return undefined; }
+      const groupIDtoExtract = getGroupID(id);
+      if (!groupIDtoExtract) { console.warn('Такой группы нету в списке'); return undefined; }
       return `https://eios.kosgos.ru/api/Rasp?idGroup=${groupIDtoExtract}&iCal=true`;
     } else if (type === 'teacher') {
       return `https://eios.kosgos.ru/api/Rasp?idTeacher=${id}&iCal=true`;
@@ -389,7 +499,7 @@ async function fetchShedule(sheduleID, sheduleType) {
     console.warn('Этот этап невозможно крашнуть');
   }
 
-  // Сохраняем слитое расписание в локальное хранилище
+  // ✓ Сохраняем слитое расписание в локальное хранилище
   try {
     await saveLocalShedule(mergedShedule, sheduleID, sheduleType);
   } catch (error) {
@@ -407,7 +517,7 @@ const justifyDate = (date) => { return date instanceof Date ? date : new Date(da
 class ScheduleRenderer {
   constructor(events) {
     this.sheduleData = events;
-    if (DEBUG_MODE) console.log('Вот проинициализировано все правильно', this.sheduleData);
+    if (DEBUG_MODE) console.log('Получен запрос на рендер расписания: ', this.sheduleData);
   }
 
   // ✓ Отсортировать и сгруппировать даты
@@ -909,7 +1019,6 @@ class ScheduleRenderer {
 
     // ✓ Определяем все уникальные недели
     const weeks = new Map();
-    console.log(this.sheduleData);
     this.sheduleData.forEach(event => {
       const monday = getMondayOfWeek(event.startTime);
       const mondayStr = formatWeekDate(monday);
@@ -1099,7 +1208,6 @@ class ScheduleRenderer {
 
       // ✓ Генерируем недельное расписание
       const grouped = this.groupByDate(this.sheduleData);
-      console.log(grouped);
       const sortedDateKeys = Object.keys(grouped).sort();
       let previousDate = null;
       sortedDateKeys.forEach((dateKey) => {
@@ -1134,7 +1242,6 @@ class ScheduleRenderer {
 
 // ✓ Сменить контент расписания
 function changeSheduleTypeContent(type) {
-  if (DEBUG_MODE) console.log('Получен запрос на изменение типа расписания, вот текущее расписание: ', groupData[CurrentGroup]);
   const sheduleContainer = document.getElementById('shedule-container');
   if (groupData[CurrentGroup]) {
     const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
@@ -1142,10 +1249,8 @@ function changeSheduleTypeContent(type) {
     sheduleContainer.innerHTML = '';
     sheduleContainer.appendChild(sheduleFiller);
   } else {
-    const errorFiller = document.createElement('div');
-    errorFiller.innerHTML = '<p>Расписание отсутствует в оперативной памяти</p>';
     sheduleContainer.innerHTML = '';
-    sheduleContainer.appendChild(errorFiller);
+    sheduleContainer.appendChild(generateNoEthernetContainer());
   }
   
 }
@@ -1156,22 +1261,16 @@ function switchSchedule(type) {
   if (animationInProgress === true) return;
   const dayButton = document.getElementById('shedule-day');
   const weekButton = document.getElementById('shedule-week');
-
   if (type === 'day' && !dayButton.classList.contains('selected')) { // ✓ Если выбрано внутридневное расписание
     weekButton.classList.remove('selected');
     dayButton.classList.add('selected');
-    if (DEBUG_MODE) console.log('Меняем блок расписания на day: ', { groupData, CurrentGroup });
     changeSheduleTypeContent('day');
-
   } else if (type === 'week' && !weekButton.classList.contains('selected')) { // ✓ Если выбрано недельное расписание
     dayButton.classList.remove('selected');
     weekButton.classList.add('selected');
-    if (DEBUG_MODE) console.log('Меняем блок расписания на week: ', { groupData, CurrentGroup });
     changeSheduleTypeContent('week');
   }
 }
-
-let CurrentGroup = localStorage.getItem('lastSelectedGroup') || '26-ИСбо-5';
 
 
 /* ======================================= Кафедра ======================================== */
@@ -1393,10 +1492,11 @@ function generateErrorContainer(error) {
 function generateNoEthernetContainer() {
   const ethernetContainer = document.createElement('div');
   ethernetContainer.innerHTML = `
-  <p><b>Нет подключения к интернету</b></p>
+  <p style="font-size: 20px; margin-bottom: -5px;"><b>Нет подключения к интернету</b></p>
   <p>1) Если у вас выключен интернет, попробуйте подключиться к сети и обновить данную страницу</p>
   <p>2) Если у вас выключен VPN или PROXY сервис, попробуйте отключить его и обновить страницу</p>
-  <p>Код ошибки: большая задница (со слов Егора)</p>
+  <p style="color: #333 !important; font-size: 13px !important;">Код ошибки (для тестировщиков): ETH0</p>
+  <img style="width: 100%; margin-top: -30px; filter: drop-shadow(0 10px 5px rgba(2, 8, 61, 0.35));" src="images/supbanners/noEthernet.png" />
   `;
   return ethernetContainer;
 }
@@ -1583,6 +1683,7 @@ async function generatePageContent(id) {
 
     generatePageContentContainer.innerHTML = `
       <button onclick="clearAllIndexedDB();">Вылечить расписание</button>
+      <button onclick="(async () => { await window.auth.logout(); auth.endSession(); })();">Выйти из аккаунта</button>
     `;
     return generatePageContentContainer;
 
@@ -2005,32 +2106,33 @@ function removeNotification(notification) {
 }
 
 
-
-
-
-
 /* ============================ Аутентификация и инициализация ============================ */
 
-// Основные контейнеры приложения
+// ✓ Основные контейнеры приложения
 const authContainer = document.getElementById("auth");
 const sessionContainer = document.getElementById("session");
+const authContainerContent = authContainer.innerHTML;
+const sessionContainerContent = sessionContainer.innerHTML;
 
-// Функции аутентификации
+
+// ✓ Функции аутентификации
+// Требуется доработка окна дополнительной информации
 class AuthProcessor {
 
   // ✓ Функция инициализации сессии
-  async startSession() {
+  static async startSession() {
     if (DEBUG_MODE) console.log("🔓 Инициализация сессии пользователя");
     flag.loading = true;
 
     // ✓ Скрываем блок аутентификации, показываем блок сессии
     containerLoading.style.zIndex = '1000';
+    sessionContainer.style.display = 'block';
     authContainer.classList.add('hidden');
     authContainer.classList.remove('visible');
     setTimeout(() => {
       sessionContainer.classList.remove('hidden');
       sessionContainer.classList.add('visible');
-      authContainer.style.display = 'none';
+      authContainer.innerHTML = '';
     }, 350);
 
     // ✓ Добавление слушателей нажатия на все кнопки интерфейса
@@ -2058,51 +2160,48 @@ class AuthProcessor {
       } catch { animationInProgress = false; }
     });
 
-    // Функция для смены расписания группы
-    // Сделать выбор из выпадающего списка
+    // ✓ Функция для смены расписания группы
     const groupChange = document.getElementById('header-group-p');
+    CurrentGroup = localStorage.getItem('userGroup') || '26-ИСбо-4';
     (document.getElementById('header-group')).innerHTML = CurrentGroup;
     groupChange.addEventListener('click', async () => {
       if (DEBUG_MODE) console.log('📌 Нажата кнопка ', groupChange.id);
       if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS) { flag.loading = true; }
 
-      // ✓ Выбираем следующий ключ в списке
-      const groupKeys = Object.keys(groupsID);
+      // ✓ Выбираем следующий ключ в списке избранных групп
+      const groupKeys = Object.keys(favoriteGroups);
       const currentIndex = groupKeys.indexOf(CurrentGroup);
       const nextIndex = (currentIndex + 1) % groupKeys.length;
       CurrentGroup = groupKeys[nextIndex];
-      localStorage.setItem('lastSelectedGroup', CurrentGroup);
       if (DEBUG_MODE) console.log('Текущая группа была сменена на ', CurrentGroup);
 
       // ✓ Обновляем страницу и расписание
       (document.getElementById('header-group')).innerHTML = CurrentGroup;
       if (navOpened === 'nav-shedule') {
+        const sheduleContainer = document.getElementById('shedule-container');
         try {
           const dayButton = document.getElementById('shedule-day');
-          /*
-          if (!groupData[CurrentGroup]) { 
-            groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group'); console.log(groupData[CurrentGroup]); 
-          }
-          */
-          setTimeout(async () => { 
-            const sheduleContainer = document.getElementById('shedule-container');
-            sheduleContainer.innerHTML = '';
-            const moduleSelected = (dayButton.classList.contains('selected')) ? "day" : "week";
-            let innerElement;
-            exitBlock: { if (!groupData[CurrentGroup]) {
+          const moduleSelected = (dayButton.classList.contains('selected')) ? "day" : "week";
+          exitBlock: { 
+            if (!groupData[CurrentGroup]) {
               groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
               if (!groupData[CurrentGroup]) {
-                sheduleContainer.appendChild(generateNoEthernetContainer());
+                setTimeout(() => {
+                  sheduleContainer.innerHTML = '';
+                  sheduleContainer.appendChild(generateNoEthernetContainer()); 
+                }, 500);
                 break exitBlock;
               }
             }
-            const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
-            innerElement = renderer.render(moduleSelected);
-            }
-            sheduleContainer.appendChild(innerElement);
-          }, 500);
+            setTimeout(() => {
+              const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
+              const sheduleFiller = renderer.render(moduleSelected);
+              sheduleContainer.innerHTML = '';
+              sheduleContainer.appendChild(sheduleFiller);
+            }, 500);
+          }
         } catch (err) { if (DEBUG_MODE) console.warn('Ошибка смены расписания: ', err); }
-        setTimeout(() => { if (LOADING_ANIMATIONS) { flag.loading = false; } return; }, 1000);
+        setTimeout(() => { flag.loading = false; return;  }, 1000);
       }
     });
 
@@ -2130,27 +2229,19 @@ class AuthProcessor {
     if (DEBUG_MODE) console.log("🔐 Завершение сессии пользователя");
     flag.loading = true;
 
-    // ✓ Скрываем блок сессии, показываем блок аутентификации
-    containerLoading.style.zIndex = '1000';
-    sessionContainer.classList.add('hidden');
-    sessionContainer.classList.remove('visible');
-    setTimeout(() => {
-      authContainer.classList.remove('hidden');
-      authContainer.classList.add('visible');
-      sessionContainer.style.display = 'none';
-    }, 350);
-
     // ✓ Очищаем пользовательские сохраненные данные
-    groupData = {};
-    localStorage.clear();
+    groupData = {}; localStorage.clear();
 
-    renderAuth(false); // ✓ Генерируем окно авторизации
+    // ✓ Генерируем окно авторизации
+    this.renderAuth(false);
+    flag.loading = false;
   }
 
-  // Функция рендера и добавления обработчиков нажатия элементов авторизации
+  // ✓ Функция рендера и добавления обработчиков нажатия элементов авторизации
   renderAuth(progressed) {
 
     // ✓ Обьявление элементов авторизации 
+    authContainer.innerHTML = authContainerContent;
     const registerForm = document.getElementById("register-form");
     const loginForm = document.getElementById("login-form");
     const AdditionalForm = document.getElementById("additional-form");
@@ -2159,17 +2250,23 @@ class AuthProcessor {
     const backOnTrack = document.getElementById('auth-button-backOnTrack');
     const guestModeButton1 = document.getElementById("auth-button-guestMode1");
     const guestModeButton2 = document.getElementById("auth-button-guestMode2");
+
     sessionContainer.classList.add('hidden');
     sessionContainer.classList.remove('visible');
     setTimeout(() => { 
       authContainer.classList.remove('hidden'); 
       authContainer.classList.add('visible');
+      sessionContainer.style.display = 'none';
     }, 200);
     if (progressed) { // ✓ Если пользователь начал регистрацию но не допрошел ее
       registerForm.classList.add("form-hidden");
       loginForm.classList.add("form-hidden");
       AdditionalForm.classList.remove("form-hidden");
       backOnTrack.innerHTML = 'Выйти из аккаунта';
+    } else {
+      registerForm.classList.remove("form-hidden");
+      loginForm.classList.add("form-hidden");
+      AdditionalForm.classList.add("form-hidden");
     }
 
     // ✓ Инициализируем кнопки переключения между режимами авторизации
@@ -2258,11 +2355,28 @@ class AuthProcessor {
     });
 
     // Обработка ввода формы дополнительной информации
+    new GroupSelector();
     AdditionalForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
+      // Обьявление значений введенных элементов
+      const userGroup = document.querySelector("#groupInput").value.trim();
+
+      // Валидация введенных значений
+      if (!userGroup || typeof userGroup !== 'string') {
+        showNotification('Необходимо ввести Вашу группу обучения', 'error'); return;
+      }
+
+      // Сохраняем пользовательские данные в локальное хранилище
+      localStorage.setItem('userData', true);
+      localStorage.setItem('userGroup', userGroup);
+
+      // ✓ Запускаем сессию
+      const submitButton = registerForm.querySelector("button[type='submit']");
+      submitButton.disabled = true; backOnTrack.disabled = true;
+      submitButton.textContent = "Загрузка...";
       setTimeout(async() => {
-        await this.startSession();
+        await AuthProcessor.startSession();
       }, 200);
     });
 
@@ -2305,7 +2419,7 @@ class AuthProcessor {
     async function guestModeEventListener() {
       console.log("🕵🏻 Включен гостевой режим");
       if (localStorage.getItem('userData')) { // ✓ Если это не первый случай запуска гостевого режима
-        await this.startSession();
+        await AuthProcessor.startSession();
       } else { // ✓ Если человек еще ни разу не запускал гостевой режим
         registerForm.classList.add("form-hidden");
         loginForm.classList.add("form-hidden");
@@ -2333,7 +2447,7 @@ class AuthProcessor {
     if (currentUser && localStorage.getItem('userData')) { // ✓ Если вход в аккаунт выполнен и выбраны данные
       if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
       showNotification('Найден локально сохраненный аккаунт. Выполняем вход...', 'info');
-      await this.startSession();
+      await AuthProcessor.startSession();
     } else if (currentUser) { // ✓ Если прошла регистрация, но пользователь не довыбирал
       if (DEBUG_MODE) console.log("❓ Пользователь авторизован, но не допрошел регистрацию: ", currentUser.email);
       showNotification('Для доступа к приложению необходимо завершить регистрацию', 'info');
@@ -2346,108 +2460,71 @@ class AuthProcessor {
     flag.loading = false;
   }
 }
-
-
-// ============================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ============================================
-
-/**
- * Показывает сообщение в форме авторизации
- */
-function showAuthMessage(element, message, type) {
-  element.textContent = message;
-  element.style.color = type === "success" ? "green" : "red";
-}
-
-
-
-
-/**
- * Обработчик выхода из аккаунта
- */
-function setupLogoutHandler() {
-  const headerRight = document.querySelector("#header-right");
-  if (!headerRight) return;
-
-  // Проверяем, есть ли уже кнопка выхода
-  let logoutBtn = document.querySelector("#logout-btn");
-  if (!logoutBtn) {
-    logoutBtn = document.createElement("button");
-    logoutBtn.id = "logout-btn";
-    logoutBtn.className = "header-button logout-button";
-    logoutBtn.textContent = "Выход";
-    headerRight.appendChild(logoutBtn);
-  }
-
-  logoutBtn.addEventListener("click", async () => {
-    if (confirm("Вы уверены, что хотите выйти из аккаунта?")) {
-      const result = await window.auth.logout();
-      if (result.success) {
-        endSession();
-      }
-    }
-  });
-}
-
-/**
- * Обработчик удаления аккаунта
- */
-function setupDeleteAccountHandler() {
-  const headerRight = document.querySelector("#header-right");
-  if (!headerRight) return;
-
-  // Проверяем, есть ли уже кнопка удаления
-  let deleteBtn = document.querySelector("#delete-account-btn");
-  if (!deleteBtn) {
-    deleteBtn = document.createElement("button");
-    deleteBtn.id = "delete-account-btn";
-    deleteBtn.className = "header-button delete-button";
-    deleteBtn.textContent = "Удалить аккаунт";
-    headerRight.appendChild(deleteBtn);
-  }
-
-  deleteBtn.addEventListener("click", async () => {
-    const password = prompt(
-      "Для удаления аккаунта введите ваш пароль:"
-    );
-
-    if (!password) {
-      showNotification("❌ Отменено", "error");
-      return;
-    }
-
-    if (
-      confirm(
-        "⚠️ Это действие необратимо! Все данные будут удалены. Вы уверены?"
-      )
-    ) {
-      const result = await window.auth.deleteAccount(password);
-
-      if (result.success) {
-        showNotification("✅ " + result.message, "success");
-        setTimeout(() => endSession(), 1500);
-      } else {
-        showNotification("❌ " + result.message, "error");
-      }
-    }
-  });
-}
-
-// ============================================
-// ЗАПУСК ПРИЛОЖЕНИЯ
-// ============================================
-
-// Когда приложение загружается, проверяем авторизацию
 const auth = new AuthProcessor();
-auth.init();
+auth.init(); // Когда приложение загружается, первым делом запускаем авторизацию
 
-// Когда инициализируется сессия, устанавливаем обработчики для выхода и удаления
+
+// Когда проинициализируется сессия, устанавливаем обработчики для выхода и удаления
 window.addEventListener("load", () => {
   setTimeout(() => {
     if (window.auth.isAuthenticated()) {
-      setupLogoutHandler();
-      setupDeleteAccountHandler();
+      const headerRight = document.querySelector("#header-right");
+      if (!headerRight) return;
+
+      // Проверяем, есть ли уже кнопка выхода
+      let logoutBtn = document.querySelector("#logout-btn");
+      if (!logoutBtn) {
+        logoutBtn = document.createElement("button");
+        logoutBtn.id = "logout-btn";
+        logoutBtn.className = "header-button logout-button";
+        logoutBtn.textContent = "Выход";
+        headerRight.appendChild(logoutBtn);
+      }
+
+      logoutBtn.addEventListener("click", async () => {
+        if (confirm("Вы уверены, что хотите выйти из аккаунта?")) {
+          const result = await window.auth.logout();
+          if (result.success) {
+            endSession();
+          }
+        }
+      });
+
+      // Проверяем, есть ли уже кнопка удаления
+      let deleteBtn = document.querySelector("#delete-account-btn");
+      if (!deleteBtn) {
+        deleteBtn = document.createElement("button");
+        deleteBtn.id = "delete-account-btn";
+        deleteBtn.className = "header-button delete-button";
+        deleteBtn.textContent = "Удалить аккаунт";
+        headerRight.appendChild(deleteBtn);
+      }
+
+      deleteBtn.addEventListener("click", async () => {
+        const password = prompt(
+          "Для удаления аккаунта введите ваш пароль:"
+        );
+
+        if (!password) {
+          showNotification("❌ Отменено", "error");
+          return;
+        }
+
+        if (
+          confirm(
+            "⚠️ Это действие необратимо! Все данные будут удалены. Вы уверены?"
+          )
+        ) {
+          const result = await window.auth.deleteAccount(password);
+
+          if (result.success) {
+            showNotification("✅ " + result.message, "success");
+            setTimeout(() => endSession(), 1500);
+          } else {
+            showNotification("❌ " + result.message, "error");
+          }
+        }
+      });
     }
   }, 100);
 });

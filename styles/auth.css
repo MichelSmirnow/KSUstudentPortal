@@ -199,6 +199,226 @@ form { transition: all 0.5s ease; }
 }
 
 
+
+
+* {
+   /* box-sizing: border-box; */
+}
+
+.group-selector {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto 30px;
+}
+
+.group-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.group-input:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.group-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.group-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 2px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+}
+
+.group-dropdown.open {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.dropdown-content {
+    padding: 0;
+}
+
+/* Стили для категорий */
+.dropdown-category {
+    border-bottom: 1px solid #eee;
+}
+
+.category-header {
+    padding: 12px 16px;
+    font-weight: 600;
+    color: #333;
+    background: #f8f9fa;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s ease;
+}
+
+.category-header:hover {
+    background: #e9ecef;
+}
+
+.category-header.expanded {
+    background: #e7f3ff;
+    color: #667eea;
+}
+
+.category-toggle {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    transition: transform 0.3s ease;
+}
+
+.category-toggle.rotated {
+    transform: rotate(90deg);
+}
+
+.category-items {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: #fafafa;
+}
+
+.category-items.expanded {
+    max-height: 500px;
+}
+
+/* Стили для подкатегорий */
+.subcategory {
+    padding-left: 16px;
+}
+
+.subcategory-header {
+    padding: 10px 0 10px 16px;
+    font-weight: 500;
+    color: #555;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: color 0.2s ease;
+    border-left: 3px solid transparent;
+}
+
+.subcategory-header:hover {
+    color: #667eea;
+    border-left-color: #667eea;
+}
+
+.subcategory-toggle {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    line-height: 16px;
+    text-align: center;
+    transition: transform 0.3s ease;
+    margin-right: 8px;
+}
+
+.subcategory-toggle.rotated {
+    transform: rotate(90deg);
+}
+
+.subcategory-items {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.subcategory-items.expanded {
+    max-height: 300px;
+}
+
+/* Стили для элементов групп */
+.group-item {
+    padding: 10px 16px 10px 48px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    color: #333;
+}
+
+.group-item:hover {
+    background: #e7f3ff;
+    color: #667eea;
+    border-left-color: #667eea;
+}
+
+.group-item.selected {
+    background: #667eea;
+    color: white;
+    border-left-color: #764ba2;
+    font-weight: 500;
+}
+
+.info-section {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.info-section p {
+    margin: 12px 0;
+    font-size: 16px;
+    color: #333;
+}
+
+.info-section strong {
+    color: #667eea;
+    font-weight: 600;
+}
+
+/* Скролл для dropdown */
+.group-dropdown::-webkit-scrollbar {
+    width: 6px;
+}
+
+.group-dropdown::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.group-dropdown::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 3px;
+}
+
+.group-dropdown::-webkit-scrollbar-thumb:hover {
+    background: #764ba2;
+}
+
+
 /* =================================== ✓ Кастомизация анимаций =================================== */
 
 @keyframes spin { /* ✓ Анимация вращения */
