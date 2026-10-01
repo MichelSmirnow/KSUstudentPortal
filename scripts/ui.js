@@ -1488,9 +1488,11 @@ function generateErrorContainer(error) {
   <p style="color: red">${error}</p>`;
 }
 
-// Если расписание невозможно подключить из-за отсутствия интернет-соединения
+// ✓ Если расписание невозможно подключить из-за отсутствия интернет-соединения
 function generateNoEthernetContainer() {
   const ethernetContainer = document.createElement('div');
+  ethernetContainer.style.width = 'calc(100% - 20px)';
+  ethernetContainer.style.margin = '0 auto';
   ethernetContainer.innerHTML = `
   <p style="font-size: 20px; margin-bottom: -5px;"><b>Нет подключения к интернету</b></p>
   <p>1) Если у вас выключен интернет, попробуйте подключиться к сети и обновить данную страницу</p>
@@ -1997,112 +1999,56 @@ function openLink(link) {
   }
 }
 
-/* ======== Уведомления и другое ======== */
+/* ======== ✓ Уведомления и другое ======== */
 
 // Функция для показа уведомления в приложении
 function showNotification(message, type = "info") {
-  const notificationsContainer = document.querySelector("#notifications");
-  if (!notificationsContainer) return;
+  const notificationImage = { // Объявляем список дополнительных иконок к уведомлениям
+    'info':     'images/ui/',
+    'error':    'images/ui/',
+    'success':  'images/ui/',
+    'question': 'images/ui/',
+  };
 
+  const notificationsContainer = document.getElementById('notifications');
+  if (!notificationsContainer) return;
   const notification = document.createElement("div");
   notification.className = `notification notification-${type}`;
-  notification.innerHTML = `<span>${message}</span>`;
+  notification.innerHTML = `<span>${message}</span><img class="notification-image" src="${notificationImage[type]}"/>`;
 
-  // Добавляем обработчики для свайпа влево/вправо
-  let startX = 0;
-  let currentX = 0;
+  // ✓ Добавляем обработчики преждевременного скрытия уведомления
   let isSwiping = false;
+  notification.addEventListener("touchstart", () => { isSwiping = true; });
+  notification.addEventListener("touchend", () => { isSwiping = false; removeNotification(notification); });
+  notification.addEventListener("mousedown", () => { isSwiping = true; });
+  notification.addEventListener("mouseup", () => { isSwiping = false; removeNotification(notification); });
+  notification.addEventListener("click", () => { isSwiping = false; removeNotification(notification); });
 
-  notification.addEventListener("touchstart", (e) => {
-    startX = e.touches[0].clientX;
-    isSwiping = true;
-  });
-
-  notification.addEventListener("touchmove", (e) => {
-    if (!isSwiping) return;
-    currentX = e.touches[0].clientX - startX;
-    notification.style.transform = `translateX(${currentX}px)`;
-    notification.style.opacity = 1 - Math.abs(currentX) / notification.offsetWidth;
-  });
-
-  notification.addEventListener("touchend", () => {
-    isSwiping = false;
-    // Если свайп больше чем 30% ширины уведомления — удаляем
-    if (Math.abs(currentX) > notification.offsetWidth * 0.3) {
-      removeNotification(notification);
-    } else {
-      // Возвращаем на место
-      notification.style.transform = "translateX(0)";
-      notification.style.opacity = "1";
-    }
-  });
-
-  // Добавляем поддержку мыши для десктопа
-  let isMouseDown = false;
-  notification.addEventListener("mousedown", (e) => {
-    startX = e.clientX;
-    isMouseDown = true;
-    notification.style.cursor = "grabbing";
-  });
-
-  notification.addEventListener("mousemove", (e) => {
-    if (!isMouseDown) return;
-    currentX = e.clientX - startX;
-    notification.style.transform = `translateX(${currentX}px)`;
-    notification.style.opacity = 1 - Math.abs(currentX) / notification.offsetWidth;
-  });
-
-  notification.addEventListener("mouseup", () => {
-    isMouseDown = false;
-    notification.style.cursor = "grab";
-    if (Math.abs(currentX) > notification.offsetWidth * 0.3) {
-      removeNotification(notification);
-    } else {
-      notification.style.transform = "translateX(0)";
-      notification.style.opacity = "1";
-    }
-  });
-
-  // Удаляем уведомление при клике на нём
-  notification.addEventListener("click", () => {
-    removeNotification(notification);
-  });
-
+  // ✓ Добавляем полученное уведомление и анимируем его
   notificationsContainer.appendChild(notification);
-
-  // Триггерим анимацию входа (reflow заставляет браузер пересчитать стили)
   notification.offsetHeight;
   notification.classList.add("notification-enter");
 
-  // Если уведомлений больше 3х — удаляем самое старое
+  // ✓ Если превышен лимит уведомлений, удаляем старое
   const notifications = notificationsContainer.querySelectorAll(".notification");
-  if (notifications.length > 3) {
-    removeNotification(notifications[0]);
-  }
+  if (notifications.length > 3) { removeNotification(notifications[0]); }
 
-  // Удаляем уведомление через 3,5 секунды
+  // ✓ Удаляем уведомление через 3500мс
   const timeoutId = setTimeout(() => {
-    removeNotification(notification);
+    if (!isSwiping) { removeNotification(notification); }  
   }, 3500);
-
-  // Сохраняем timeout ID для возможности отмены при удалении
-  notification.dataset.timeoutId = timeoutId;
+  notification.dataset.timeoutId = timeoutId; // Сохраняем timeout ID для возможности отмены при удалении
 }
 
-// Функция для плавного удаления уведомления
+// ✓ Функция для плавного удаления уведомления
 function removeNotification(notification) {
-  // Очищаем timeout если уведомление удаляется досрочно
-  if (notification.dataset.timeoutId) {
-    clearTimeout(parseInt(notification.dataset.timeoutId));
-  }
-
+  // ✓ Очищаем timeout если уведомление удаляется досрочно
+  if (notification.dataset.timeoutId) { clearTimeout(parseInt(notification.dataset.timeoutId)); }
   notification.classList.remove("notification-enter");
   notification.classList.add("notification-exit");
 
-  // Удаляем элемент после завершения анимации
-  setTimeout(() => {
-    notification.remove();
-  }, 300);
+  // ✓ Удаляем элемент после завершения анимации
+  setTimeout(() => { notification.remove(); }, 300);
 }
 
 
@@ -2113,7 +2059,6 @@ const authContainer = document.getElementById("auth");
 const sessionContainer = document.getElementById("session");
 const authContainerContent = authContainer.innerHTML;
 const sessionContainerContent = sessionContainer.innerHTML;
-
 
 // ✓ Функции аутентификации
 // Требуется доработка окна дополнительной информации
@@ -2462,7 +2407,6 @@ class AuthProcessor {
 }
 const auth = new AuthProcessor();
 auth.init(); // Когда приложение загружается, первым делом запускаем авторизацию
-
 
 // Когда проинициализируется сессия, устанавливаем обработчики для выхода и удаления
 window.addEventListener("load", () => {
