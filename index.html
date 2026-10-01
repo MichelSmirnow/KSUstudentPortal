@@ -127,18 +127,24 @@
                 <form id="additional-form" class="form-hidden"> <!-- Форма заполнения студенческой информации -->
                     <h2>Дополнительно</h2>
                     <p>Заполните поля ниже, чтобы персонализировать студенческое приложение</p>
-                    
-                    <div class="group-selector">
-                        <input 
-                            type="text" 
-                            id="groupInput" 
-                            class="group-input" 
-                            placeholder="Выберите свою группу"
-                            readonly
-                            required
-                        >
+                    <div class="group-selector"> <!-- Ввод группы студента -->
+                        <div class="form-group">
+                            <div class="input-wrapper">
+                                <input type="text" id="auth-input-group" name="group" readonly required>
+                                <label for="auth-input-loginEmail">Группа</label><span class="focus-border"></span>
+                            </div>
+                        </div>
                         <div id="groupDropdown" class="group-dropdown">
                             <div id="dropdownContent" class="dropdown-content"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="group-selector"> <!-- Ввод подгруппы студента -->
+                        <div class="form-group">
+                            <div class="input-wrapper">
+                                <input type="text" id="auth-input-group" name="group" readonly required>
+                                <label for="auth-input-loginEmail">Подгруппа</label><span class="focus-border"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -202,6 +208,8 @@
     <!-- Библиотеки и функции Firebase -->
     <script src="libs/firebase/firebase-app.js"></script>
     <script src="libs/firebase/firebase-auth.js"></script>
+    <script src="libs/firebase/firebase-firestore.js"></script>
+    <script src="libs/config.js"></script>
     <script src="libs/auth-logic.js"></script>
 
     <!-- Постоянные данные приложения -->

@@ -114,11 +114,11 @@ form { transition: all 0.5s ease; }
 }
 
 /* ✓ Стилизация элементов ввода при их фокусе */
-.input-wrapper input:focus, .input-wrapper input:valid { 
+.input-wrapper input:focus, .input-wrapper input:valid, .input-wrapper input.input-preselected { 
     transform: translateY(-2px); padding-top: 18px;
     border-color: #06b6d4; background: rgba(255, 255, 255, 0.15); box-shadow: 0 8px 25px rgba(6, 182, 212, 0.2);
 }
-.input-wrapper input:focus+label, .input-wrapper input:valid+label {
+.input-wrapper input:focus+label, .input-wrapper input:valid+label, .input-wrapper input.input-preselected+label {
     transform: translateY(-26px) scale(0.85); padding: 5px;
     border: 1px solid rgba(255, 255, 255, 0.1); background-color: rgba(104, 136, 172, 1);
     color: #2bceeb; text-shadow: 0 0 10px rgba(6, 46, 48, 0.25); box-shadow: 0 0 10px rgba(79, 153, 233, 0.5);
@@ -201,118 +201,53 @@ form { transition: all 0.5s ease; }
 
 /* =================================== Стилизация ввода через выпадающее меню =================================== */
 
-.group-selector {
-    position: relative;
-    width: 100%;
-    max-width: 400px;
-    margin: 0 auto 30px;
-}
-
-.group-input {
-    width: 100%;
-    padding: 12px 16px;
-    border: 2px solid #ddd;
-    border-radius: 8px;
-    font-size: 16px;
-    background: white;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.group-input:hover {
-    border-color: #667eea;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-}
-
-.group-input:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
+/* ✓ Основной контейнер выбора группы */
+.group-selector { position: relative; width: 100%; max-width: 400px; margin: 0 auto 30px; }
 .group-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: white;
-    border: 2px solid #ddd;
-    border-top: none;
-    border-radius: 0 0 8px 8px;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 10;
+    z-index: 10; position: absolute; top: 100%; left: 0; right: 0; max-height: 0;
+    border: 2px solid #ddd; border-top: none; border-radius: 0 0 8px 8px;
+    overflow: hidden; background: #ebebeb; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
 }
+.group-dropdown.open { max-height: 300px; opacity: 1; overflow-y: auto; }
+.dropdown-content { padding: 0; }
 
-.group-dropdown.open {
-    max-height: 400px;
-    overflow-y: auto;
+/* ✓ Декоративные переключатели открытия */
+.category-toggle, .dropdownInstitute-toggle {
+    display: inline-block; width: 16px; height: 16px; line-height: 16px; opacity: 0.5 !important;
+    text-align: center; transition: transform 0.3s ease, color 0.3s ease;
 }
+.dropdownInstitute-toggle { margin-right: 8px; }
+.category-toggle.rotated, .dropdownInstitute-toggle.rotated { transform: rotate(90deg); color: #000 !important; }
 
-.dropdown-content {
-    padding: 0;
+/* ✓ Стили категории типа обучения */
+.dropdownEdutype { border-bottom: 1px solid #eee; }
+.dropdownEdutype-header {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+    background: #f8f9fa; color: #333; filter: brightness(100%);
+    font-weight: 600; cursor: pointer; user-select: none;
+    transition: all 0.2s ease;
 }
-
-/* Стили для категорий */
-.dropdown-category {
-    border-bottom: 1px solid #eee;
-}
-
-.category-header {
-    padding: 12px 16px;
-    font-weight: 600;
-    color: #333;
-    background: #f8f9fa;
-    cursor: pointer;
-    user-select: none;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: background 0.2s ease;
-}
-
-.category-header:hover {
-    background: #e9ecef;
-}
-
-.category-header.expanded {
-    background: #e7f3ff;
-    color: #667eea;
-}
-
-.category-toggle {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    line-height: 20px;
-    text-align: center;
-    transition: transform 0.3s ease;
-}
-
-.category-toggle.rotated {
-    transform: rotate(90deg);
-}
-
-.category-items {
+.dropdownEdutype-header:hover { filter: brightness(110%); }
+.dropdownEdutype-header:active { filter: brightness(90%); }
+.dropdownEdutype-header.expanded { background: #e7f3ff; color: #667eea; }
+.dropdownEdutype-items {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.3s ease;
     background: #fafafa;
 }
+.dropdownEdutype-items.expanded { max-height: 500px; }
 
-.category-items.expanded {
-    max-height: 500px;
-}
 
-/* Стили для подкатегорий */
-.subcategory {
+
+
+/* Стили категории института*/
+.dropdownInstitute {
     padding-left: 16px;
 }
 
-.subcategory-header {
+.dropdownInstitute-header {
     padding: 10px 0 10px 16px;
     font-weight: 500;
     color: #555;
@@ -325,32 +260,20 @@ form { transition: all 0.5s ease; }
     border-left: 3px solid transparent;
 }
 
-.subcategory-header:hover {
+.dropdownInstitute-header:hover {
     color: #667eea;
     border-left-color: #667eea;
 }
 
-.subcategory-toggle {
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    line-height: 16px;
-    text-align: center;
-    transition: transform 0.3s ease;
-    margin-right: 8px;
-}
 
-.subcategory-toggle.rotated {
-    transform: rotate(90deg);
-}
 
-.subcategory-items {
+.dropdownInstitute-items {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.3s ease;
 }
 
-.subcategory-items.expanded {
+.dropdownInstitute-items.expanded {
     max-height: 300px;
 }
 
@@ -394,24 +317,6 @@ form { transition: all 0.5s ease; }
 .info-section strong {
     color: #667eea;
     font-weight: 600;
-}
-
-/* Скролл для dropdown */
-.group-dropdown::-webkit-scrollbar {
-    width: 6px;
-}
-
-.group-dropdown::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-.group-dropdown::-webkit-scrollbar-thumb {
-    background: #667eea;
-    border-radius: 3px;
-}
-
-.group-dropdown::-webkit-scrollbar-thumb:hover {
-    background: #764ba2;
 }
 
 

@@ -1,11 +1,10 @@
 /* ============ Постоянные и переменные базы данных и пользовательские данные ============= */
 
-/* Постоянные системные настройки */
+// Постоянные системные настройки
 const DEBUG_MODE = true;
 const STRINGIFY_SAVINGS = false;
 const LOADING_ANIMATIONS = true;
 
-/* Пользовательские данные (данные группы), основной информационный контент приложения */
 // Данные по группе
 let groupData = {}
 
@@ -330,7 +329,7 @@ async function loadLocalShedule(sheduleID, sheduleType) {
   try {
     const storage = getStorage(sheduleType);
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Load timeout')), 15000)
+      setTimeout(() => reject(new Error('Load timeout')), 10000)
     );
     const loadedData = await Promise.race([
       storage.load(sheduleID), // Передаем sheduleID как ключ
@@ -358,7 +357,7 @@ async function saveLocalShedule(inputShedule, sheduleID, sheduleType) {
     const storage = getStorage(sheduleType);
     const stringedShedule = JSON.stringify(inputShedule);
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Save timeout')), 20000)
+      setTimeout(() => reject(new Error('Save timeout')), 10000)
     );
     await Promise.race([
       storage.save(sheduleID, stringedShedule), // Передаем sheduleID как ключ
@@ -2004,10 +2003,10 @@ function openLink(link) {
 // Функция для показа уведомления в приложении
 function showNotification(message, type = "info") {
   const notificationImage = { // Объявляем список дополнительных иконок к уведомлениям
-    'info':     'images/ui/',
-    'error':    'images/ui/',
-    'success':  'images/ui/',
-    'question': 'images/ui/',
+    'info':     'images/ui/info.png',
+    'error':    'images/ui/warning.png',
+    'success':  'images/ui/check.png',
+    'question': 'images/ui/question.png',
   };
 
   const notificationsContainer = document.getElementById('notifications');
@@ -2154,7 +2153,7 @@ class AuthProcessor {
     const user = window.auth.getCurrentUser();
     const headerName = document.querySelector("#header-name");
     if (headerName) {
-      headerName.textContent = (user && typeof user !== 'null') ? `🧑 ${user.email}` : `🕵🏻 Гостевой режим`;
+      headerName.textContent = (user && typeof user !== 'null') ? `🧑 ${user.displayName}` : `🕵🏻 Гостевой режим`;
     }
 
     // ✓ Загружаем расписание и генерируем страницу
@@ -2300,12 +2299,12 @@ class AuthProcessor {
     });
 
     // Обработка ввода формы дополнительной информации
-    new GroupSelector();
+    new authGroupSelector();
     AdditionalForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       // Обьявление значений введенных элементов
-      const userGroup = document.querySelector("#groupInput").value.trim();
+      const userGroup = document.querySelector("#auth-input-group").value.trim();
 
       // Валидация введенных значений
       if (!userGroup || typeof userGroup !== 'string') {
@@ -2391,7 +2390,6 @@ class AuthProcessor {
     const currentUser = window.auth.getCurrentUser();
     if (currentUser && localStorage.getItem('userData')) { // ✓ Если вход в аккаунт выполнен и выбраны данные
       if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
-      showNotification('Найден локально сохраненный аккаунт. Выполняем вход...', 'info');
       await AuthProcessor.startSession();
     } else if (currentUser) { // ✓ Если прошла регистрация, но пользователь не довыбирал
       if (DEBUG_MODE) console.log("❓ Пользователь авторизован, но не допрошел регистрацию: ", currentUser.email);

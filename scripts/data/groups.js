@@ -13,13 +13,12 @@ const groupsID = {
       },
     },
   },
-  /*
   "Магистратура": {
     "ИВИТШ": {
       "1 курс": {
       }
     }
-  }*/
+  }
 }
 
 // ✓ Избранные группы для переключения
@@ -69,84 +68,46 @@ function getGroupInfo(groupName) {
   return null;
 }
 
-
-
-class GroupSelector {
+// Генерация селектора группы при регистрации
+class authGroupSelector {
   constructor() {
-    this.input = document.getElementById('groupInput');
+    this.input = document.getElementById('auth-input-group');
     this.dropdown = document.getElementById('groupDropdown');
     this.dropdownContent = document.getElementById('dropdownContent');
-    this.expandedCategories = {};
-    this.expandedSubcategories = {};
-
+    this.expandedCategories = {}; this.expandedSubcategories = {};
     this.initializeDropdown();
     this.attachEventListeners();
   }
 
-  initializeDropdown() {
-    this.dropdownContent.innerHTML = '';
-
-    for (const education in groupsID) {
-      const categoryDiv = document.createElement('div');
-      categoryDiv.className = 'dropdown-category';
-
-      // Заголовок категории (тип обучения)
-      const categoryHeader = document.createElement('div');
-      categoryHeader.className = 'category-header';
-      categoryHeader.innerHTML = `
-        <span>${education}</span>
-        <span class="category-toggle">▶</span>
-      `;
-
-      categoryHeader.addEventListener('click', () => {
-        this.toggleCategory(education, categoryDiv);
-      });
-
-      // Контейнер для элементов категории
-      const categoryItems = document.createElement('div');
-      categoryItems.className = 'category-items';
-      categoryItems.id = `category-${education}`;
-
-      // Добавляем подкатегории (институты)
-      for (const institute in groupsID[education]) {
-        this.addInstitute(categoryItems, education, institute);
-      }
-
-      categoryDiv.appendChild(categoryHeader);
-      categoryDiv.appendChild(categoryItems);
-      this.dropdownContent.appendChild(categoryDiv);
-    }
-  }
-
   addInstitute(parent, education, institute) {
-    const subcategoryDiv = document.createElement('div');
-    subcategoryDiv.className = 'subcategory';
+    const dropdownInstituteDiv = document.createElement('div');
+    dropdownInstituteDiv.className = 'dropdownInstitute';
 
-    const subcategoryHeader = document.createElement('div');
-    subcategoryHeader.className = 'subcategory-header';
-    const subcategoryKey = `${education}-${institute}`;
+    const dropdownInstituteHeader = document.createElement('div');
+    dropdownInstituteHeader.className = 'dropdownInstitute-header';
+    const dropdownInstituteKey = `${education}-${institute}`;
     
-    subcategoryHeader.innerHTML = `
+    dropdownInstituteHeader.innerHTML = `
       <span>${institute}</span>
-      <span class="subcategory-toggle">▶</span>
+      <span class="dropdownInstitute-toggle">▶</span>
     `;
 
-    subcategoryHeader.addEventListener('click', () => {
-      this.toggleSubcategory(subcategoryKey, subcategoryDiv);
+    dropdownInstituteHeader.addEventListener('click', () => {
+      this.toggledropdownInstitute(dropdownInstituteKey, dropdownInstituteDiv);
     });
 
-    const subcategoryItems = document.createElement('div');
-    subcategoryItems.className = 'subcategory-items';
-    subcategoryItems.id = `subcategory-${subcategoryKey}`;
+    const dropdownInstituteItems = document.createElement('div');
+    dropdownInstituteItems.className = 'dropdownInstitute-items';
+    dropdownInstituteItems.id = `dropdownInstitute-${dropdownInstituteKey}`;
 
     // Добавляем курсы
     for (const course in groupsID[education][institute]) {
-      this.addCourse(subcategoryItems, education, institute, course);
+      this.addCourse(dropdownInstituteItems, education, institute, course);
     }
 
-    subcategoryDiv.appendChild(subcategoryHeader);
-    subcategoryDiv.appendChild(subcategoryItems);
-    parent.appendChild(subcategoryDiv);
+    dropdownInstituteDiv.appendChild(dropdownInstituteHeader);
+    dropdownInstituteDiv.appendChild(dropdownInstituteItems);
+    parent.appendChild(dropdownInstituteDiv);
   }
 
   addCourse(parent, education, institute, course) {
@@ -154,7 +115,7 @@ class GroupSelector {
     courseDiv.style.paddingLeft = '32px';
 
     const courseHeader = document.createElement('div');
-    courseHeader.className = 'subcategory-header';
+    courseHeader.className = 'dropdownInstitute-header';
     courseHeader.style.paddingLeft = '0';
     
     courseHeader.textContent = course;
@@ -191,22 +152,22 @@ class GroupSelector {
 
   toggleCategory(education, categoryDiv) {
     this.expandedCategories[education] = !this.expandedCategories[education];
-    const categoryItems = categoryDiv.querySelector('.category-items');
+    const categoryItems = categoryDiv.querySelector('.dropdownEdutype-items');
     const toggle = categoryDiv.querySelector('.category-toggle');
-    const header = categoryDiv.querySelector('.category-header');
+    const header = categoryDiv.querySelector('.dropdownEdutype-header');
 
     categoryItems.classList.toggle('expanded');
     toggle.classList.toggle('rotated');
     header.classList.toggle('expanded');
   }
 
-  toggleSubcategory(key, subcategoryDiv) {
+  toggledropdownInstitute(key, dropdownInstituteDiv) {
     this.expandedSubcategories[key] = !this.expandedSubcategories[key];
-    const subcategoryItems = subcategoryDiv.querySelector('.subcategory-items');
-    const toggle = subcategoryDiv.querySelector('.subcategory-toggle');
-    const header = subcategoryDiv.querySelector('.subcategory-header');
+    const dropdownInstituteItems = dropdownInstituteDiv.querySelector('.dropdownInstitute-items');
+    const toggle = dropdownInstituteDiv.querySelector('.dropdownInstitute-toggle');
+    const header = dropdownInstituteDiv.querySelector('.dropdownInstitute-header');
 
-    subcategoryItems.classList.toggle('expanded');
+    dropdownInstituteItems.classList.toggle('expanded');
     toggle.classList.toggle('rotated');
     header.classList.toggle('expanded');
   }
@@ -223,14 +184,52 @@ class GroupSelector {
     this.dropdown.classList.remove('open');
   }
 
+  // Рендер элемента выбора группы
+  initializeDropdown() {
+    this.dropdownContent.innerHTML = '';
+    for (const education in groupsID) {
+      const categoryDiv = document.createElement('div');
+      categoryDiv.className = 'dropdownEdutype';
+
+      // Заголовок категории (тип обучения)
+      const categoryHeader = document.createElement('div');
+      categoryHeader.className = 'dropdownEdutype-header';
+      categoryHeader.innerHTML = `
+        <span>${education}</span>
+        <span class="category-toggle">▶</span>
+      `;
+
+      categoryHeader.addEventListener('click', () => {
+        this.toggleCategory(education, categoryDiv);
+      });
+
+      // Контейнер для элементов категории
+      const categoryItems = document.createElement('div');
+      categoryItems.className = 'dropdownEdutype-items';
+      categoryItems.id = `category-${education}`;
+
+      // Добавляем подкатегории (институты)
+      for (const institute in groupsID[education]) {
+        this.addInstitute(categoryItems, education, institute);
+      }
+
+      categoryDiv.appendChild(categoryHeader);
+      categoryDiv.appendChild(categoryItems);
+      this.dropdownContent.appendChild(categoryDiv);
+    }
+  }
+
+  // ✓ Функция прикрепления слушателей на нажатия элементов выбора группы
   attachEventListeners() {
-    this.input.addEventListener('click', () => {
+    this.input.addEventListener('click', () => { // ✓ На открытие элемента
       this.dropdown.classList.toggle('open');
+      this.input.classList.add('input-preselected');
     });
 
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', (e) => { // ✓ На закрытие элемента
       if (!this.dropdown.parentElement.contains(e.target)) {
         this.dropdown.classList.remove('open');
+        if (!this.input.value || this.input.value == '') { this.input.classList.remove('input-preselected'); }
       }
     });
   }
