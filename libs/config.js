@@ -1,4 +1,4 @@
-// Конфигурация firebase
+// ✓ Конфигурация firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDK4QZ3i1O4gvC_xDFbXJbsf1-D20yr2UI",
   authDomain: "ksustudent-2026.firebaseapp.com",

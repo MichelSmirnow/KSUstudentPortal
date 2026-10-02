@@ -1,0 +1,13 @@
+/* ✓ Основные кнопки настроек и их контейнеры */
+.account-button-container {
+    display: flex; align-items:start; justify-content: center; gap: 15px; box-sizing: border-box;
+    width: calc(100% - 10px); margin-left: 10px; padding: 0;
+}
+.account-awairButton, .account-standartButton {
+    padding: 5px 10px; margin: 0; margin-top: 9px; border: 0; cursor: pointer; white-space: nowrap;
+    border-radius: 10px; transition: all 0.3s ease;
+}
+.account-standartButton { background-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 10px rgba(0, 0, 0, 0.35); }
+.account-awairButton { background-color: rgba(241, 37, 19, 0.8); box-shadow: 0 0 10px rgba(214, 34, 34, 0.5); color: #FFF !important; }
+.account-awairButton:hover, .account-standartButton:hover { margin: -2px 0 !important; padding: 7px 12px !important; box-shadow: 0 0 10px rgba(0, 0, 0, 0.55); filter: brightness(110%); }
+.account-awairButton:active, .account-standartButton:active { margin: 0.5px 0 !important; padding: 4px 9px !important; filter: brightness(90%); }

@@ -112,61 +112,55 @@ class Authentication {
   }
 }
 
-// Класс для управления метаданными изображений в Firestore
-class ImageManager {
+// ✓ Класс для управления базой данных в Firestore
+class Database {
+
+  // ✓ Базовые настройки сервиса базы данных от Firebase
   constructor(authInstance) {
-    // Инициализация Firestore (требуется предварительно подключенный firebase-firestore.js)
     this.db = firebase.firestore();
     this.auth = authInstance;
   }
 
-  // Сохранить ссылку и метаданные изображения
-  async saveImage({ imageUrl, teacherName, subjectCode, imageType }) {
+  // ✓ Сохранить ссылку и метаданные изображения
+  async saveImage(imageUrl, teacher, subject, imageType) {
     try {
       const user = this.auth.getCurrentUser();
       if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
 
-      // Генерация уникального ID на клиенте
-      const imageId = crypto.randomUUID();
-
+      // ✓ Стандартизация информации об изображении
+      const imageId = `img_${Date.now()}_${Math.floor(Math.random()*10000)}`;
       const imageData = {
-        imageId,
+        imageId, // Уникальный идентификатор изображения
         userId: user.uid, // Необходим для соответствия вашим правилам Firestore
-        author: user.displayName || user.email || "Аноним",
-        teacherName,
-        subjectCode,
-        imageUrl,
-        imageType,        // 'material' или 'homework'
-        timestamp: Date.now() // Дата публикации
+        author: user.displayName || "Анонимный пользователь", // Публичное имя автора
+        teacher: teacher || 'Преподаватель С.', // Имя учителя (в сокращенном виде)
+        subject, // Уникальный код дисциплины
+        imageUrl, // Ссылка на изображение на хостинге postimages
+        imageType: imageType || 'material', // 'material' или 'homework'
+        timestamp: Date.now(), // Дата публикации
       };
 
-      // Запись документа в коллекцию "images" под уникальным ID
+      // ✓ Запись документа в базу данных (коллекцию) "images" под уникальным ID
       await this.db.collection("images").doc(imageId).set(imageData);
       return { success: true, imageId, message: "Изображение успешно добавлено" };
-    } catch (error) {
-      return { success: false, error: error.code, message: `Ошибка сохранения: ${error.message}` };
-    }
+    } catch (error) { return { success: false, error: error.code, message: `Ошибка отправки сообщения на сервер: ${error.message}` }; }
   }
 
-  // Извлечь все изображения по коду дисциплины
-  async getImagesBySubject(subjectCode) {
+  // ✓ Получить ссылки и метаданные изображений по параметру
+  async getImagesBySubject(parameter, value) {
+    const availableParameters = ['imageID', 'userID', 'author', 'teacher', 'subject', 'imageURL', 'imageType', 'timestamp'];
+    if (!availableParameters.includes(parameter)) return { success: false, message: `Неверный тип данных для сортировки серверных изображений` }
     try {
-      const snapshot = await this.db.collection("images")
-        .where("subjectCode", "==", subjectCode)
-        .get();
-
+      const snapshot = await this.db.collection("images").where(parameter, "==", value).get();
       const images = [];
-      snapshot.forEach(doc => {
-        images.push(doc.data());
-      });
-
+      snapshot.forEach(doc => { images.push(doc.data()); });
       return { success: true, images };
     } catch (error) {
-      return { success: false, error: error.code, message: `Ошибка получения данных: ${error.message}` };
+      return { success: false, error: error.code, message: `Ошибка получения изображения с сервера: ${error.message}` };
     }
   }
 }
 
 // ✓ Создаем глобальные экземпляры классов для доступа из ui.js
 window.auth = new Authentication();
-window.imageManager = new ImageManager(window.auth);
+window.database = new Database(window.auth);
