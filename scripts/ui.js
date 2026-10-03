@@ -383,6 +383,9 @@ async function generatePageContent(id) {
         </div>
         <img class="banner-half" src="images/supbanners/messager.png"/>
       </div>
+    </div>
+    `;
+    /*
       <div id="messager-container">
         <button class="messager-button vk-button" onclick="openLink('https://vk.me/join/8DfcHJRFXddLyLELoai/JNfBYD0bD2WME3s=')">
           <div class="messager-button-inset"><div class="relative-container flex-container" style="justify-content: start !important;">
@@ -425,54 +428,12 @@ async function generatePageContent(id) {
           </div></div>
         </button>
       </div>
-    </div>
-    `;
+    */
     return generatePageContentContainer;
   } else if (id === 'nav-account') {   // Окно аккаунта (ВСЕ ВНУТРЕННЕЕ СОДЕРЖИМОе В САБПЕЙДЖ!)
-    const authed = window.auth.isAuthenticated();
-    if (authed) { // Добавляем красивое отображение профиля аккаунта
-      const currentUserAccount = window.auth.getCurrentUser();
-      generatePageContentContainer.innerHTML = `
-      <div class="info-container">
-        <div>
-          <p><b>${currentUserAccount.displayName}</b></p>
-          <p>${currentUserAccount.email}</p>
-        </div>
-      </div>`;
-    } else {
-      generatePageContentContainer.innerHTML = `
-      <div class="info-container">
-        <div>
-          <p><b>Анонимный гость</b></p>
-          <p>Почта не указана</p>
-        </div>
-      </div>`;
-    }
-    generatePageContentContainer.innerHTML += `
-      <hr />
-      <h3>Основные опции</h3>
-      <p>Функции управления и редактирование параметров аккаунта</p>
-      ${authed ? `<div class="account-button-container">
-        <button class="account-standartButton" onclick="">Подтвердить почту</button>
-        <p style="color: #333; font-size: 14px">После нажатия, на вашу почту будет отправлено письмо с инструкциями для подтверждения. Это нужно для активации возможности восстановления пароля</p>
-      </div>` : ``}
-      <div class="account-button-container">
-        <button class="account-standartButton" onclick="(async () => { await window.auth.logout(); auth.endSession(); })();">${authed ? `Выйти из аккаунта` : `Регистрация`}</button>
-        <p style="color: #333; font-size: 14px">${authed ? `* Вы сможете заного войти в аккаунт в любое время.` : `Вернуться в главное меню и зарегистрировать аккаунт / войти в существующий`}</p>
-      </div>
-      <hr />
-      <h3>Опасная зона</h3>
-      <p>Нажимайте на кнопки данной категории только в том случае, если ознакомились с предупреждениями справа от кнопок!</p>
-      <div class="account-button-container">  
-        <button class="account-awairButton" onclick="clearAllIndexedDB();">Удалить расписание</button>
-        <p style="color: #333; font-size: 14px">ВНИМАНИЕ! Эта кнопка полностью стирает всё расписание на устройстве, поэтому лучше ее не нажимать, если поблизости нет надежного источника интернет-соединения.</p>
-      </div>
-      ${authed ? `<div class="account-button-container">
-        <button class="account-awairButton" onclick="">Удалить аккаунт</button>
-        <p style="color: #333; font-size: 14px">ВНИМАНИЕ! Это действие безвозвратное. Удаление аккаунта повлечет утрату полученных достижений и удаление ВСЕХ опубликованным вами материалов!</p>
-      </div>` : ``}
-      `;
-    return generatePageContentContainer;
+    generatePageContentContainer.innerHTML = `
+    <button onclick="(async () => { await generateSubpage('profile'); })();">Профиль</button>
+    `;
 
   } else if (id === 'notifications') { // Окно уведомлений администрации
 
@@ -516,6 +477,7 @@ async function generatePageContent(id) {
     <p>Тут пока ничего нету прикинь</p>
     `;
   }
+  return generatePageContentContainer;
 }
 
 // ✓ Функция генерации страницы 
@@ -600,9 +562,49 @@ async function generateSubpageContent(id, data) {
     return performedTeacher;
   }
 
+  // ✓ Отформатировать дату публикации
+  function formatDateCustom(inputDate) {
+    const date = new Date(inputDate);
+    if (isNaN(date.getTime())) { return "Некорректная дата"; }
+    const pad = (num) => String(num).padStart(2, '0');
+    const seconds = pad(date.getSeconds());
+    const minutes = pad(date.getMinutes());
+    const hours = pad(date.getHours());
+    const day = pad(date.getDate());
+    const month = pad(date.getMonth() + 1);
+    const year = date.getFullYear();
+    return `${hours}:${minutes}:${seconds}, ${day}.${month}.${year}`;
+  }
+
+  // Сгенерировать контент материалов/домашних заданий
+  function generateMaterialsData(datas) {
+    const generateMaterialsContainer = document.createElement('div');
+    datas.forEach((object, index) => {
+      const dataSubcontainer = document.createElement('div');
+      dataSubcontainer.classList.add('materials-info-container');
+      const prenormalizedData = new Date(object.timestamp);
+      const normalizedData = formatDateCustom(prenormalizedData);
+      dataSubcontainer.innerHTML = `
+      <div class="flex-container">
+        <p class="materials-author">${object.author}</p> | 
+        <p class="materials-material">${object.userGroup}</p>
+      </div>
+      <p class="materials-content">${object.textContent}</p>
+      <div class="flex-container">
+        <p class="materials-id">${object.textId}</p>
+        <p class="materials-data">${normalizedData}</p>
+      </div>`;
+      generateMaterialsContainer.appendChild(dataSubcontainer);
+    });
+    return generateMaterialsContainer.innerHTML;
+  }
+
   const generatePageContentContainer = document.createElement('div');
   generatePageContentContainer.id = 'subpage';
-  if (id === 'lesson') { // Перекравающее окно информации о занятии (data - элемент расписания)
+  if (id === 'lesson') { // ✓ Перекравающее окно информации о занятии (data - элемент расписания)
+    
+    // ✓ Получаем данные о занятии и преподавателе для отображения
+    generatePageContentContainer.style.position = 'relative';
     const extractedData = ScheduleRenderer.extractElementData(data);
     const teacherData = extractTeachersData(extractedData.teacher);
     const extractedSubject = extractedData.subject 
@@ -610,54 +612,70 @@ async function generateSubpageContent(id, data) {
         ? `${(extractedData.subject).substring(0,66)}...`
         : extractedData.subject)
       : `Безымянная пара`;
-    generatePageContentContainer.innerHTML = `
-    <div class="info-container"><div class="relative-container" style="height: 200px !important">
-      <img class="materials-teacher" src="${teacherData.image}"/>
-      <div class="materials-teacher-info" style="border-left: 5px solid ${extractedData.subjectMatchColor ? extractedData.subjectMatchColor : `rgb(0,0,0)`}">
-        <p><span>${teacherData.fullName ? teacherData.fullName : `Преподаватель С.`}<span></p>
-        <p><b>${extractedSubject}</b></p>
-        <p><span style="font-size: 14px;">${extractedData.name ? extractedData.name : `Занятие`}</span></p>
-        <p><span style="font-size: 14px;">Аудитория - </span><b>${extractedData.room ? extractedData.room : `Туалет`}</b></p>
-      </div>
-    </div></div>
-      
-    <div class="info-container materials-info-container" id="materials-materials">
-      <h3>Материалы занятия</h3>  
-      <p style="font-size: 14px;">Просматривайте и прикрепляйте </p>
-      <div class="radio-container flex-container">
-        <button class="radio-button">+ Прикрепить файл</button>
-        <button class="radio-button">+ Добавить текст</button>
-      </div>
-      <details>
-        <summary>Просмотреть</summary>
-      </details>
-    </div>
 
-    <div class="info-container materials-info-container" id="materials-homework">
-      <h3>Домашнее задание</h3>  
-      <p style="font-size: 12px;"></p>
-      <div class="radio-container flex-container">
-        <button class="radio-button">+ Прикрепить файл</button>
-        <button class="radio-button">+ Добавить текст</button>
-      </div>
-      <details>
-        <summary>Просмотреть</summary>
-      </details>
-    </div>
+    // Если пользователь авторизован, показываем материалы
+    if (window.auth.isAuthenticated()) {
+      const startTime = Math.floor(justifyDate(data.startTime).getTime() / 1000);
+      const preloadedTexts = await window.database.getTexts('subjectTimestamp', Number(startTime));
+      const downloadedTexts = preloadedTexts.texts.filter(text => text.subject === data.summary);
 
-    <details>
-      <summary>
-        <h3>Что публиковать?</h3>
-      </summary>
-      <p></p>
-      <ul>
-        <li>Текстовые формулировки </li>
-        <li>Фотографии записей на доске</li>
-        <li>Любые документы, содержащие учебные материалы, относящиеся к теме занятия (в том числе под авторством преподавателя)</li>
-        <li>Ссылки на полезные источники информации (видео, статьи)</li>
-      </ul>
-    </details>
-    `;
+      // ✓ Генерируем элементы существующих материалов и дмоашних заданий
+      let homeworkContainer = document.createElement('div'); 
+      let materialsContainer = document.createElement('div');
+      materialsContainer.classList.add('materials-main-container');
+      materialsContainer.innerHTML = `<h2>Материалы</h2><p>Публикуйте и делитесь материалами с занятия</p>`;
+      homeworkContainer.classList.add('materials-main-container');
+      homeworkContainer.innerHTML = `<h2>Домашнее задание</h2><p>Выкладывайте задания от преподавателя</p>`;
+      if (downloadedTexts && downloadedTexts.lengh !== 0) {
+        const materialsTexts = downloadedTexts.filter(text => text.textType === 'material');
+        materialsContainer.innerHTML += (!materialsTexts || !typeof materialsTexts === 'object' || materialsTexts.length <= 0) 
+          ? `<p>Пока что нет материалов к этому заданию, но вы можете это исправить</p>` 
+          : generateMaterialsData(materialsTexts);
+
+        const homeworkTexts = downloadedTexts.filter(text => text.textType === 'homework');
+        homeworkContainer.innerHTML += (!homeworkTexts || !typeof homeworkTexts === 'object' || homeworkTexts.length <= 0) 
+          ? `<p>К этому занятию пока что не прикреплено домашнее задание</p>`
+          : generateMaterialsData(homeworkTexts);
+        console.log(materialsTexts, homeworkTexts);
+      } else {
+        materialsContainer.innerHTML = `<p>Статус: пока что нет материалов к этому заданию, но вы можете это исправить</p>`;
+        homeworkContainer.innerHTML = `<p>Статус: к этому занятию пока что не прикреплено домашнее задание, но вы можете это исправить</p>`;
+      } homeworkContainer.innerHTML += `<hr />`;
+        
+      // ✓ Добавляем кнопку добавления материалов и домашних заданий
+      const addButton = document.createElement('button');
+      addButton.innerHTML = '+'; addButton.id = 'materials-add';
+      addButton.addEventListener("click", async () => { await generateSubpage('addmatr', data); });
+
+      // ✓ Наполняем контейнер контентом
+      generatePageContentContainer.innerHTML = `
+      <div class="info-container"><div class="relative-container" style="height: 200px !important">
+        <img class="materials-teacher" src="${teacherData.image}"/>
+        <div class="materials-teacher-info" style="border-left: 5px solid ${extractedData.subjectMatchColor ? extractedData.subjectMatchColor : `rgb(0,0,0)`}">
+          <p><span>${teacherData.fullName ? teacherData.fullName : `Преподаватель С.`}<span></p>
+          <p><b>${extractedSubject}</b></p>
+          <p><span style="font-size: 14px;">${extractedData.name ? extractedData.name : `Занятие`}</span></p>
+          <p><span style="font-size: 14px;">Аудитория - </span><b>${extractedData.room ? extractedData.room : `Туалет`}</b></p>
+        </div>
+      </div></div>`;
+      generatePageContentContainer.appendChild(homeworkContainer);
+      generatePageContentContainer.appendChild(materialsContainer);
+      generatePageContentContainer.appendChild(addButton);
+
+    } else { // ✓ Если пользовать не авторизован, намекаем ему зарегистрироваться
+      generatePageContentContainer.innerHTML = `
+      <div class="info-container"><div class="relative-container" style="height: 200px !important">
+        <img class="materials-teacher" src="${teacherData.image}"/>
+        <div class="materials-teacher-info" style="border-left: 5px solid ${extractedData.subjectMatchColor ? extractedData.subjectMatchColor : `rgb(0,0,0)`}">
+          <p><span>${teacherData.fullName ? teacherData.fullName : `Преподаватель С.`}<span></p>
+          <p><b>${extractedSubject}</b></p>
+          <p><span style="font-size: 14px;">${extractedData.name ? extractedData.name : `Занятие`}</span></p>
+          <p><span style="font-size: 14px;">Аудитория - </span><b>${extractedData.room ? extractedData.room : `Туалет`}</b></p>
+        </div>
+      </div></div>`;
+      generatePageContentContainer.appendChild(generateNoAuthContainer());
+    }
+
   } else if (id === 'teacher') { // Перекрывающее окно информации о преподавателе (data - инициалы преподавателя)
     const teacherData = data; let sheduleFiller;
 
@@ -681,12 +699,98 @@ async function generateSubpageContent(id, data) {
     </div>
     `;
     generatePageContentContainer.appendChild(sheduleFiller);
-  } else {
+  } else if (id === 'profile') { // Перекрывающее окно настроек и информациии профиля пользвоателя
+    const authed = window.auth.isAuthenticated();
+    if (authed) { // Добавляем красивое отображение профиля аккаунта
+      const currentUserAccount = window.auth.getCurrentUser();
+      generatePageContentContainer.innerHTML = `
+      <div class="info-container">
+        <div>
+          <p><b>${currentUserAccount.displayName}</b></p>
+          <p>${currentUserAccount.email}</p>
+        </div>
+      </div>`;
+    } else {
+      generatePageContentContainer.innerHTML = `
+      <div class="info-container">
+        <div>
+          <p><b>Анонимный гость</b></p>
+          <p>Почта не указана</p>
+        </div>
+      </div>`;
+    }
+    generatePageContentContainer.innerHTML += `
+      <hr />
+      <h3>Основные опции</h3>
+      <p>Функции управления и редактирование параметров аккаунта</p>
+      ${authed ? `<div class="account-button-container">
+        <button class="account-standartButton" onclick="">Подтвердить почту</button>
+        <p style="color: #333; font-size: 14px">После нажатия, на вашу почту будет отправлено письмо с инструкциями для подтверждения. Это нужно для активации возможности восстановления пароля</p>
+      </div>` : ``}
+      <div class="account-button-container">
+        <button class="account-standartButton" onclick="(async () => { await window.auth.logout(); auth.endSession(); })();">${authed ? `Выйти из аккаунта` : `Регистрация`}</button>
+        <p style="color: #333; font-size: 14px">${authed ? `* Вы сможете заного войти в аккаунт в любое время.` : `Вернуться в главное меню и зарегистрировать аккаунт / войти в существующий`}</p>
+      </div>
+      <hr />
+      <h3>Опасная зона</h3>
+      <p>Нажимайте на кнопки данной категории только в том случае, если ознакомились с предупреждениями справа от кнопок!</p>
+      <div class="account-button-container">  
+        <button class="account-awairButton" onclick="clearAllIndexedDB();">Удалить расписание</button>
+        <p style="color: #333; font-size: 14px">ВНИМАНИЕ! Эта кнопка полностью стирает всё расписание на устройстве, поэтому лучше ее не нажимать, если поблизости нет надежного источника интернет-соединения.</p>
+      </div>
+      ${authed ? `<div class="account-button-container">
+        <button class="account-awairButton" onclick="">Удалить аккаунт</button>
+        <p style="color: #333; font-size: 14px">ВНИМАНИЕ! Это действие безвозвратное. Удаление аккаунта повлечет утрату полученных достижений и удаление ВСЕХ опубликованным вами материалов!</p>
+      </div>` : ``}
+      `;
+  } else if (id === 'addmatr') { // Перекрывающее окно добавления материалов и домашнего задания
 
+    generatePageContentContainer.innerHTML = `
+    <textarea class="materials-textarea"></textarea>
+    <div class="materials-select-group">
+      <label><input type="radio" name="task-type" value="material" checked> Материал</label>
+      <label><input type="radio" name="task-type" value="homework"> Домашнее задание</label>
+    </div>`;
+
+    // ✓ Кнопка ввода и отправки на сервер текста
+    const submitButton = document.createElement('button');
+    submitButton.innerHTML = 'Отправить текст'; submitButton.id = 'materials-submit';
+    submitButton.classList.add('account-standartButton');
+    submitButton.addEventListener("click", async () => {
+      const textContent = generatePageContentContainer.querySelector('.materials-textarea').value;
+      if (!textContent || textContent.lengh <= 0 || textContent == '') { // ✓ Проверяем, написан ли хоть какой нибудь текст
+        showNotification('Сначала напишите текст в поле ввода', 'info'); return;
+      }
+
+      try { // ✓ Пробуем сохранить текст
+        const radioGroup = generatePageContentContainer.querySelector('.materials-select-group');
+        const checkedRadio = radioGroup.querySelector('input[type="radio"]:checked');
+        const textType = checkedRadio.value ? checkedRadio.value : 'material';
+        const startTime = Math.floor(justifyDate(data.startTime).getTime() / 1000);
+        const userGroup = localStorage.getItem('userGroup');
+        await window.database.saveText(textContent, data.summary, startTime, textType, userGroup);
+      } catch (error) { 
+        showNotification(`Ошибка отправки текста на сервер: ${error}`, 'error'); console.warn(error); 
+      }
+      showNotification('Текст успешно опубликован на сервере!', 'success');
+      await generateSubpage('lesson', data);
+    });
+
+    // ✓ Кнопка отмены ввода текста и возврата назад
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = 'Отмена'; closeButton.id = 'materials-back';
+    closeButton.classList.add('account-standartButton');
+    closeButton.addEventListener("click", async () => { await generateSubpage('lesson', data); });
+
+    generatePageContentContainer.appendChild(submitButton);
+    generatePageContentContainer.appendChild(closeButton);
   }
 
+  // ✓ Добавляем филлер в конце для увеличения высоты страницы
+  const fillerDiv = document.createElement('div');
+  fillerDiv.setAttribute("style", "height: 100px; width: 100%;")
+  generatePageContentContainer.appendChild(fillerDiv);
   return generatePageContentContainer;
-
 }
 
 // ✓ Функция генерации перекрывающего окна

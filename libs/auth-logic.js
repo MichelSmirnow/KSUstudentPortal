@@ -121,8 +121,53 @@ class Database {
     this.auth = authInstance;
   }
 
+  // ✓ Сохранить текст
+  async saveText(textContent, subject, subjectTimestamp, textType, userGroup) {
+    try {
+      const user = this.auth.getCurrentUser();
+      if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
+
+      // ✓ Стандартизация информации о тексте
+      const textId = `text_${Date.now()}_${Math.floor(Math.random()*10000)}`;
+      const textData = {
+        textId, // Уникальный идентификатор текста
+        userId: user.uid, // Необходим для соответствия вашим правилам Firestore
+        author: user.displayName || "Анонимный пользователь", // Публичное имя автора
+        authorEmail: user.email,
+        userGroup: userGroup || "Группа не выбрана",
+        subject, // Уникальный код дисциплины
+        subjectTimestamp, // Время занятия (для конкретизации)
+        textContent, // Содержимое текста
+        textType: textType || 'material', // 'material' или 'homework'
+        timestamp: Date.now(), // Дата публикации
+      };
+
+      // ✓ Запись документа в базу данных (коллекцию) "texts" под уникальным ID
+      await this.db.collection("texts").doc(textId).set(textData);
+      return { success: true, textId, message: "Текст успешно добавлен на сервер" };
+    } catch (error) {
+      return { success: false, error: error.code, message: `Ошибка отправки текста на сервер: ${error.message}` } 
+    }
+  }
+
+  // Удалить текст
+
+  // ✓ Получить тексты по параметру
+  async getTexts(parameter, value) {
+    const availableParameters = ['textID', 'userID', 'author', 'authorEmail', 'subject', 'subjectTimestamp', 'textContent', 'textType', 'timestamp', "userGroup"];
+    if (!availableParameters.includes(parameter)) return { success: false, message: `Неверный тип данных для сортировки серверных текстов` }
+    try {
+      const snapshot = await this.db.collection("texts").where(parameter, "==", value).get();
+      const texts = [];
+      snapshot.forEach(doc => { texts.push(doc.data()); });
+      return { success: true, texts };
+    } catch (error) {
+      return { success: false, error: error.code, message: `Ошибка получения текста с сервера: ${error.message}` };
+    }
+  }
+
   // ✓ Сохранить ссылку и метаданные изображения
-  async saveImage(imageUrl, teacher, subject, imageType) {
+  async saveImage(imageUrl, subject, subjectTimestamp, imageType) {
     try {
       const user = this.auth.getCurrentUser();
       if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
@@ -133,22 +178,25 @@ class Database {
         imageId, // Уникальный идентификатор изображения
         userId: user.uid, // Необходим для соответствия вашим правилам Firestore
         author: user.displayName || "Анонимный пользователь", // Публичное имя автора
-        teacher: teacher || 'Преподаватель С.', // Имя учителя (в сокращенном виде)
+        authorEmail: user.email,
         subject, // Уникальный код дисциплины
+        subjectTimestamp, // Время занятия (для конкретизации)
         imageUrl, // Ссылка на изображение на хостинге postimages
         imageType: imageType || 'material', // 'material' или 'homework'
         timestamp: Date.now(), // Дата публикации
       };
 
-      // ✓ Запись документа в базу данных (коллекцию) "images" под уникальным ID
+      // ✓ Запись документа в базу данных (коллекцию) "texts" под уникальным ID
       await this.db.collection("images").doc(imageId).set(imageData);
-      return { success: true, imageId, message: "Изображение успешно добавлено" };
-    } catch (error) { return { success: false, error: error.code, message: `Ошибка отправки сообщения на сервер: ${error.message}` }; }
+      return { success: true, imageId, message: "Изображение успешно добавлено на сервер" };
+    } catch (error) { return { success: false, error: error.code, message: `Ошибка отправки изображения на сервер: ${error.message}` }; }
   }
 
+  // Удалить изображение
+
   // ✓ Получить ссылки и метаданные изображений по параметру
-  async getImagesBySubject(parameter, value) {
-    const availableParameters = ['imageID', 'userID', 'author', 'teacher', 'subject', 'imageURL', 'imageType', 'timestamp'];
+  async getImages(parameter, value) {
+    const availableParameters = ['imageID', 'userID', 'author', 'authorEmail', 'subject', 'subjectTimestamp', 'imageURL', 'imageType', 'timestamp'];
     if (!availableParameters.includes(parameter)) return { success: false, message: `Неверный тип данных для сортировки серверных изображений` }
     try {
       const snapshot = await this.db.collection("images").where(parameter, "==", value).get();

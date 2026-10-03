@@ -1,3 +1,5 @@
+/* */
+
 /* ✓ Основные кнопки настроек и их контейнеры */
 .account-button-container {
     display: flex; align-items:start; justify-content: center; gap: 15px; box-sizing: border-box;
