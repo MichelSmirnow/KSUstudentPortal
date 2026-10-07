@@ -164,7 +164,7 @@ form { transition: all 0.5s ease; }
 
 /* ✓ Кнопка гостевого режима и смены режима авторизации */
 .guest-button, .auth-supbutton { 
-    padding: 5px 10px; margin: 0; border: 0; cursor: pointer;
+    padding: 5px 10px; margin: 0; border: 0; cursor: pointer; font-size: 14px;
     background-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 10px rgba(0, 0, 0, 0.35); border-radius: 10px;
     transition: all 0.3s ease;
 }

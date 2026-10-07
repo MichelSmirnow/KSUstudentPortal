@@ -207,6 +207,46 @@ class Database {
       return { success: false, error: error.code, message: `Ошибка получения изображения с сервера: ${error.message}` };
     }
   }
+
+  // ✓ Сохранить дополнительные данные аккаунта
+  async saveAccount(userGroup) {
+    try {
+      const user = this.auth.getCurrentUser();
+      if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
+
+      // ✓ Стандартизация информации о тексте
+      const accountId = user.uid;
+      const accountData = {
+        userId: user.uid, // Уникальный идентификатор пользователя
+        userName: user.displayName || "Анонимный пользователь", // Публичное имя пользователя
+        userEmail: user.email,
+        userGroup, // Группа пользователя
+
+        timestamp: Date.now(), // Дата публикации
+      };
+
+      // ✓ Запись документа в базу данных (коллекцию) "accounts" под уникальным ID
+      await this.db.collection("accounts").doc(accountId).set(accountData);
+      return { success: true, accountId, message: "Данные аккаунта успешно добавлены на сервер" };
+    } catch (error) {
+      return { success: false, error: error.code, message: `Ошибка отправки данных аккаунта на сервер: ${error.message}` } 
+    }
+  }
+
+  // ✓ Получить дополнительные данные аккаунта
+  async getAccount(userUID) {
+    try {
+      const snapshot = await this.db.collection("accounts").where("userId", "==", userUID).get();
+      const accounts = [];
+      snapshot.forEach(doc => { accounts.push(doc.data()); });
+      const account = accounts[0];
+      return { success: true, account };
+    } catch (error) {
+      return { success: false, error: error.code, message: `Ошибка получения данных аккаунта с сервера: ${error.message}` };
+    }
+  }
+
+  // Удалить дополнительные данные аккаунта
 }
 
 // ✓ Создаем глобальные экземпляры классов для доступа из ui.js

@@ -48,7 +48,7 @@
   background-color: #e8e8e8; border-radius: 12px;
 }
 .event-details { font-size: 13px; color: #666; }
-.event-detail { margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.event-detail { margin-bottom: 4px; display: flex; align-items: center; gap: 8px; font-size: 14px; }
 
 
 /* ======== ✓ Блоки внутридневного расписания ======== */

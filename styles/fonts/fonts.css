@@ -11,7 +11,7 @@
 @font-face { font-family: 'ProductSans-Regular'; src: url('ProductSans/ProductSans-Regular.ttf') format('truetype'); font-style: normal; }
 /* @font-face { font-family: 'ProductSans-Thin'; src: url('ProductSans/ProductSans-Thin.ttf') format('truetype'); font-style: normal; }
 @font-face { font-family: 'ProductSans-ThinItalic'; src: url('ProductSans/ProductSans-ThinItalic.ttf') format('truetype'); font-style: normal; } */
-p, li, a, span, div, button { font-family: 'ProductSans-Regular'; line-height: 1.2; }
+p, li, a, span, div, button { font-family: 'ProductSans-Regular'; line-height: 1.2; font-size: 16px;}
 
 /* ✓ Шрифт заголовков */
 @font-face { font-family: 'MegaSans-Bold'; src: url('OnyMegaSans/MegaSans-Bold.ttf') format('truetype'); font-style: normal; }

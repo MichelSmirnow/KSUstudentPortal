@@ -38,7 +38,7 @@ class KafederRenderer {
 
       // ✓ Добавляем обработчик нажатия на учителя
       teacherElement.addEventListener('click', async () => {
-        await generateSubpage('teacher', teacher); // teacher ЭТО ОБЬЕКТ!!! ЕГО НАДО ПО ДРУГОМУ ПАРСИРОВАТЬ!!!
+        await navigateTo('teacher', teacher); // teacher ЭТО ОБЬЕКТ!!! ЕГО НАДО ПО ДРУГОМУ ПАРСИРОВАТЬ!!!
       });
 
       container.appendChild(teacherElement);
@@ -432,7 +432,7 @@ async function generatePageContent(id) {
     return generatePageContentContainer;
   } else if (id === 'nav-account') {   // Окно аккаунта (ВСЕ ВНУТРЕННЕЕ СОДЕРЖИМОе В САБПЕЙДЖ!)
     generatePageContentContainer.innerHTML = `
-    <button onclick="(async () => { await generateSubpage('profile'); })();">Профиль</button>
+    <button onclick="(async () => { await navigateTo('profile'); })();">Профиль</button>
     `;
 
   } else if (id === 'notifications') { // Окно уведомлений администрации
@@ -485,6 +485,8 @@ async function generatePage(id, skip) {
   if (!id) throw new Error('Страницы не существует');
   animationInProgress = true;
   if (LOADING_ANIMATIONS) flag.loading = true;
+  appState.page = "home";
+  history.replaceState( { page: "home" }, "", "#home" );
   containerMain.classList.add('animated');         // Для плавного перемещения
   containerTranslate.classList.remove('animated'); // Для мгновенного перемещения
 
@@ -645,7 +647,7 @@ async function generateSubpageContent(id, data) {
       // ✓ Добавляем кнопку добавления материалов и домашних заданий
       const addButton = document.createElement('button');
       addButton.innerHTML = '+'; addButton.id = 'materials-add';
-      addButton.addEventListener("click", async () => { await generateSubpage('addmatr', data); });
+      addButton.addEventListener("click", async () => { await navigateTo('addmatr', data); });
 
       // ✓ Наполняем контейнер контентом
       generatePageContentContainer.innerHTML = `
@@ -703,11 +705,14 @@ async function generateSubpageContent(id, data) {
     const authed = window.auth.isAuthenticated();
     if (authed) { // Добавляем красивое отображение профиля аккаунта
       const currentUserAccount = window.auth.getCurrentUser();
+      let userAdmin;
+      try { const cloudUserData = await window.database.getAccount(currentUser.uid); userAdmin = cloudUserData.userAdmin; } catch {}
       generatePageContentContainer.innerHTML = `
       <div class="info-container">
         <div>
           <p><b>${currentUserAccount.displayName}</b></p>
           <p>${currentUserAccount.email}</p>
+          ${userAdmin ? `<p><b>АДМИНИСТРАТОР ПЛАТФОРМЫ</b></p>` : ``}
         </div>
       </div>`;
     } else {
@@ -767,20 +772,24 @@ async function generateSubpageContent(id, data) {
         const checkedRadio = radioGroup.querySelector('input[type="radio"]:checked');
         const textType = checkedRadio.value ? checkedRadio.value : 'material';
         const startTime = Math.floor(justifyDate(data.startTime).getTime() / 1000);
-        const userGroup = localStorage.getItem('userGroup');
+
+        // Получаем дополнительные данные аккаунта
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        const userGroup = userData.snapshot.userGroup;
+
         await window.database.saveText(textContent, data.summary, startTime, textType, userGroup);
       } catch (error) { 
         showNotification(`Ошибка отправки текста на сервер: ${error}`, 'error'); console.warn(error); 
       }
       showNotification('Текст успешно опубликован на сервере!', 'success');
-      await generateSubpage('lesson', data);
+      await navigateTo('lesson', data);
     });
 
     // ✓ Кнопка отмены ввода текста и возврата назад
     const closeButton = document.createElement('button');
     closeButton.innerHTML = 'Отмена'; closeButton.id = 'materials-back';
     closeButton.classList.add('account-standartButton');
-    closeButton.addEventListener("click", async () => { await generateSubpage('lesson', data); });
+    closeButton.addEventListener("click", async () => { await navigateTo('lesson', data); });
 
     generatePageContentContainer.appendChild(submitButton);
     generatePageContentContainer.appendChild(closeButton);
@@ -797,17 +806,8 @@ async function generateSubpageContent(id, data) {
 async function generateSubpage(id, data) {
   if (!id) throw new Error('Страницы не существует');
   containerUpward.innerHTML = '';
-
-  // ✓ Добавляем кнопку закрытия второстепенного окна
-  const closeButton = document.createElement('button');
-  closeButton.id = 'subpage-close-button';
-  closeButton.innerHTML = 'Закрыть'
-  closeButton.addEventListener('click', async () => {
-    containerUpward.classList.remove('visible');
-    containerUpward.classList.add('hidden');
-    setTimeout(() => { containerUpward.innerHTML = ''; }, 350);
-  });
-  containerUpward.appendChild(closeButton);
+  animationInProgress = true;
+  if (LOADING_ANIMATIONS) flag.loading = true;
 
   // ✓ Заполняем родительский контейнер сгенерированным контентом
   const a = await generateSubpageContent(id, data);
@@ -818,6 +818,8 @@ async function generateSubpage(id, data) {
     containerUpward.classList.remove('hidden');
     containerUpward.classList.add('visible');
   }, 10);
+  animationInProgress = false;
+  if (LOADING_ANIMATIONS) flag.loading = false;
 }
 
 
@@ -937,6 +939,44 @@ function removeNotification(notification) {
   setTimeout(() => { notification.remove(); }, 300);
 }
 
+/* ======== ✓ Функции возврата по странице ======== */
+
+// ✓ Инициализация главной страницы
+let appState = { page: "home" };
+history.replaceState( { page: "home" }, "", "#home" );
+
+// ✓ Обработка перехода на виртуальную страницу
+async function navigateTo(page, data) {
+  const state = { page, ...data };
+  history.pushState( state, "", `#${page}` ); // Добавляем страницу в историю браузера/WebView
+  appState.page = page;
+  await generateSubpage(page, data);
+}
+
+// ✓ Обработка нажатия системной кнопки возврата по странице
+window.addEventListener("popstate", async function (event) {
+  const state = event.state;
+  if (state && state.page) { // ✓ Отрисовываем предыдущую виртуальную страницу
+    appState.page = state.page;
+    if (appState.page !== 'home') {
+      await generateSubpage(state.page, state);
+    } else {
+      appState.page = "home";
+      history.replaceState( { page: "home" }, "", "#home" );
+      containerUpward.classList.remove('visible');
+      containerUpward.classList.add('hidden');
+      setTimeout(() => { containerUpward.innerHTML = ''; }, 350);
+    }
+    
+  } else { // ✓ Если состояние отсутствует, возвращаемся на главную
+    appState.page = "home";
+    history.replaceState( { page: "home" }, "", "#home" );
+    containerUpward.classList.remove('visible');
+    containerUpward.classList.add('hidden');
+    setTimeout(() => { containerUpward.innerHTML = ''; }, 350);
+  }
+});
+
 
 /* ============================ Аутентификация и инициализация ============================ */
 
@@ -954,6 +994,10 @@ class AuthProcessor {
   static async startSession() {
     if (DEBUG_MODE) console.log("🔓 Инициализация сессии пользователя");
     flag.loading = true;
+
+    // ✓ Очищаем историю перемещений
+    appState = { page: "home" };
+    history.replaceState( { page: "home" }, "", "#home" );
 
     // ✓ Скрываем блок аутентификации, показываем блок сессии
     containerLoading.style.zIndex = '1000';
@@ -993,7 +1037,8 @@ class AuthProcessor {
 
     // ✓ Функция для смены расписания группы
     const groupChange = document.getElementById('header-group-p');
-    CurrentGroup = localStorage.getItem('userGroup') || '26-ИСбо-4';
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    CurrentGroup = userData ? userData.userGroup : '26-ИСбо-4';
     (document.getElementById('header-group')).innerHTML = CurrentGroup;
     groupChange.addEventListener('click', async () => {
       if (DEBUG_MODE) console.log('📌 Нажата кнопка ', groupChange.id);
@@ -1185,7 +1230,7 @@ class AuthProcessor {
       submitButton.disabled = false; toggleToLogin.disabled = false; toggleToRegister.disabled = false;
     });
 
-    // Обработка ввода формы дополнительной информации
+    // ✓ Обработка ввода формы дополнительной информации
     new authGroupSelector();
     AdditionalForm.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -1194,13 +1239,12 @@ class AuthProcessor {
       const userGroup = document.querySelector("#auth-input-group").value.trim();
 
       // Валидация введенных значений
-      if (!userGroup || typeof userGroup !== 'string') {
-        showNotification('Необходимо ввести Вашу группу обучения', 'error'); return;
-      }
+      if (!userGroup || typeof userGroup !== 'string') { showNotification('Необходимо ввести Вашу группу обучения', 'error'); return; }
 
       // Сохраняем пользовательские данные в локальное хранилище
-      localStorage.setItem('userData', true);
-      localStorage.setItem('userGroup', userGroup);
+      localStorage.setItem('userData', JSON.stringify({userGroup}));
+      try { await window.database.saveAccount(userGroup);
+      } catch (error) { showNotification(`Ошибка облачного сохранения данных аккаунта, используется файл локального сохранения`, 'error'); }
 
       // ✓ Запускаем сессию
       const submitButton = registerForm.querySelector("button[type='submit']");
@@ -1232,16 +1276,42 @@ class AuthProcessor {
       const result = await window.auth.login(email, password);
       if (result.success) {
         showNotification(result.message, "success");
-        registerForm.reset();
-        setTimeout(async() => {
-          loginForm.classList.add("form-hidden");
-          registerForm.classList.add("form-hidden");
-          AdditionalForm.classList.remove("form-hidden");
-          backOnTrack.innerHTML = 'Выйти из аккаунта';
-        }, 200);
+        let accountAdditionalData = undefined;
+        const userID = window.auth.getCurrentUser().uid;
+        try { accountAdditionalData = await window.database.getAccount(userID);
+        } catch { showNotification(`Ошибка облачной загрузки данных аккаунта, используется файл локального сохранения`, 'error'); }
+
+        if (!accountAdditionalData.success) { // ✓ Если аккаунт найден не был
+          showNotification(`Данные аккаунта не найдены, необходимо пройти форму дополнительных данных`, 'info');
+          registerForm.reset();
+          setTimeout(async() => {
+            loginForm.classList.add("form-hidden");
+            registerForm.classList.add("form-hidden");
+            AdditionalForm.classList.remove("form-hidden");
+            backOnTrack.innerHTML = 'Выйти из аккаунта';
+          }, 200);
+        } else { // ✓ Если аккаунт был найден
+          try {
+            const userGroup = accountAdditionalData.account.userGroup;
+            const data2save = { userGroup };
+            localStorage.setItem('userData', JSON.stringify(data2save));
+            setTimeout(async() => {
+              await AuthProcessor.startSession();
+            }, 200);
+          } catch { // ✓ Если читаем undefined из accountAdditionalData
+            showNotification(`Ошибка облачной загрузки данных аккаунта, необходимо заного пройти ввод доп данных`, 'error');
+            registerForm.reset();
+            setTimeout(async() => {
+              loginForm.classList.add("form-hidden");
+              registerForm.classList.add("form-hidden");
+              AdditionalForm.classList.remove("form-hidden");
+              backOnTrack.innerHTML = 'Выйти из аккаунта';
+            }, 200);
+          }
+        }
       } else { // ✓ Если произошла ошибка во время авторизации
         showNotification(result.message, "error");
-        submitButton.textContent = "Зарегистрироваться";
+        submitButton.textContent = "Войти";
       }
       submitButton.disabled = false; toggleToLogin.disabled = false; toggleToRegister.disabled = false;
     });
@@ -1268,16 +1338,43 @@ class AuthProcessor {
 
     // ✓ Инициализируем Firebase и получаем текущий вход в аккаунт
     await new Promise((resolve) => {
-      const unsubscribe = window.auth.auth.onAuthStateChanged(() => {
-        unsubscribe();
-        resolve();
-      });
+      const unsubscribe = window.auth.auth.onAuthStateChanged(() => { unsubscribe(); resolve(); });
     });
-
     const currentUser = window.auth.getCurrentUser();
-    if (currentUser && localStorage.getItem('userData')) { // ✓ Если вход в аккаунт выполнен и выбраны данные
+
+    let userData; // Пробуем получить данные аккаунта
+    try { userData = await window.database.getAccount(currentUser.uid); } catch {}
+    if (currentUser && userData.success === true) { // Если вход в аккаунт выполнен и есть доступ к облачным данным
+      try { if ( // Если на сервере нет каких-либо локальных данных пользователя
+          !userData.account.userGroup
+        ) {
+          showNotification(`Ошибка облачной загрузки данных аккаунта, необходимо заного пройти ввод доп данных`, 'error');
+          this.renderAuth(true); flag.loading = false; return;
+        }
+      } catch { 
+        showNotification(`Ошибка загрузки данных аккаунта, авторизация осуществлена локально`, 'error'); 
+      }
+      
+      /*
+      const userGroup = userData.account.userGroup;
+      const data2save = { userGroup };
+      if (localStorage.getItem('userData') !== JSON.stringify(data2save)) { // ✓ Если сохранения не совпадают
+        localStorage.setItem('userData', JSON.stringify(data2save));
+      }*/
+      
       if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
       await AuthProcessor.startSession();
+
+
+    } else if (currentUser && localStorage.getItem('userData')) {
+      const userStorageData = JSON.parse(localStorage.getItem('userData'));
+      try { 
+        await window.database.saveAccount(userStorageData);
+
+      } catch { showNotification(`Ошибка сохранения данных аккаунта, авторизация осуществлена локально`, 'error'); }
+      if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
+      await AuthProcessor.startSession();
+
     } else if (currentUser) { // ✓ Если прошла регистрация, но пользователь не довыбирал
       if (DEBUG_MODE) console.log("❓ Пользователь авторизован, но не допрошел регистрацию: ", currentUser.email);
       showNotification('Для доступа к приложению необходимо завершить регистрацию', 'info');
