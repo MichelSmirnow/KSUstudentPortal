@@ -706,7 +706,11 @@ async function generateSubpageContent(id, data) {
     if (authed) { // Добавляем красивое отображение профиля аккаунта
       const currentUserAccount = window.auth.getCurrentUser();
       let userAdmin;
-      try { const cloudUserData = await window.database.getAccount(currentUser.uid); userAdmin = cloudUserData.userAdmin; } catch {}
+      try { 
+        const cloudUserData = await window.database.getAccount(currentUserAccount.uid);
+        userAdmin = cloudUserData.isAdmin; 
+      } catch {}
+
       generatePageContentContainer.innerHTML = `
       <div class="info-container">
         <div>
@@ -1231,7 +1235,8 @@ class AuthProcessor {
     });
 
     // ✓ Обработка ввода формы дополнительной информации
-    new authGroupSelector();
+    new groupSelector('auth-input-group', 'auth-input-groupDropdown', 'auth-input-groupContent');
+    new subgroupSelector('auth-input-subgroup', 'auth-input-subgroupDropdown', 'auth-input-subgroupContent');
     AdditionalForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 

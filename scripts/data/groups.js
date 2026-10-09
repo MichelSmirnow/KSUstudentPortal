@@ -68,12 +68,13 @@ function getGroupInfo(groupName) {
   return null;
 }
 
-// Генерация селектора группы при регистрации
-class authGroupSelector {
-  constructor() {
-    this.input = document.getElementById('auth-input-group');
-    this.dropdown = document.getElementById('groupDropdown');
-    this.dropdownContent = document.getElementById('dropdownContent');
+// Генерация селектора группы
+class groupSelector {
+  constructor(input, dropdown, dropdownContent) {
+    if ( !input || !dropdown || !dropdownContent ) {}
+    this.input = document.getElementById(input);
+    this.dropdown = document.getElementById(dropdown);
+    this.dropdownContent = document.getElementById(dropdownContent);
     this.expandedCategories = {}; this.expandedSubcategories = {};
     this.initializeDropdown();
     this.attachEventListeners();
@@ -181,7 +182,7 @@ class authGroupSelector {
     });
     document.querySelector(`[data-group-name="${groupName}"]`).classList.add('selected');
 
-    this.dropdown.classList.remove('open');
+    this.dropdown.classList.remove('dropdown-open');
   }
 
   // Рендер элемента выбора группы
@@ -219,16 +220,80 @@ class authGroupSelector {
     }
   }
 
-  // ✓ Функция прикрепления слушателей на нажатия элементов выбора группы
+  // ✓ Функция прикрепления слушателей на нажатие и дефокус элемента выбора группы
   attachEventListeners() {
     this.input.addEventListener('click', () => { // ✓ На открытие элемента
-      this.dropdown.classList.toggle('open');
+      this.dropdown.classList.toggle('dropdown-open');
       this.input.classList.add('input-preselected');
     });
 
     document.addEventListener('click', (e) => { // ✓ На закрытие элемента
       if (!this.dropdown.parentElement.contains(e.target)) {
-        this.dropdown.classList.remove('open');
+        this.dropdown.classList.remove('dropdown-open');
+        if (!this.input.value || this.input.value == '') { this.input.classList.remove('input-preselected'); }
+      }
+    });
+  }
+}
+
+// ✓ Генерация селектора подгруппы (РЕШИТЬ ПРОБЛЕМУ С ТЕМ ЧТО НЕ ВЫДЕЛЯЕТСЯ ПОДГРУППА)
+class subgroupSelector {
+  constructor(input, dropdown, dropdownContent) {
+    if ( !input || !dropdown || !dropdownContent ) {}
+    this.input = document.getElementById(input);
+    this.dropdown = document.getElementById(dropdown);
+    this.dropdownContent = document.getElementById(dropdownContent);
+    this.initializeDropdown();
+    this.attachEventListeners();
+  }
+
+  // ✓ Обновляем визуальный выбор подгруппы
+  selectGroup(subgroupName) {
+    this.input.value = subgroupName;
+    document.querySelectorAll('.subgroup-item').forEach(item => { item.classList.remove('selected'); });
+    document.querySelector(`[data-group-name="${subgroupName}"]`).classList.add('selected');
+    this.dropdown.classList.remove('dropdown-open'); 
+  }
+
+  // ✓ Создать кнопку выбора подгруппы
+  renderSubgroup(subgroupContent) {
+    const subgroupItem = document.createElement('div');
+    subgroupItem.className = 'subgroup-item';
+
+    // ✓ Заголовок категории (тип обучения)
+    const subgroupHeader = document.createElement('div');
+    subgroupHeader.className = 'dropdownEdutype-header';
+    subgroupHeader.innerHTML = `<span>${subgroupContent}</span>`;
+    subgroupItem.dataset.groupName = subgroupContent;
+
+    // ✓ Обработка нажатия на подгруппу
+    subgroupItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.selectGroup(subgroupContent);
+    });
+
+    // ✓ Собираем и возвращаем элемент подгруппы
+    subgroupItem.appendChild(subgroupHeader);
+    return subgroupItem;
+  }
+
+  // ✓ Рендер элемента выбора подгруппы
+  initializeDropdown() {
+    this.dropdownContent.innerHTML = '<p style="font-size: 13px; color: #000 !important; "><i>Если в вашей группе нет деления на подгруппы, выберите первую подгруппу</i></p>';
+    this.dropdownContent.appendChild(this.renderSubgroup('1 (А) подгруппа'));
+    this.dropdownContent.appendChild(this.renderSubgroup('2 (Б) подгруппа'));
+  }
+
+  // ✓ Функция прикрепления слушателей на нажатие и дефокус элемента выбора подгруппы
+  attachEventListeners() {
+    this.input.addEventListener('click', () => { // ✓ На открытие элемента
+      this.dropdown.classList.toggle('dropdown-open');
+      this.input.classList.add('input-preselected');
+    });
+
+    document.addEventListener('click', (e) => { // ✓ На закрытие элемента
+      if (!this.dropdown.parentElement.contains(e.target)) {
+        this.dropdown.classList.remove('dropdown-open');
         if (!this.input.value || this.input.value == '') { this.input.classList.remove('input-preselected'); }
       }
     });

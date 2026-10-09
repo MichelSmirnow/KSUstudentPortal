@@ -236,11 +236,18 @@ class Database {
   // ✓ Получить дополнительные данные аккаунта
   async getAccount(userUID) {
     try {
+      // ✓ Получаем основные данные аккаунта
       const snapshot = await this.db.collection("accounts").where("userId", "==", userUID).get();
       const accounts = [];
       snapshot.forEach(doc => { accounts.push(doc.data()); });
       const account = accounts[0];
-      return { success: true, account };
+
+      // ✓ Получаем информацию администратора
+      const adminSnapshot = await this.db.collection("admindata").where("userId", "==", userUID).get();
+      const admins = [];
+      adminSnapshot.forEach(doc => { admins.push(doc.data()); });
+      const isAdmin = (admins[0]) ? true : false;
+      return { success: true, account, isAdmin };
     } catch (error) {
       return { success: false, error: error.code, message: `Ошибка получения данных аккаунта с сервера: ${error.message}` };
     }
