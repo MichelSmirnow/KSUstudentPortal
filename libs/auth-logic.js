@@ -143,7 +143,7 @@ class Database {
       };
 
       // ✓ Запись документа в базу данных (коллекцию) "texts" под уникальным ID
-      await this.db.collection("texts").doc(textId).set(textData);
+      await this.db.collection("texts").doc(textId).set(textData, { merge: true });
       return { success: true, textId, message: "Текст успешно добавлен на сервер" };
     } catch (error) {
       return { success: false, error: error.code, message: `Ошибка отправки текста на сервер: ${error.message}` } 
@@ -151,6 +151,9 @@ class Database {
   }
 
   // Удалить текст
+  async deleteText() {
+
+  }
 
   // ✓ Получить тексты по параметру
   async getTexts(parameter, value) {
@@ -187,12 +190,15 @@ class Database {
       };
 
       // ✓ Запись документа в базу данных (коллекцию) "texts" под уникальным ID
-      await this.db.collection("images").doc(imageId).set(imageData);
+      await this.db.collection("images").doc(imageId).set(imageData, { merge: true });
       return { success: true, imageId, message: "Изображение успешно добавлено на сервер" };
     } catch (error) { return { success: false, error: error.code, message: `Ошибка отправки изображения на сервер: ${error.message}` }; }
   }
 
   // Удалить изображение
+  async deleteImage() {
+
+  }
 
   // ✓ Получить ссылки и метаданные изображений по параметру
   async getImages(parameter, value) {
@@ -222,12 +228,11 @@ class Database {
         userEmail: user.email,
         userGroup, // Группа пользователя
         userSubgroup, // Подгруппа пользователя
-
         timestamp: Date.now(), // Дата публикации
       };
 
       // ✓ Запись документа в базу данных (коллекцию) "accounts" под уникальным ID
-      await this.db.collection("accounts").doc(accountId).set(accountData);
+      await this.db.collection("accounts").doc(accountId).set(accountData, { merge: true });
       return { success: true, accountId, message: "Данные аккаунта успешно добавлены на сервер" };
     } catch (error) {
       return { success: false, error: error.code, message: `Ошибка отправки данных аккаунта на сервер: ${error.message}` } 
@@ -236,25 +241,33 @@ class Database {
 
   // ✓ Получить дополнительные данные аккаунта
   async getAccount(userUID) {
-    try {
-      // ✓ Получаем основные данные аккаунта
+    try { // ✓ Получаем основные данные аккаунта
       const snapshot = await this.db.collection("accounts").where("userId", "==", userUID).get();
       const accounts = [];
       snapshot.forEach(doc => { accounts.push(doc.data()); });
       const account = accounts[0];
+      if (!account) { return { success: false, error: error.code, message: `Ошибка получения данных аккаунта с сервера: ${error.message}` }; }
+      return { success: true, account };
+    } catch (error) {
+      return { success: false, error: error.code, message: `Ошибка получения данных аккаунта с сервера: ${error.message}` };
+    }
+  }
 
-      // ✓ Получаем информацию администратора
-      const adminSnapshot = await this.db.collection("admindata").where("userId", "==", userUID).get();
-      const admins = [];
-      adminSnapshot.forEach(doc => { admins.push(doc.data()); });
-      const isAdmin = (admins[0]) ? true : false;
-      return { success: true, account, isAdmin };
+  // ✓ Получить статус администратора пользователя
+  async getAdmin(userUID) {
+    try {
+      const adminDoc = await this.db.collection("admindata").doc(userUID).get();
+      const isAdmin = adminDoc.exists; 
+      return { success: true, isAdmin };
     } catch (error) {
       return { success: false, error: error.code, message: `Ошибка получения данных аккаунта с сервера: ${error.message}` };
     }
   }
 
   // Удалить дополнительные данные аккаунта
+  async deleteAccount() {
+    
+  }
 }
 
 // ✓ Создаем глобальные экземпляры классов для доступа из ui.js

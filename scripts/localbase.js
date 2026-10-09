@@ -1,6 +1,6 @@
 /* ============ Постоянные и переменные базы данных и пользовательские данные ============= */
 
-// Постоянные системные настройки
+// ✓ Постоянные системные настройки
 const DEBUG_MODE = true;
 const STRINGIFY_SAVINGS = false;
 const LOADING_ANIMATIONS = true;
@@ -8,7 +8,7 @@ const LOADING_ANIMATIONS = true;
 // ✓ Данные сохраненных расписаний
 let groupData = {}
 
-// ✓ Функции сохранения и загрузки локально сохраненных данных
+// ✓ Функции сохранения и загрузки локально сохраненных данных (требуется форматирование)
 class indexedStorage {
   constructor(dbName, storeName = 'schedules') {
     this.dbName = dbName;
@@ -17,58 +17,30 @@ class indexedStorage {
     this.dbVersion = 1;
   }
 
+  // ✓ Инициализация базы данных
   async initDB() {
-    if (this.db) {
-      console.log('[initDB] БД уже инициализирована');
-      return this.db;
-    }
-    
-    console.log('[initDB] Инициализация БД');
-    
+    if (this.db) return this.db;  
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.dbVersion);
-      
-      request.onerror = () => {
-        console.error('[initDB] onerror:', request.error);
-        reject(request.error);
-      };
-      
-      request.onsuccess = () => {
-        console.log('[initDB] onsuccess');
+      request.onerror = () => { reject(request.error); }; // ✓ Ошибка инициализации
+      request.onsuccess = () => { // ✓ Успешное открытие базы данных
         this.db = request.result;
-        
-        // Проверяем, что хранилище создано
         if (!this.db.objectStoreNames.contains(this.storeName)) {
-          console.warn('[initDB] Store не найден после открытия БД!');
           this.db.close();
           this.db = null;
-          reject(new Error(`Store "${this.storeName}" не был создан`));
+          reject(new Error(`Хранилище "${this.storeName}" не было создано`));
           return;
         }
-        
         resolve(this.db);
       };
-      
-      request.onupgradeneeded = (event) => {
-        console.log('[initDB] onupgradeneeded');
+      request.onupgradeneeded = (event) => { // ✓ Если необходимо обновить версию базы данных
         const db = event.target.result;
-        
-        // Создаём одно хранилище для всех расписаний
-        if (!db.objectStoreNames.contains(this.storeName)) {
-          console.log('[initDB] Создаю store:', this.storeName);
-          db.createObjectStore(this.storeName);
-        }
-      };
-      
-      request.onblocked = () => {
-        console.warn('[initDB] onblocked: Другая вкладка использует эту БД');
+        if (!db.objectStoreNames.contains(this.storeName)) { db.createObjectStore(this.storeName); }
       };
     });
   }
 
   async ensureStore() {
-    console.log('[ensureStore] Начало проверки хранилища');
-    
     try {
       if (!this.db) {
         console.log('[ensureStore] БД не инициализирована, вызываю initDB');

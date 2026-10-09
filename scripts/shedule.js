@@ -397,7 +397,7 @@ class ScheduleRenderer {
     const subjectMatchColor = colors[subjectMatch] ? colors[subjectMatch] : colors['пр.'];
     const name = nameMatch[subjectMatch] ? nameMatch[subjectMatch] : 'Занятие';
     const subject = (event.summary).match(/ (.*?)(?=\(|,[^,]*$|$)/)?.[1].trim() ?? "";
-    const subgroup = (event.summary).match(/,([^,]*)$/)?.[1].trim() ?? "";;
+    const subgroup = (event.summary).match(/,([^,]*)$/)?.[1].trim() ?? "";
     return { startTime, endTime, room, teacher, groups, type, name, subject, subgroup, subjectMatch, subjectMatchColor };
   }
 
@@ -689,14 +689,24 @@ class ScheduleRenderer {
       );
     };
 
+    // ✓ Проверить совпадение подгруппы пользователя и занятия
+    const isSameSubgroup = (event) => {
+      const userData = JSON.parse(localStorage.getItem('userData'));
+      const userSubgroup = userData.userSubgroup ? userData.userSubgroup : 1;
+      const eventData = ScheduleRenderer.extractElementData(event);
+      const eventSubgroup = eventData.subgroup.match(/\d/)?.[0] ?? 0;
+      return (eventSubgroup === 0) ? true : userSubgroup == eventSubgroup;
+    }
+
     // ✓ Ищем и добавляем текущее занятие
     let currentClassElement = undefined;
-    const currentEvent = this.sheduleData.find(({ startTime, endTime }) => {
-      const start = justifyDate(startTime);
-      const end = justifyDate(endTime);
+    const currentEvent = this.sheduleData.find(event => {
+      const start = justifyDate(event.startTime);
+      const end = justifyDate(event.endTime);
       return (
         !Number.isNaN(start.getTime()) &&
         !Number.isNaN(end.getTime()) &&
+        isSameSubgroup(event) &&
         now >= start &&
         now <= end
       );
@@ -716,6 +726,7 @@ class ScheduleRenderer {
           !Number.isNaN(startTime.getTime()) &&
           !Number.isNaN(endTime.getTime()) &&
           startTime > justifyDate(currentEvent.endTime) &&
+          isSameSubgroup(event) &&
           isSameDay(startTime, now)
         );
       });

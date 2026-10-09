@@ -22,7 +22,7 @@
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);  border: 0; border-radius: 20px;
     filter: brightness(100%); transition: all 0.3s ease;
 }
-.account-service-button img { height: 40px; width: 40px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.15)) }
+.account-service-button img { height: 40px; width: 40px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.15)); margin-left: 5px; }
 .account-service-button-subcontainer { width: calc(100% - 60px); text-align: left !important; }
 .account-service-button-subcontainer p { line-height: 0.5; }
 .account-service-button:hover { filter: brightness(115%); }
@@ -30,5 +30,5 @@
 
 /* Кастомные настройки под каждый вид кнопки */
 #account-service-profile { background-image: linear-gradient(to right, rgba(255,255,255,0.25) 0%, rgba(175,175,175,0.25) 100%); }
-#account-service-callback { background-image: linear-gradient(to right, rgba(255,255,255,0.25) 0%, rgba(175,175,175,0.25) 100%); }
+#account-service-callback { background-image: linear-gradient(to right, rgb(56, 124, 226) 0%, rgb(30, 62, 204) 100%); color: #FFF; }
 #account-service-admin { background-image: linear-gradient(to right, rgb(185, 39, 33) 0%, rgb(146, 11, 11) 100%); color: #FFF; }

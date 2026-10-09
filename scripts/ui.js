@@ -430,8 +430,20 @@ async function generatePageContent(id) {
       </div>
     */
     return generatePageContentContainer;
-  } else if (id === 'nav-account') {   // Окно аккаунта (ВСЕ ВНУТРЕННЕЕ СОДЕРЖИМОе В САБПЕЙДЖ!)
+  } else if (id === 'nav-account') {   // Окно аккаунта
+
     generatePageContentContainer.innerHTML = `
+    <div class="flex-container info-container">
+      <div class="banner-half">
+        <h3>Сервисы</h3>
+        <p>Дополнительные опции приложения</p>
+      </div>
+      <img class="banner-half" src="images/supbanners/services.png"/>
+    </div>
+    <button onclick="" class="account-service-button" id="account-service-admin">
+      <img src="images/ui/admin.png" />  
+      <div class="account-service-button-subcontainer"><p><b>Панель администратора</b></p><p style="font-size: 13px;">Управление приложением</p></div>
+    </button>
     <button onclick="(async () => { await navigateTo('profile'); })();" class="account-service-button" id="account-service-profile">
       <img src="images/ui/settings.png" />  
       <div class="account-service-button-subcontainer"><p><b>Настройки</b></p><p style="font-size: 13px;">Профиль, данные, стилизация</p></div>
@@ -439,10 +451,6 @@ async function generatePageContent(id) {
     <button onclick="" class="account-service-button" id="account-service-callback">
       <img src="images/ui/callback.png" />  
       <div class="account-service-button-subcontainer"><p><b>Обратная связь</b></p><p style="font-size: 13px;">Связаться с службой поддержки</p></div>
-    </button>
-    <button onclick="" class="account-service-button" id="account-service-admin">
-      <img src="images/ui/admin.png" />  
-      <div class="account-service-button-subcontainer"><p><b>Панель администратора</b></p><p style="font-size: 13px;">Управление приложением</p></div>
     </button>
     `;
 
@@ -755,8 +763,8 @@ async function generateSubpageContent(id, data) {
       <h3>Опасная зона</h3>
       <p>Нажимайте на кнопки данной категории только в том случае, если ознакомились с предупреждениями справа от кнопок!</p>
       <div class="account-button-container">  
-        <button class="account-awairButton" onclick="clearAllIndexedDB();">Удалить расписание</button>
-        <p style="color: #333; font-size: 14px">ВНИМАНИЕ! Эта кнопка полностью стирает всё расписание на устройстве, поэтому лучше ее не нажимать, если поблизости нет надежного источника интернет-соединения.</p>
+        <button class="account-awairButton" onclick="clearAllIndexedDB();">Удалить все данные</button>
+        <p style="color: #333; font-size: 14px">ВНИМАНИЕ! Эта кнопка полностью стирает всё расписание на устройстве и даже <b>выполняет выход из аккаунта</b>, поэтому лучше ее не нажимать, если поблизости нет надежного источника интернет-соединения.</p>
       </div>
       ${authed ? `<div class="account-button-container">
         <button class="account-awairButton" onclick="">Удалить аккаунт</button>
@@ -1052,8 +1060,9 @@ class AuthProcessor {
     // ✓ Функция для смены расписания группы
     const groupChange = document.getElementById('header-group-p');
     const userData = JSON.parse(localStorage.getItem('userData'));
-    CurrentGroup = userData ? userData.userGroup : '26-ИСбо-4';
-    (document.getElementById('header-group')).innerHTML = CurrentGroup;
+    CurrentGroup = userData.userGroup ? userData.userGroup : '26-ИСбо-4';
+    const userSubroup = userData.userSubgroup ? userData.userSubgroup : 1;
+    (document.getElementById('header-group')).innerHTML = `${CurrentGroup}(${userSubroup})`;
     groupChange.addEventListener('click', async () => {
       if (DEBUG_MODE) console.log('📌 Нажата кнопка ', groupChange.id);
       if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS) { flag.loading = true; }
@@ -1066,7 +1075,8 @@ class AuthProcessor {
       if (DEBUG_MODE) console.log('Текущая группа была сменена на ', CurrentGroup);
 
       // ✓ Обновляем страницу и расписание
-      (document.getElementById('header-group')).innerHTML = CurrentGroup;
+      if (CurrentGroup === userData.userGroup) { (document.getElementById('header-group')).innerHTML = `${CurrentGroup}(${userSubroup})`;
+      } else { (document.getElementById('header-group')).innerHTML = CurrentGroup; }
       if (navOpened === 'nav-shedule') {
         const sheduleContainer = document.getElementById('shedule-container');
         try {
@@ -1096,10 +1106,13 @@ class AuthProcessor {
     });
 
     // ✓ Обновляем имя в шапке
-    const user = window.auth.getCurrentUser();
+    const user = window.auth.getCurrentUser(); let userAdmin;
+    try { userAdmin = await window.database.getAdmin(user.uid); } catch {}
     const headerName = document.querySelector("#header-name");
     if (headerName) {
-      headerName.textContent = (user && typeof user !== 'null') ? `🧑 ${user.displayName}` : `🕵🏻 Гостевой режим`;
+        headerName.innerHTML = (user && typeof user !== 'null')
+          ? ((userAdmin.isAdmin === true) ? `🛡️ ${user.displayName} <span id="admin-mark">Админ</span>` : `🧑 ${user.displayName}`)
+          : `🕵🏻 Гостевой режим`;
     }
 
     // ✓ Загружаем расписание и генерируем страницу
@@ -1204,7 +1217,7 @@ class AuthProcessor {
       const email = document.querySelector("#auth-input-registerEmail").value.trim();
       const password = document.querySelector("#auth-input-registerPassword").value;
       const passwordAgain = document.querySelector("#auth-input-registerPasswordAgain").value;
-      const policy = document.querySelector("#auth-chechmark-policy").value;
+      const policy = document.querySelector("#auth-chechmark-policy").value || undefined;
 
       // ✓ Валидация полей ввода и совпадения паролей
       if (!username || !email || !password || !passwordAgain) {
@@ -1213,7 +1226,7 @@ class AuthProcessor {
       if (password !== passwordAgain) {
         showNotification("Введенные пароли не совпадают", "error"); return;
       }
-      if (!policy) {
+      if (policy !== 'on') {
         showNotification("Необходимо согласиться с политикой конфиденциальности", "error"); return;
       }
 
@@ -1308,7 +1321,7 @@ class AuthProcessor {
           try {
             const userGroup = accountAdditionalData.account.userGroup;
             const userSubgroup = accountAdditionalData.account.userSubroup
-            const data2save = { userGroup, userSubgroup };
+            const data2save = {userGroup, userSubgroup};
             localStorage.setItem('userData', JSON.stringify(data2save));
             setTimeout(async() => {
               await AuthProcessor.startSession();
@@ -1357,43 +1370,57 @@ class AuthProcessor {
     });
     const currentUser = window.auth.getCurrentUser();
 
-    let userData; // Пробуем получить данные аккаунта
+    // ✓ Пробуем получить данные аккаунта
+    let userData;
     try { userData = await window.database.getAccount(currentUser.uid); } catch {}
-    if (currentUser && userData.success === true) { // Если вход в аккаунт выполнен и есть доступ к облачным данным
-      try { if ( // Если на сервере нет каких-либо локальных данных пользователя
-          !userData.account.userGroup ||
-          !userData.account.userSubgroup
-        ) {
-          showNotification(`Ошибка облачной загрузки данных аккаунта, необходимо заного пройти ввод доп данных`, 'error');
+    if (DEBUG_MODE) console.log(userData);
+
+    // ✓ Проверяем различные вариации наличия данных
+    if (currentUser && localStorage.getItem('userData')) { // ✓ Если вход в аккаунт выполнен и есть локальное сохранение
+      const userStorageData = JSON.parse(localStorage.getItem('userData'));
+      if (userData.success !== true) { // ✓ Если на сервере не было обнаружено пользовательских данных
+        try { await window.database.saveAccount(userStorageData);
+        } catch { showNotification(`Нет доступа к серверу, вход в аккаунт осуществлен локально`, 'info'); }
+      }
+      if (!userStorageData.userGroup || !userStorageData.userSubgroup) { // ✓ Если локально сохраненные пользовательские данные не до конца заполнены
+        showNotification(`Данные аккаунта заполнены не до конца, необходимо заного пройти ввод данных`, 'info');
+        this.renderAuth(true); flag.loading = false; return;
+      }
+      try { // ✓ Пробуем сохранить пользовательские данные на сервере если какие-либо данные отсутствуют на сервере
+        if (!userData.account.userGroup || !userData.account.userSubgroup) {
+          const answer = await window.database.saveAccount(userStorageData.userGroup, userStorageData.userSubgroup);
+          if (answer.success !== true) { showNotification(`Ошибка облачной синхронизации данных аккаунта: ${answer.message}`, 'error'); }
+        }
+      } catch { showNotification(`Нет подключения к интернету или сервер недоступен, используется оффлайн-режим`, 'info'); }
+      if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
+      await AuthProcessor.startSession();
+
+    } else if (currentUser && userData.success === true) { // ✓ Если вход в аккаунт выполнен и есть доступ к облачным данным
+      try { // ✓ Если на сервере нет каких-либо локальных данных пользователя
+        if (!userData.account.userGroup || !userData.account.userSubgroup) {
+          showNotification(`Ошибка облачной загрузки данных аккаунта, необходимо заного пройти ввод данных`, 'error');
           this.renderAuth(true); flag.loading = false; return;
         }
-      } catch { 
-        showNotification(`Ошибка загрузки данных аккаунта, авторизация осуществлена локально`, 'error'); 
+      } catch { // ✓ Если нету доступа к серверу и локально сохраненных данных также нету (это писец!!!)
+        showNotification(`Данные аккаунта заполнены не до конца, необходимо заного пройти ввод данных`, 'info');
+        this.renderAuth(true); flag.loading = false; return; 
       }
       
-      /*
+      // ✓ Сохраняем локально пользовательские данные
       const userGroup = userData.account.userGroup;
-      const data2save = { userGroup };
+      const userSubgroup = userData.account.userSubgroup;
+      const data2save = {userGroup, userSubgroup};
       if (localStorage.getItem('userData') !== JSON.stringify(data2save)) { // ✓ Если сохранения не совпадают
         localStorage.setItem('userData', JSON.stringify(data2save));
-      }*/
-      
+      }
       if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
       await AuthProcessor.startSession();
-
-
-    } else if (currentUser && localStorage.getItem('userData')) {
-      const userStorageData = JSON.parse(localStorage.getItem('userData'));
-      try { 
-        await window.database.saveAccount(userStorageData);
-      } catch { showNotification(`Ошибка сохранения данных аккаунта, авторизация осуществлена локально`, 'error'); }
-      if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
-      await AuthProcessor.startSession();
-
+    
     } else if (currentUser) { // ✓ Если прошла регистрация, но пользователь не довыбирал
       if (DEBUG_MODE) console.log("❓ Пользователь авторизован, но не допрошел регистрацию: ", currentUser.email);
       showNotification('Для доступа к приложению необходимо завершить регистрацию', 'info');
       this.renderAuth(true);
+
     } else { // ✓ Если авторизация не выполнена на данном устройстве
       if (DEBUG_MODE) console.log("❌ Пользователь не авторизован");
       showNotification('Сохраненный аккаунт не обнаружен. Запускаем авторизацию...', 'info');

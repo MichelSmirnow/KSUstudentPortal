@@ -79,11 +79,14 @@
 #header-left { justify-content: start; left: calc(50% + 20px); transform: translateX(-50%); }
 #header-right { justify-content: end; right: calc(50% + 20px); transform: translateX(50%); }
 
-/* ✓ Название группы пользователя */
-#header-group-p {
+/* ✓ Название группы пользователя и иконка администратора */
+#header-group-p, #admin-mark {
     padding: 5px 10px; font-size: 15px; 
     color: rgb(255, 255, 255); background-color: rgb(114, 178, 231); text-shadow: 0 0 10px rgba(10, 83, 143, 0.25);
     box-shadow: 0 0 10px rgba(0, 140, 255, 0.25); border-radius: 10px;
+}
+#admin-mark { 
+    background-color: rgb(74, 139, 223); text-shadow: 0 0 10px rgba(143, 10, 54, 0.25); margin-left: 10px !important;
 }
 
 /* ✓ Кнопка на панели верхнего интерфейса */

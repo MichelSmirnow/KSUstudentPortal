@@ -688,7 +688,7 @@ const teachersData = {
   },
 }
 
-/* Стилизация вкладок институтов */
+/* ✓ Стилизация вкладок институтов */
 const institutesStyle = {
   "Институт \"Высшая ИТ-школа\"": {
     abbreviation: 'ИВИТШ',
@@ -738,9 +738,4 @@ const institutesStyle = {
     backgroundGradient: 'to right, rgba(0,0,0,0.5) 0%, rgba(255,255,255,0.25) 100%',
     textShadow: '',
   },
-}
-
-/* Стилизация вкладок кафедр */
-const kafedersStyle = {
-
 }
