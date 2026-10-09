@@ -13,3 +13,22 @@
 .account-awairButton { background-color: rgba(241, 37, 19, 0.8); box-shadow: 0 0 10px rgba(214, 34, 34, 0.5); color: #FFF !important; }
 .account-awairButton:hover, .account-standartButton:hover { margin: -2px 0 !important; padding: 7px 12px !important; box-shadow: 0 0 10px rgba(0, 0, 0, 0.55); filter: brightness(110%); }
 .account-awairButton:active, .account-standartButton:active { margin: 0.5px 0 !important; padding: 4px 9px !important; filter: brightness(90%); }
+
+
+/* ===== Кнопка выбора сервиса ===== */
+.account-service-button {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; box-sizing: border-box;
+    width: 90%; height: 60px; margin: 0 auto; margin-bottom: 15px; padding: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);  border: 0; border-radius: 20px;
+    filter: brightness(100%); transition: all 0.3s ease;
+}
+.account-service-button img { height: 40px; width: 40px; filter: drop-shadow(0 0 10px rgba(0,0,0,0.15)) }
+.account-service-button-subcontainer { width: calc(100% - 60px); text-align: left !important; }
+.account-service-button-subcontainer p { line-height: 0.5; }
+.account-service-button:hover { filter: brightness(115%); }
+.account-service-button:active { filter: brightness(85%); }
+
+/* Кастомные настройки под каждый вид кнопки */
+#account-service-profile { background-image: linear-gradient(to right, rgba(255,255,255,0.25) 0%, rgba(175,175,175,0.25) 100%); }
+#account-service-callback { background-image: linear-gradient(to right, rgba(255,255,255,0.25) 0%, rgba(175,175,175,0.25) 100%); }
+#account-service-admin { background-image: linear-gradient(to right, rgb(185, 39, 33) 0%, rgb(146, 11, 11) 100%); color: #FFF; }

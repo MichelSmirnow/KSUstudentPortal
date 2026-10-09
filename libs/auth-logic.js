@@ -209,7 +209,7 @@ class Database {
   }
 
   // ✓ Сохранить дополнительные данные аккаунта
-  async saveAccount(userGroup) {
+  async saveAccount(userGroup, userSubgroup) {
     try {
       const user = this.auth.getCurrentUser();
       if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
@@ -221,6 +221,7 @@ class Database {
         userName: user.displayName || "Анонимный пользователь", // Публичное имя пользователя
         userEmail: user.email,
         userGroup, // Группа пользователя
+        userSubgroup, // Подгруппа пользователя
 
         timestamp: Date.now(), // Дата публикации
       };

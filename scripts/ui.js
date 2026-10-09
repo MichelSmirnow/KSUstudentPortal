@@ -186,7 +186,7 @@ class KafederRenderer {
   */
 
 
-  // Основной метод рендера с поиском
+  // Основной метод рендера
   render() {
     const kafederContainer = document.createElement('div');
     this.renderInstitutes(kafederContainer);
@@ -244,7 +244,7 @@ function generateNoAuthContainer() {
 /* ======== Генерация основного контента страницы (нижнее навигационное меню) ======== */
 
 // ✓ Объявление кнопок закрепленного интерфейса
-let navOpened = 'nav-shedule'; // Текущая открытая страница навигационного меню
+let navOpened = 'nav-shedule'; // Текущая открытая страниsца навигационного меню
 const navPosition = {          // Расположение кнопок слева направо
   'web': 0,
   'nav-kafeder': 1,
@@ -432,7 +432,18 @@ async function generatePageContent(id) {
     return generatePageContentContainer;
   } else if (id === 'nav-account') {   // Окно аккаунта (ВСЕ ВНУТРЕННЕЕ СОДЕРЖИМОе В САБПЕЙДЖ!)
     generatePageContentContainer.innerHTML = `
-    <button onclick="(async () => { await navigateTo('profile'); })();">Профиль</button>
+    <button onclick="(async () => { await navigateTo('profile'); })();" class="account-service-button" id="account-service-profile">
+      <img src="images/ui/settings.png" />  
+      <div class="account-service-button-subcontainer"><p><b>Настройки</b></p><p style="font-size: 13px;">Профиль, данные, стилизация</p></div>
+    </button>
+    <button onclick="" class="account-service-button" id="account-service-callback">
+      <img src="images/ui/callback.png" />  
+      <div class="account-service-button-subcontainer"><p><b>Обратная связь</b></p><p style="font-size: 13px;">Связаться с службой поддержки</p></div>
+    </button>
+    <button onclick="" class="account-service-button" id="account-service-admin">
+      <img src="images/ui/admin.png" />  
+      <div class="account-service-button-subcontainer"><p><b>Панель администратора</b></p><p style="font-size: 13px;">Управление приложением</p></div>
+    </button>
     `;
 
   } else if (id === 'notifications') { // Окно уведомлений администрации
@@ -991,7 +1002,6 @@ const authContainerContent = authContainer.innerHTML;
 const sessionContainerContent = sessionContainer.innerHTML;
 
 // ✓ Функции аутентификации
-// Требуется доработка окна дополнительной информации
 class AuthProcessor {
 
   // ✓ Функция инициализации сессии
@@ -1108,12 +1118,8 @@ class AuthProcessor {
   endSession() {
     if (DEBUG_MODE) console.log("🔐 Завершение сессии пользователя");
     flag.loading = true;
-
-    // ✓ Очищаем пользовательские сохраненные данные
-    groupData = {}; localStorage.clear();
-
-    // ✓ Генерируем окно авторизации
-    this.renderAuth(false);
+    groupData = {}; localStorage.clear(); // ✓ Очищаем пользовательские сохраненные данные
+    this.renderAuth(false); // ✓ Генерируем окно авторизации
     flag.loading = false;
   }
 
@@ -1242,13 +1248,16 @@ class AuthProcessor {
 
       // Обьявление значений введенных элементов
       const userGroup = document.querySelector("#auth-input-group").value.trim();
+      const userSubgroupUnstandarted = document.querySelector("#auth-input-subgroup").value.trim();
+      const userSubgroup = (userSubgroupUnstandarted == '1 (А) подгруппа') ? 1 : ((userSubgroupUnstandarted == '2 (Б) подгруппа') ? 2 : 1);
 
       // Валидация введенных значений
-      if (!userGroup || typeof userGroup !== 'string') { showNotification('Необходимо ввести Вашу группу обучения', 'error'); return; }
+      if (!userGroup || typeof userGroup !== 'string') { showNotification('Необходимо ввести вашу группу обучения', 'error'); return; }
+      if (!userSubgroupUnstandarted || typeof userSubgroupUnstandarted !== 'string' || !userSubgroup) { showNotification('Необходимо ввести вашу подгруппу', 'error'); return; }
 
       // Сохраняем пользовательские данные в локальное хранилище
-      localStorage.setItem('userData', JSON.stringify({userGroup}));
-      try { await window.database.saveAccount(userGroup);
+      localStorage.setItem('userData', JSON.stringify({ userGroup, userSubgroup }));
+      try { await window.database.saveAccount(userGroup, userSubgroup);
       } catch (error) { showNotification(`Ошибка облачного сохранения данных аккаунта, используется файл локального сохранения`, 'error'); }
 
       // ✓ Запускаем сессию
@@ -1298,7 +1307,8 @@ class AuthProcessor {
         } else { // ✓ Если аккаунт был найден
           try {
             const userGroup = accountAdditionalData.account.userGroup;
-            const data2save = { userGroup };
+            const userSubgroup = accountAdditionalData.account.userSubroup
+            const data2save = { userGroup, userSubgroup };
             localStorage.setItem('userData', JSON.stringify(data2save));
             setTimeout(async() => {
               await AuthProcessor.startSession();
@@ -1351,7 +1361,8 @@ class AuthProcessor {
     try { userData = await window.database.getAccount(currentUser.uid); } catch {}
     if (currentUser && userData.success === true) { // Если вход в аккаунт выполнен и есть доступ к облачным данным
       try { if ( // Если на сервере нет каких-либо локальных данных пользователя
-          !userData.account.userGroup
+          !userData.account.userGroup ||
+          !userData.account.userSubgroup
         ) {
           showNotification(`Ошибка облачной загрузки данных аккаунта, необходимо заного пройти ввод доп данных`, 'error');
           this.renderAuth(true); flag.loading = false; return;
@@ -1375,7 +1386,6 @@ class AuthProcessor {
       const userStorageData = JSON.parse(localStorage.getItem('userData'));
       try { 
         await window.database.saveAccount(userStorageData);
-
       } catch { showNotification(`Ошибка сохранения данных аккаунта, авторизация осуществлена локально`, 'error'); }
       if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
       await AuthProcessor.startSession();
