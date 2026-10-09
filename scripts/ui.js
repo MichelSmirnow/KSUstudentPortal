@@ -1320,7 +1320,7 @@ class AuthProcessor {
         } else { // ✓ Если аккаунт был найден
           try {
             const userGroup = accountAdditionalData.account.userGroup;
-            const userSubgroup = accountAdditionalData.account.userSubroup
+            const userSubgroup = accountAdditionalData.account.userSubgroup;
             const data2save = {userGroup, userSubgroup};
             localStorage.setItem('userData', JSON.stringify(data2save));
             setTimeout(async() => {
