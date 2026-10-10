@@ -22,3 +22,202 @@ p.materials-content {
 }
 .materials-id { font-size: 12px; color: #CCC; width: 40%; }
 .materials-data, .materials-material { font-size: 14px; color: #333; width: 40%; }
+
+/* Стили списка заданий, создаваемого HomeworkRenderer */
+.homework-renderer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 0 36px;
+}
+
+.homework-day {
+  overflow: hidden;
+  border: 1px solid rgba(67, 82, 110, 0.16);
+  border-radius: 16px;
+  background: #f5f7fb;
+  box-shadow: 0 5px 18px rgba(31, 42, 68, 0.08);
+}
+
+.homework-day--highlighted {
+  border-color: rgba(160, 18, 18, 0.34);
+  box-shadow: 0 7px 22px rgba(112, 18, 18, 0.15);
+}
+
+.homework-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  color: #253148;
+  background: #e8edf6;
+}
+
+.homework-day-header--highlighted {
+  color: #fff;
+  background: linear-gradient(120deg, #a01212 0%, #790f18 100%);
+}
+
+.homework-day-offset {
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.homework-day-date {
+  text-align: right;
+  font-size: 13px;
+  opacity: 0.88;
+}
+
+.homework-day-events {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px;
+}
+
+.homework-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid rgba(53, 69, 99, 0.11);
+  border-radius: 12px;
+  background: #fff;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.homework-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(74, 110, 143, 0.35);
+  box-shadow: 0 4px 14px rgba(31, 42, 68, 0.09);
+}
+
+.homework-item-open {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.homework-item-open:focus-visible,
+.homework-checkpoint:focus-visible {
+  outline: 3px solid rgba(65, 125, 210, 0.55);
+  outline-offset: 3px;
+}
+
+.homework-item-subject {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #1e2b40;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.homework-item-meta {
+  color: #687386;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.homework-status {
+  display: flex;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+}
+
+.homework-status-dot {
+  display: block;
+  width: 15px;
+  height: 15px;
+  border: 1px solid #c1c6cf;
+  border-radius: 50%;
+  background: #aeb4be;
+}
+
+.homework-status--loading .homework-status-dot {
+  border-color: #8c99ad;
+  background: #d3d9e2;
+  animation: homework-status-pulse 1.1s ease-in-out infinite;
+}
+
+.homework-status--error .homework-status-dot {
+  border-color: #aeb4be;
+  background: #c7cbd1;
+}
+
+.homework-checkpoint {
+  display: inline-grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  padding: 0;
+  border: 2px solid #75849a;
+  border-radius: 50%;
+  color: #fff;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.homework-checkpoint:hover {
+  transform: scale(1.06);
+  border-color: #238247;
+}
+
+.homework-checkpoint--completed {
+  border-color: #238247;
+  background: #238247;
+}
+
+.homework-checkpoint-mark {
+  min-height: 17px;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.homework-empty {
+  padding: 18px 16px;
+  border: 1px dashed rgba(67, 82, 110, 0.3);
+  border-radius: 14px;
+  color: #667085;
+  background: rgba(245, 247, 251, 0.8);
+  text-align: center;
+}
+
+.homework-empty p {
+  margin: 0;
+}
+
+@keyframes homework-status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.82); }
+}
+
+@media (max-width: 480px) {
+  .homework-day-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .homework-day-date {
+    text-align: left;
+  }
+}

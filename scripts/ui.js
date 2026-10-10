@@ -285,28 +285,42 @@ async function generatePageContent(id) {
     generatePageContentContainer.appendChild(kafederContainer);
     return generatePageContentContainer;
 
-  } else if (id === 'nav-homework') {  // Окно домашних заданий, работы и материалов
-    let homeworkContainer;
-    if (window.auth.isAuthenticated()) {
-      homeworkContainer = document.createElement('div');
-      homeworkContainer.innerHTML = `
-      <b></b>
-      <p></p>
-      `;
-    } else { homeworkContainer = generateNoAuthContainer(); }
+  } else if (id === 'nav-homework') {
     generatePageContentContainer.innerHTML = `
-    <div class="relative-container" id="subcontainer">
-      <div class="flex-container info-container">
-        <div class="banner-half">
-          <h3>Материалы</h3>
-          <p>Загружайте, делитесь и просматривайте конспекты, записи лекций и домашние задания</p>
+      <div class="relative-container" id="subcontainer">
+        <div class="flex-container info-container">
+          <div class="banner-half">
+            <h3>Материалы</h3>
+            <p>Загружайте, делитесь и просматривайте конспекты, записи лекций и домашние задания</p>
+          </div>
+          <img class="banner-half" src="images/supbanners/homework.png"/>
         </div>
-        <img class="banner-half" src="images/supbanners/homework.png"/>
-      </div>
-      <div id="homework-container">${homeworkContainer.outerHTML}</div>
-    </div>`;
-    return generatePageContentContainer;
+        <div id="homework-container"></div>
+      </div>`;
 
+    const homeworkContainer =
+      generatePageContentContainer.querySelector('#homework-container');
+
+    if (!window.auth.isAuthenticated()) {
+      homeworkContainer.appendChild(generateNoAuthContainer());
+    } else {
+      try {
+        if (!groupData[CurrentGroup]) {
+          groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
+        }
+
+        if (!groupData[CurrentGroup]) {
+          homeworkContainer.appendChild(generateNoEthernetContainer());
+        } else {
+          const renderer = new window.HomeworkRenderer(groupData[CurrentGroup]);
+          homeworkContainer.appendChild(renderer.render());
+        }
+      } catch (err) {
+        homeworkContainer.innerHTML = generateErrorContainer(err);
+      }
+    }
+
+    return generatePageContentContainer;
   } else if (id === 'nav-shedule') {   // ✓ Окно расписания
     const sheduleContainer = document.createElement('div');
     sheduleContainer.id = 'shedule-container';
@@ -1432,67 +1446,32 @@ class AuthProcessor {
 const auth = new AuthProcessor();
 auth.init(); // Когда приложение загружается, первым делом запускаем авторизацию
 
-// Когда проинициализируется сессия, устанавливаем обработчики для выхода и удаления
-window.addEventListener("load", () => {
-  setTimeout(() => {
-    if (window.auth.isAuthenticated()) {
-      const headerRight = document.querySelector("#header-right");
-      if (!headerRight) return;
+/* Удаление аккаунта
 
-      // Проверяем, есть ли уже кнопка выхода
-      let logoutBtn = document.querySelector("#logout-btn");
-      if (!logoutBtn) {
-        logoutBtn = document.createElement("button");
-        logoutBtn.id = "logout-btn";
-        logoutBtn.className = "header-button logout-button";
-        logoutBtn.textContent = "Выход";
-        headerRight.appendChild(logoutBtn);
-      }
+deleteBtn.addEventListener("click", async () => {
+  const password = prompt(
+    "Для удаления аккаунта введите ваш пароль:"
+  );
 
-      logoutBtn.addEventListener("click", async () => {
-        if (confirm("Вы уверены, что хотите выйти из аккаунта?")) {
-          const result = await window.auth.logout();
-          if (result.success) {
-            endSession();
-          }
-        }
-      });
+  if (!password) {
+    showNotification("❌ Отменено", "error");
+    return;
+  }
 
-      // Проверяем, есть ли уже кнопка удаления
-      let deleteBtn = document.querySelector("#delete-account-btn");
-      if (!deleteBtn) {
-        deleteBtn = document.createElement("button");
-        deleteBtn.id = "delete-account-btn";
-        deleteBtn.className = "header-button delete-button";
-        deleteBtn.textContent = "Удалить аккаунт";
-        headerRight.appendChild(deleteBtn);
-      }
+  if (
+    confirm(
+      "⚠️ Это действие необратимо! Все данные будут удалены. Вы уверены?"
+    )
+  ) {
+    const result = await window.auth.deleteAccount(password);
 
-      deleteBtn.addEventListener("click", async () => {
-        const password = prompt(
-          "Для удаления аккаунта введите ваш пароль:"
-        );
-
-        if (!password) {
-          showNotification("❌ Отменено", "error");
-          return;
-        }
-
-        if (
-          confirm(
-            "⚠️ Это действие необратимо! Все данные будут удалены. Вы уверены?"
-          )
-        ) {
-          const result = await window.auth.deleteAccount(password);
-
-          if (result.success) {
-            showNotification("✅ " + result.message, "success");
-            setTimeout(() => endSession(), 1500);
-          } else {
-            showNotification("❌ " + result.message, "error");
-          }
-        }
-      });
+    if (result.success) {
+      showNotification("✅ " + result.message, "success");
+      setTimeout(() => endSession(), 1500);
+    } else {
+      showNotification("❌ " + result.message, "error");
     }
-  }, 100);
+  }
 });
+
+*/
