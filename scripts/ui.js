@@ -290,8 +290,8 @@ async function generatePageContent(id) {
       <div class="relative-container" id="subcontainer">
         <div class="flex-container info-container">
           <div class="banner-half">
-            <h3>Материалы</h3>
-            <p>Загружайте, делитесь и просматривайте конспекты, записи лекций и домашние задания</p>
+            <h3>Материалы и задания</h3>
+            <p>Домашние задания и учебные материалы по занятиям</p>
           </div>
           <img class="banner-half" src="images/supbanners/homework.png"/>
         </div>
@@ -650,37 +650,6 @@ async function generateSubpageContent(id, data) {
 
     // Если пользователь авторизован, показываем материалы
     if (window.auth.isAuthenticated()) {
-      const startTime = Math.floor(justifyDate(data.startTime).getTime() / 1000);
-      const preloadedTexts = await window.database.getTexts('subjectTimestamp', Number(startTime));
-      const downloadedTexts = preloadedTexts.texts.filter(text => text.subject === data.summary);
-
-      // ✓ Генерируем элементы существующих материалов и дмоашних заданий
-      let homeworkContainer = document.createElement('div'); 
-      let materialsContainer = document.createElement('div');
-      materialsContainer.classList.add('materials-main-container');
-      materialsContainer.innerHTML = `<h2>Материалы</h2><p>Публикуйте и делитесь материалами с занятия</p>`;
-      homeworkContainer.classList.add('materials-main-container');
-      homeworkContainer.innerHTML = `<h2>Домашнее задание</h2><p>Выкладывайте задания от преподавателя</p>`;
-      if (downloadedTexts && downloadedTexts.lengh !== 0) {
-        const materialsTexts = downloadedTexts.filter(text => text.textType === 'material');
-        materialsContainer.innerHTML += (!materialsTexts || !typeof materialsTexts === 'object' || materialsTexts.length <= 0) 
-          ? `<p>Пока что нет материалов к этому заданию, но вы можете это исправить</p>` 
-          : generateMaterialsData(materialsTexts);
-
-        const homeworkTexts = downloadedTexts.filter(text => text.textType === 'homework');
-        homeworkContainer.innerHTML += (!homeworkTexts || !typeof homeworkTexts === 'object' || homeworkTexts.length <= 0) 
-          ? `<p>К этому занятию пока что не прикреплено домашнее задание</p>`
-          : generateMaterialsData(homeworkTexts);
-        console.log(materialsTexts, homeworkTexts);
-      } else {
-        materialsContainer.innerHTML = `<p>Статус: пока что нет материалов к этому заданию, но вы можете это исправить</p>`;
-        homeworkContainer.innerHTML = `<p>Статус: к этому занятию пока что не прикреплено домашнее задание, но вы можете это исправить</p>`;
-      } homeworkContainer.innerHTML += `<hr />`;
-        
-      // ✓ Добавляем кнопку добавления материалов и домашних заданий
-      const addButton = document.createElement('button');
-      addButton.innerHTML = '+'; addButton.id = 'materials-add';
-      addButton.addEventListener("click", async () => { await navigateTo('addmatr', data); });
 
       // ✓ Наполняем контейнер контентом
       generatePageContentContainer.innerHTML = `
@@ -693,9 +662,11 @@ async function generateSubpageContent(id, data) {
           <p><span style="font-size: 14px;">Аудитория - </span><b>${extractedData.room ? extractedData.room : `Туалет`}</b></p>
         </div>
       </div></div>`;
-      generatePageContentContainer.appendChild(homeworkContainer);
-      generatePageContentContainer.appendChild(materialsContainer);
-      generatePageContentContainer.appendChild(addButton);
+
+      // Сначала добавьте сюда существующую верхнюю карточку преподавателя и пары.
+      generatePageContentContainer.appendChild(
+        await window.HomeworkRenderer.renderLessonContents(data)
+      );
 
     } else { // ✓ Если пользовать не авторизован, намекаем ему зарегистрироваться
       generatePageContentContainer.innerHTML = `
@@ -785,51 +756,116 @@ async function generateSubpageContent(id, data) {
         <p style="color: #333; font-size: 14px">ВНИМАНИЕ! Это действие безвозвратное. Удаление аккаунта повлечет утрату полученных достижений и удаление ВСЕХ опубликованным вами материалов!</p>
       </div>` : ``}
       `;
-  } else if (id === 'addmatr') { // Перекрывающее окно добавления материалов и домашнего задания
+  } else if (id === 'addmatr') {
+    const addData = data && data.event
+      ? data
+      : { event: data, fixedType: null };
+    const lessonEvent = addData.event;
+    const fixedType = addData.fixedType === 'homework' || addData.fixedType === 'material'
+      ? addData.fixedType
+      : null;
 
-    generatePageContentContainer.innerHTML = `
-    <textarea class="materials-textarea"></textarea>
-    <div class="materials-select-group">
-      <label><input type="radio" name="task-type" value="material" checked> Материал</label>
-      <label><input type="radio" name="task-type" value="homework"> Домашнее задание</label>
-    </div>`;
+    const textarea = document.createElement('textarea');
+    textarea.classList.add('materials-textarea');
+    textarea.setAttribute('aria-label', 'Текст публикации');
+    generatePageContentContainer.appendChild(textarea);
 
-    // ✓ Кнопка ввода и отправки на сервер текста
-    const submitButton = document.createElement('button');
-    submitButton.innerHTML = 'Отправить текст'; submitButton.id = 'materials-submit';
-    submitButton.classList.add('account-standartButton');
-    submitButton.addEventListener("click", async () => {
-      const textContent = generatePageContentContainer.querySelector('.materials-textarea').value;
-      if (!textContent || textContent.lengh <= 0 || textContent == '') { // ✓ Проверяем, написан ли хоть какой нибудь текст
-        showNotification('Сначала напишите текст в поле ввода', 'info'); return;
-      }
+    if (fixedType) {
+      const typeNote = document.createElement('p');
+      typeNote.classList.add('materials-fixed-type-note');
+      typeNote.textContent = fixedType === 'homework'
+        ? 'Публикация: домашнее задание'
+        : 'Публикация: материал';
+      generatePageContentContainer.appendChild(typeNote);
+    } else {
+      const radioGroup = document.createElement('div');
+      radioGroup.classList.add('materials-select-group');
+      radioGroup.innerHTML = `
+        <label><input type="radio" name="task-type" value="material" checked> Материал</label>
+        <label><input type="radio" name="task-type" value="homework"> Домашнее задание</label>`;
+      generatePageContentContainer.appendChild(radioGroup);
+    }
 
-      try { // ✓ Пробуем сохранить текст
-        const radioGroup = generatePageContentContainer.querySelector('.materials-select-group');
-        const checkedRadio = radioGroup.querySelector('input[type="radio"]:checked');
-        const textType = checkedRadio.value ? checkedRadio.value : 'material';
-        const startTime = Math.floor(justifyDate(data.startTime).getTime() / 1000);
-
-        // Получаем дополнительные данные аккаунта
-        const userData = JSON.parse(localStorage.getItem('userData'));
-        const userGroup = userData.snapshot.userGroup;
-
-        await window.database.saveText(textContent, data.summary, startTime, textType, userGroup);
-      } catch (error) { 
-        showNotification(`Ошибка отправки текста на сервер: ${error}`, 'error'); console.warn(error); 
-      }
-      showNotification('Текст успешно опубликован на сервере!', 'success');
-      await navigateTo('lesson', data);
+    const uploaderContainer = document.createElement('div');
+    uploaderContainer.classList.add('materials-image-uploader-container');
+    generatePageContentContainer.appendChild(uploaderContainer);
+    const imageUploader = new window.PostimagesUploader(uploaderContainer, {
+      maxImages: 10,
     });
 
-    // ✓ Кнопка отмены ввода текста и возврата назад
+    const submitButton = document.createElement('button');
+    submitButton.type = 'button';
+    submitButton.id = 'materials-submit';
+    submitButton.classList.add('account-standartButton');
+    submitButton.textContent = 'Опубликовать';
+    submitButton.addEventListener('click', async () => {
+      const textContent = textarea.value.trim();
+      const images = imageUploader.getImages();
+      if (!textContent && images.length === 0) {
+        showNotification('Добавьте текст или изображение', 'info');
+        return;
+      }
+
+      let textType = fixedType || 'material';
+      if (!fixedType) {
+        const selectedType = generatePageContentContainer.querySelector(
+          '.materials-select-group input[type="radio"]:checked'
+        );
+        if (selectedType) textType = selectedType.value;
+      }
+
+      let userData = {};
+      try { userData = JSON.parse(localStorage.getItem('userData') || '{}'); } catch (_) {}
+
+      const start = justifyDate(lessonEvent.startTime);
+      const result = await window.database.saveMaterialPost({
+        textContent,
+        images,
+        subject: lessonEvent.summary,
+        subjectTimestamp: Math.floor(start.getTime() / 1000),
+        textType,
+        userGroup: CurrentGroup || userData.userGroup || 'Группа не выбрана',
+        userSubgroup: userData.userSubgroup || 1,
+        targetSubgroup: window.HomeworkRenderer.getEventSubgroup(lessonEvent),
+      });
+
+      if (!result || result.success !== true) {
+        showNotification(result && result.message ? result.message : 'Не удалось сохранить публикацию', 'error');
+        return;
+      }
+
+      imageUploader.destroy();
+      showNotification('Публикация успешно сохранена', 'success');
+      await navigateTo('lesson', lessonEvent);
+    });
+
     const closeButton = document.createElement('button');
-    closeButton.innerHTML = 'Отмена'; closeButton.id = 'materials-back';
+    closeButton.type = 'button';
+    closeButton.id = 'materials-back';
     closeButton.classList.add('account-standartButton');
-    closeButton.addEventListener("click", async () => { await navigateTo('lesson', data); });
+    closeButton.textContent = 'Отмена';
+    closeButton.addEventListener('click', async () => {
+      imageUploader.destroy();
+      await navigateTo('lesson', lessonEvent);
+    });
 
     generatePageContentContainer.appendChild(submitButton);
     generatePageContentContainer.appendChild(closeButton);
+  } else if (id === 'subject') {
+    let events = Array.isArray(groupData[CurrentGroup])
+      ? groupData[CurrentGroup]
+      : [];
+
+    if (events.length === 0) {
+      groupData[CurrentGroup] = await fetchShedule(CurrentGroup, 'group');
+      events = Array.isArray(groupData[CurrentGroup])
+        ? groupData[CurrentGroup]
+        : [];
+    }
+
+    generatePageContentContainer.appendChild(
+      await window.HomeworkRenderer.renderSubjectPage(data, events)
+    );
   }
 
   // ✓ Добавляем филлер в конце для увеличения высоты страницы

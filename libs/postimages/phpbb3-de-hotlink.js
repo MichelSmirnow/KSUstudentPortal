@@ -143,7 +143,9 @@ if (typeof postimage.ready === "undefined") {
     for (var i = 0; i < scripts.length; i++) {
         var script = scripts[i];
         if (script.src && script.src.indexOf("postimage") !== -1) {
-            var options = script.getAttribute("src").split("/")[3].replace(".js", "").split("-");
+            var scriptPath = script.getAttribute("src") || script.src;
+            var scriptFileName = scriptPath.split(/[?#]/)[0].split("/").pop();
+            var options = scriptFileName.replace(/\.js$/i, "").split("-");
             for (var j = 0; j < options.length; j++) {
                 if (options[j] === "hotlink") {
                     postimage.opt.code = "hotlink";
