@@ -299,3 +299,86 @@ class subgroupSelector {
     });
   }
 }
+// ✓ Список изучаемых языков для селектора языка
+const LANGUAGES_LIST = ['Английский', 'Немецкий', 'Французский'];
+
+// ✓ Генерация селектора изучаемого языка (полная копия механизма выбора подгруппы)
+class languageSelector {
+  constructor(input, dropdown, dropdownContent) {
+    if (!input || !dropdown || !dropdownContent) {}
+    this.input = document.getElementById(input);
+    this.dropdown = document.getElementById(dropdown);
+    this.dropdownContent = document.getElementById(dropdownContent);
+    this.initializeDropdown();
+    this.attachEventListeners();
+  }
+
+  // ✓ Обновляем визуальный выбор языка
+  selectGroup(languageName) {
+    this.input.value = languageName;
+    document.querySelectorAll('.language-item').forEach(item => { item.classList.remove('selected'); });
+    const target = document.querySelector(`.language-item[data-language-name="${languageName}"]`);
+    if (target) target.classList.add('selected');
+    this.input.classList.add('input-preselected');
+    this.dropdown.classList.remove('dropdown-open');
+  }
+
+  // ✓ Создать кнопку выбора языка (стили берём у элемента подгруппы — новых стилей нет)
+  renderLanguage(languageContent) {
+    const languageItem = document.createElement('div');
+    languageItem.className = 'subgroup-item language-item';
+
+    const languageHeader = document.createElement('div');
+    languageHeader.className = 'dropdownEdutype-header';
+    languageHeader.innerHTML = `<span>${languageContent}</span>`;
+    languageItem.dataset.languageName = languageContent;
+
+    languageItem.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.selectGroup(languageContent);
+    });
+
+    languageItem.appendChild(languageHeader);
+    return languageItem;
+  }
+
+  // ✓ Рендер элемента выбора языка
+  initializeDropdown() {
+    this.dropdownContent.innerHTML = '<p style="font-size: 13px; color: #000 !important; "><i>Выберите язык, который вы изучаете в университете</i></p>';
+    for (const language of LANGUAGES_LIST) {
+      this.dropdownContent.appendChild(this.renderLanguage(language));
+    }
+  }
+
+  // ✓ Функция прикрепления слушателей на нажатие и дефокус элемента выбора языка
+  attachEventListeners() {
+    this.input.addEventListener('click', () => { // ✓ На открытие элемента
+      this.dropdown.classList.toggle('dropdown-open');
+      this.input.classList.add('input-preselected');
+    });
+
+    document.addEventListener('click', (e) => { // ✓ На закрытие элемента
+      if (!this.dropdown.parentElement.contains(e.target)) {
+        this.dropdown.classList.remove('dropdown-open');
+        if (!this.input.value || this.input.value == '') { this.input.classList.remove('input-preselected'); }
+      }
+    });
+
+    document.addEventListener('click', (e) => { // ✓ Возвращаем подсветку языка после выбора подгруппы
+      // Селектор подгрупп снимает класс selected со всех элементов .subgroup-item,
+      // а элементы языка стилизуются этим же классом, поэтому подсветку восстанавливаем.
+      const target = e.target && e.target.closest ? e.target.closest('.subgroup-item:not(.language-item)') : null;
+      if (!target) return;
+      Promise.resolve().then(() => this.refreshSelection());
+    });
+  }
+
+  // ✓ Подсветить выбранный язык (используется после выбора подгруппы)
+  refreshSelection() {
+    const value = this.input.value;
+    if (!value) return;
+    document.querySelectorAll('.language-item').forEach(item => {
+      item.classList.toggle('selected', item.dataset.languageName === value);
+    });
+  }
+}

@@ -715,11 +715,14 @@ async function generateSubpageContent(id, data) {
         userAdmin = cloudUserData.isAdmin; 
       } catch {}
 
+      let profileData = {};
+      try { profileData = JSON.parse(localStorage.getItem('userData') || '{}') || {}; } catch (_) { profileData = {}; }
       generatePageContentContainer.innerHTML = `
       <div class="info-container">
         <div>
           <p><b>${currentUserAccount.displayName}</b></p>
           <p>${currentUserAccount.email}</p>
+          <p style="font-size: 14px;">Группа: <b>${profileData.userGroup || 'не выбрана'}</b> · Подгруппа: <b>${profileData.userSubgroup || '—'}</b> · Изучаемый язык: <b>${profileData.userLanguage || 'не выбран'}</b></p>
           ${userAdmin ? `<p><b>АДМИНИСТРАТОР ПЛАТФОРМЫ</b></p>` : ``}
         </div>
       </div>`;
@@ -765,9 +768,26 @@ async function generateSubpageContent(id, data) {
       ? addData.fixedType
       : null;
 
+    // ✓ Шапка страницы публикации: сразу видно, к какой паре прикрепляем материал
+    const addHeader = document.createElement('div');
+    addHeader.classList.add('info-container');
+    let addHeaderSubject = 'Занятие';
+    let addHeaderMeta = '';
+    try {
+      const extractedForHeader = ScheduleRenderer.extractElementData(lessonEvent);
+      addHeaderSubject = extractedForHeader.subject || lessonEvent.summary || 'Занятие';
+      const startForHeader = justifyDate(lessonEvent.startTime);
+      addHeaderMeta = `${extractedForHeader.name || 'Занятие'} · ${ScheduleRenderer.formatDate(startForHeader)} · ${extractedForHeader.startTime}`;
+    } catch (error) { addHeaderSubject = lessonEvent.summary || 'Занятие'; }
+    addHeader.innerHTML = `
+      <p><b>${addHeaderSubject}</b></p>
+      <p style="font-size: 13px;">${addHeaderMeta}</p>`;
+    generatePageContentContainer.appendChild(addHeader);
+
     const textarea = document.createElement('textarea');
     textarea.classList.add('materials-textarea');
     textarea.setAttribute('aria-label', 'Текст публикации');
+    textarea.placeholder = 'Текст публикации: задание, пояснение или описание материалов';
     generatePageContentContainer.appendChild(textarea);
 
     if (fixedType) {
@@ -799,6 +819,13 @@ async function generateSubpageContent(id, data) {
     submitButton.classList.add('account-standartButton');
     submitButton.textContent = 'Опубликовать';
     submitButton.addEventListener('click', async () => {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Публикация...';
+      if (typeof imageUploader.isUploading === 'function' && imageUploader.isUploading()) {
+        showNotification('Дождитесь окончания загрузки изображений на Postimages', 'info');
+        return;
+      }
+
       const textContent = textarea.value.trim();
       const images = imageUploader.getImages();
       if (!textContent && images.length === 0) {
@@ -831,6 +858,8 @@ async function generateSubpageContent(id, data) {
 
       if (!result || result.success !== true) {
         showNotification(result && result.message ? result.message : 'Не удалось сохранить публикацию', 'error');
+        submitButton.disabled = false;
+        submitButton.textContent = 'Опубликовать';
         return;
       }
 
@@ -1109,10 +1138,11 @@ class AuthProcessor {
 
     // ✓ Функция для смены расписания группы
     const groupChange = document.getElementById('header-group-p');
-    const userData = JSON.parse(localStorage.getItem('userData'));
+    const userData = JSON.parse(localStorage.getItem('userData') || '{}');
     CurrentGroup = userData.userGroup ? userData.userGroup : '26-ИСбо-4';
     const userSubroup = userData.userSubgroup ? userData.userSubgroup : 1;
     (document.getElementById('header-group')).innerHTML = `${CurrentGroup}(${userSubroup})`;
+    if (userData.userLanguage) { (document.getElementById('header-group')).title = `Изучаемый язык: ${userData.userLanguage}`; }
     groupChange.addEventListener('click', async () => {
       if (DEBUG_MODE) console.log('📌 Нажата кнопка ', groupChange.id);
       if (navOpened === 'nav-shedule' && LOADING_ANIMATIONS) { flag.loading = true; }
@@ -1199,6 +1229,7 @@ class AuthProcessor {
     const backOnTrack = document.getElementById('auth-button-backOnTrack');
     const guestModeButton1 = document.getElementById("auth-button-guestMode1");
     const guestModeButton2 = document.getElementById("auth-button-guestMode2");
+    let prefillAdditionalForm = () => {}; // ✓ Заполняется ниже, когда созданы селекторы группы/подгруппы/языка
 
     sessionContainer.classList.add('hidden');
     sessionContainer.classList.remove('visible');
@@ -1212,6 +1243,7 @@ class AuthProcessor {
       loginForm.classList.add("form-hidden");
       AdditionalForm.classList.remove("form-hidden");
       backOnTrack.innerHTML = 'Выйти из аккаунта';
+      prefillAdditionalForm();
     } else {
       registerForm.classList.remove("form-hidden");
       loginForm.classList.add("form-hidden");
@@ -1267,7 +1299,7 @@ class AuthProcessor {
       const email = document.querySelector("#auth-input-registerEmail").value.trim();
       const password = document.querySelector("#auth-input-registerPassword").value;
       const passwordAgain = document.querySelector("#auth-input-registerPasswordAgain").value;
-      const policy = document.querySelector("#auth-chechmark-policy").value || undefined;
+      const policy = document.querySelector("#auth-chechmark-policy").checked;
 
       // ✓ Валидация полей ввода и совпадения паролей
       if (!username || !email || !password || !passwordAgain) {
@@ -1276,7 +1308,7 @@ class AuthProcessor {
       if (password !== passwordAgain) {
         showNotification("Введенные пароли не совпадают", "error"); return;
       }
-      if (policy !== 'on') {
+      if (policy !== true) {
         showNotification("Необходимо согласиться с политикой конфиденциальности", "error"); return;
       }
 
@@ -1304,27 +1336,54 @@ class AuthProcessor {
     });
 
     // ✓ Обработка ввода формы дополнительной информации
-    new groupSelector('auth-input-group', 'auth-input-groupDropdown', 'auth-input-groupContent');
-    new subgroupSelector('auth-input-subgroup', 'auth-input-subgroupDropdown', 'auth-input-subgroupContent');
+    const groupSelectorInstance = new groupSelector('auth-input-group', 'auth-input-groupDropdown', 'auth-input-groupContent');
+    const subgroupSelectorInstance = new subgroupSelector('auth-input-subgroup', 'auth-input-subgroupDropdown', 'auth-input-subgroupContent');
+    const languageSelectorInstance = new languageSelector('auth-input-language', 'auth-input-languageDropdown', 'auth-input-languageContent');
+    groupSelectorInstance && subgroupSelectorInstance && languageSelectorInstance;
+
+    // ✓ Предзаполнить форму дополнительных данных тем, что уже известно
+    prefillAdditionalForm = function prefillAdditionalForm() {
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem('userData') || '{}') || {}; } catch (_) { saved = {}; }
+
+      if (saved.userGroup) {
+        const groupInput = document.getElementById('auth-input-group');
+        if (groupInput) groupInput.value = saved.userGroup;
+      }
+      if (Number(saved.userSubgroup) === 1 || Number(saved.userSubgroup) === 2) {
+        subgroupSelectorInstance.selectGroup(Number(saved.userSubgroup) === 2 ? '2 (Б) подгруппа' : '1 (А) подгруппа');
+      }
+      if (saved.userLanguage && LANGUAGES_LIST.includes(saved.userLanguage)) {
+        languageSelectorInstance.selectGroup(saved.userLanguage);
+      }
+      ['auth-input-group', 'auth-input-subgroup', 'auth-input-language'].forEach((id) => {
+        const element = document.getElementById(id);
+        if (element && element.value) element.classList.add('input-preselected');
+      });
+    };
+
     AdditionalForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       // Обьявление значений введенных элементов
       const userGroup = document.querySelector("#auth-input-group").value.trim();
       const userSubgroupUnstandarted = document.querySelector("#auth-input-subgroup").value.trim();
-      const userSubgroup = (userSubgroupUnstandarted == '1 (А) подгруппа') ? 1 : ((userSubgroupUnstandarted == '2 (Б) подгруппа') ? 2 : 1);
+      const userSubgroup = (userSubgroupUnstandarted == '1 (А) подгруппа') ? 1 : ((userSubgroupUnstandarted == '2 (Б) подгруппа') ? 2 : 0);
+      const userLanguageUnstandarted = document.querySelector("#auth-input-language").value.trim();
+      const userLanguage = LANGUAGES_LIST.includes(userLanguageUnstandarted) ? userLanguageUnstandarted : '';
 
       // Валидация введенных значений
       if (!userGroup || typeof userGroup !== 'string') { showNotification('Необходимо ввести вашу группу обучения', 'error'); return; }
-      if (!userSubgroupUnstandarted || typeof userSubgroupUnstandarted !== 'string' || !userSubgroup) { showNotification('Необходимо ввести вашу подгруппу', 'error'); return; }
+      if (!userSubgroup) { showNotification('Необходимо выбрать вашу подгруппу', 'error'); return; }
+      if (!userLanguage) { showNotification('Необходимо выбрать изучаемый язык', 'error'); return; }
 
       // Сохраняем пользовательские данные в локальное хранилище
-      localStorage.setItem('userData', JSON.stringify({ userGroup, userSubgroup }));
-      try { await window.database.saveAccount(userGroup, userSubgroup);
+      localStorage.setItem('userData', JSON.stringify({ userGroup, userSubgroup, userLanguage }));
+      try { await window.database.saveAccount(userGroup, userSubgroup, userLanguage);
       } catch (error) { showNotification(`Ошибка облачного сохранения данных аккаунта, используется файл локального сохранения`, 'error'); }
 
       // ✓ Запускаем сессию
-      const submitButton = registerForm.querySelector("button[type='submit']");
+      const submitButton = AdditionalForm.querySelector("button[type='submit']");
       submitButton.disabled = true; backOnTrack.disabled = true;
       submitButton.textContent = "Загрузка...";
       setTimeout(async() => {
@@ -1358,34 +1417,37 @@ class AuthProcessor {
         try { accountAdditionalData = await window.database.getAccount(userID);
         } catch { showNotification(`Ошибка облачной загрузки данных аккаунта, используется файл локального сохранения`, 'error'); }
 
-        if (!accountAdditionalData.success) { // ✓ Если аккаунт найден не был
-          showNotification(`Данные аккаунта не найдены, необходимо пройти форму дополнительных данных`, 'info');
+        const account = accountAdditionalData && accountAdditionalData.account ? accountAdditionalData.account : null;
+        const accountIsComplete = Boolean(account && account.userGroup && account.userSubgroup && account.userLanguage);
+
+        if (!accountIsComplete) { // ✓ Если данных нет вовсе либо они неполные (например, не выбран изучаемый язык)
+          const partially = {
+            userGroup: (account && account.userGroup) || '',
+            userSubgroup: Number(account && account.userSubgroup) === 2 ? 2 : (Number(account && account.userSubgroup) === 1 ? 1 : ''),
+            userLanguage: (account && account.userLanguage) || '',
+          };
+          // ✓ Сохраняем то, что уже известно: форма дополнительных данных предзаполнится
+          localStorage.setItem('userData', JSON.stringify(partially));
+          showNotification(account
+            ? 'Данные аккаунта заполнены не до конца — дополните их, пожалуйста'
+            : 'Данные аккаунта не найдены, необходимо пройти форму дополнительных данных', 'info');
           registerForm.reset();
           setTimeout(async() => {
             loginForm.classList.add("form-hidden");
             registerForm.classList.add("form-hidden");
             AdditionalForm.classList.remove("form-hidden");
             backOnTrack.innerHTML = 'Выйти из аккаунта';
+            prefillAdditionalForm();
           }, 200);
-        } else { // ✓ Если аккаунт был найден
-          try {
-            const userGroup = accountAdditionalData.account.userGroup;
-            const userSubgroup = accountAdditionalData.account.userSubgroup;
-            const data2save = {userGroup, userSubgroup};
-            localStorage.setItem('userData', JSON.stringify(data2save));
-            setTimeout(async() => {
-              await AuthProcessor.startSession();
-            }, 200);
-          } catch { // ✓ Если читаем undefined из accountAdditionalData
-            showNotification(`Ошибка облачной загрузки данных аккаунта, необходимо заного пройти ввод доп данных`, 'error');
-            registerForm.reset();
-            setTimeout(async() => {
-              loginForm.classList.add("form-hidden");
-              registerForm.classList.add("form-hidden");
-              AdditionalForm.classList.remove("form-hidden");
-              backOnTrack.innerHTML = 'Выйти из аккаунта';
-            }, 200);
-          }
+        } else { // ✓ Аккаунт заполнен полностью — переносим данные в локальное хранилище
+          const userGroup = account.userGroup;
+          const userSubgroup = Number(account.userSubgroup) === 2 ? 2 : 1;
+          const userLanguage = account.userLanguage;
+          const data2save = { userGroup, userSubgroup, userLanguage };
+          localStorage.setItem('userData', JSON.stringify(data2save));
+          setTimeout(async() => {
+            await AuthProcessor.startSession();
+          }, 200);
         }
       } else { // ✓ Если произошла ошибка во время авторизации
         showNotification(result.message, "error");
@@ -1427,45 +1489,45 @@ class AuthProcessor {
 
     // ✓ Проверяем различные вариации наличия данных
     if (currentUser && localStorage.getItem('userData')) { // ✓ Если вход в аккаунт выполнен и есть локальное сохранение
-      const userStorageData = JSON.parse(localStorage.getItem('userData'));
-      if (userData.success !== true) { // ✓ Если на сервере не было обнаружено пользовательских данных
+      const userStorageData = JSON.parse(localStorage.getItem('userData') || '{}');
+      const storageComplete = Boolean(userStorageData.userGroup && userStorageData.userSubgroup && userStorageData.userLanguage);
+
+      if ((userData.success !== true || !userData.account) && storageComplete) { // ✓ На сервере нет данных, но локально они полные
         try { await window.database.saveAccount(userStorageData);
         } catch { showNotification(`Нет доступа к серверу, вход в аккаунт осуществлен локально`, 'info'); }
       }
-      if (!userStorageData.userGroup || !userStorageData.userSubgroup) { // ✓ Если локально сохраненные пользовательские данные не до конца заполнены
+      if (!storageComplete) { // ✓ Локальные данные заполнены не до конца (нет группы, подгруппы или языка)
         showNotification(`Данные аккаунта заполнены не до конца, необходимо заного пройти ввод данных`, 'info');
         this.renderAuth(true); flag.loading = false; return;
       }
-      try { // ✓ Пробуем сохранить пользовательские данные на сервере если какие-либо данные отсутствуют на сервере
-        if (!userData.account.userGroup || !userData.account.userSubgroup) {
-          const answer = await window.database.saveAccount(userStorageData.userGroup, userStorageData.userSubgroup);
-          if (answer.success !== true) { showNotification(`Ошибка облачной синхронизации данных аккаунта: ${answer.message}`, 'error'); }
+      try { // ✓ Досылаем на сервер те данные, которых там не хватает
+        const account = userData.account || {};
+        if (!account.userGroup || !account.userSubgroup || !account.userLanguage) {
+          const answer = await window.database.saveAccount(userStorageData);
+          if (answer && answer.success !== true) { showNotification(`Ошибка облачной синхронизации данных аккаунта: ${answer.message}`, 'error'); }
         }
       } catch { showNotification(`Нет подключения к интернету или сервер недоступен, используется оффлайн-режим`, 'info'); }
       if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
       await AuthProcessor.startSession();
 
     } else if (currentUser && userData.success === true) { // ✓ Если вход в аккаунт выполнен и есть доступ к облачным данным
-      try { // ✓ Если на сервере нет каких-либо локальных данных пользователя
-        if (!userData.account.userGroup || !userData.account.userSubgroup) {
-          showNotification(`Ошибка облачной загрузки данных аккаунта, необходимо заного пройти ввод данных`, 'error');
-          this.renderAuth(true); flag.loading = false; return;
-        }
-      } catch { // ✓ Если нету доступа к серверу и локально сохраненных данных также нету (это писец!!!)
+      const account = userData.account || {};
+      if (!account.userGroup || !account.userSubgroup || !account.userLanguage) { // ✓ Данных не хватает — просим заполнить форму
         showNotification(`Данные аккаунта заполнены не до конца, необходимо заного пройти ввод данных`, 'info');
-        this.renderAuth(true); flag.loading = false; return; 
+        this.renderAuth(true); flag.loading = false; return;
       }
-      
+
       // ✓ Сохраняем локально пользовательские данные
-      const userGroup = userData.account.userGroup;
-      const userSubgroup = userData.account.userSubgroup;
-      const data2save = {userGroup, userSubgroup};
+      const userGroup = account.userGroup;
+      const userSubgroup = Number(account.userSubgroup) === 2 ? 2 : 1;
+      const userLanguage = account.userLanguage;
+      const data2save = { userGroup, userSubgroup, userLanguage };
       if (localStorage.getItem('userData') !== JSON.stringify(data2save)) { // ✓ Если сохранения не совпадают
         localStorage.setItem('userData', JSON.stringify(data2save));
       }
       if (DEBUG_MODE) console.log("✅ Пользователь авторизован: ", currentUser.email);
       await AuthProcessor.startSession();
-    
+
     } else if (currentUser) { // ✓ Если прошла регистрация, но пользователь не довыбирал
       if (DEBUG_MODE) console.log("❓ Пользователь авторизован, но не допрошел регистрацию: ", currentUser.email);
       showNotification('Для доступа к приложению необходимо завершить регистрацию', 'info');

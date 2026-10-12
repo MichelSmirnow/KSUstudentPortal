@@ -10,7 +10,6 @@
   const QUERY_STORE = 'queries';
   const IMAGE_STORE = 'image-blobs';
   const MAX_POST_IMAGES = 10;
-  let postimagesLoadPromise = null;
 
   class OfflineContentCache {
     constructor() {
@@ -401,174 +400,518 @@
     else console[type === 'error' ? 'error' : 'log'](message);
   }
 
+  /* ---------------------------------------------------------------------------------------
+   * Загрузка изображений на Postimages напрямую со страницы приложения (только fetch).
+   * Никаких всплывающих окон, переходов на другие страницы, локальных серверов и сборок.
+   *
+   * Схема ровно такая же, как у самого Postimages, только запросы уходят из нашего кода:
+   *   1) POST https://postimages.org/json  (multipart/form-data)
+   *      поля: file, numfiles, upload_session, pm=1, gallery, optsize=0, expire=0,
+   *            mode=phpbb3, lang, forumurl
+   *      ответ: { "url": "https://postimg.cc/XXXX/YYYY", "image": "..." }
+   *   2) GET https://postimages.org/mod?dz=1&to=<url>&mode=phpbb3&hash=1&lang=english
+   *            &code=hotlink&forumurl=<...>&areaid=<...>&errors=0
+   *      ответ: BBCode вида [url=...][img]https://i.postimg.cc/....png[/img][/url],
+   *      из которого мы берём прямую ссылку на изображение.
+   * ------------------------------------------------------------------------------------- */
   class PostimagesUploader {
     constructor(container, options = {}) {
       this.container = container;
       this.maxImages = Math.min(MAX_POST_IMAGES, Math.max(1, Number(options.maxImages) || MAX_POST_IMAGES));
       this.onChange = typeof options.onChange === 'function' ? options.onChange : () => {};
-      this.urls = Array.isArray(options.initialImages) ? options.initialImages.slice(0, this.maxImages) : [];
-      this.areaId = `postimg_${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
-      this._postimagesLoading = !isPostimagesReady();
-      this._handleOutput = this._handleOutput.bind(this);
+      this.items = []; // { id, file, name, size, previewUrl, remoteUrl, status, error }
+      this._uploading = false;
+      this._queue = [];
+      this._areaId = `postimg_${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
 
-      this.hiddenArea = document.createElement('textarea');
-      this.hiddenArea.dataset.postimg = this.areaId;
-      this.hiddenArea.setAttribute('aria-hidden', 'true');
-      this.hiddenArea.tabIndex = -1;
-      this.hiddenArea.classList.add('postimages-result-area');
+      this._onPaste = this._onPaste.bind(this);
+      this._onWindowDragOver = this._onWindowDragOver.bind(this);
 
+      this._buildUI();
+      document.addEventListener('paste', this._onPaste);
+      global.addEventListener('dragover', this._onWindowDragOver);
+    }
+
+    /* ---------------------------- Разметка интерфейса ---------------------------- */
+
+    _buildUI() {
       this.controls = document.createElement('div');
       this.controls.classList.add('postimages-uploader');
-      this.uploadButton = document.createElement('button');
-      this.uploadButton.type = 'button';
-      this.uploadButton.classList.add('postimages-upload-button');
-      this.uploadButton.textContent = 'Подключение Postimages…';
-      this.uploadButton.disabled = true;
-      this.uploadButton.addEventListener('click', () => this.openUploader());
-      this.controls.appendChild(this.uploadButton);
 
-      const readyPromise = global.postimagesReady || ensurePostimagesLoaded();
-      Promise.resolve(readyPromise).then((ready) => {
-        this._postimagesLoading = false;
-        if (ready === false || !isPostimagesReady()) {
-          throw new Error('window.postimage.upload не найден');
-        }
-        if (!this.uploadButton) return;
-        this.uploadButton.textContent = 'Добавить изображение';
-        this.uploadButton.title = 'Открыть загрузчик Postimages';
-        this._renderPreviews();
-      }).catch((error) => {
-        this._postimagesLoading = false;
-        if (!this.uploadButton) return;
-        this.uploadButton.textContent = 'Повторить подключение';
-        this.uploadButton.title = 'Не удалось подключить Postimages. Нажмите, чтобы повторить.';
-        this._renderPreviews();
-        console.error('Postimages пока не подключён:', error);
-      });
-
+      const head = document.createElement('div');
+      head.classList.add('postimages-head');
+      const headTitle = document.createElement('p');
+      headTitle.classList.add('postimages-head-title');
+      headTitle.textContent = 'Изображения к публикации';
       this.counter = document.createElement('span');
       this.counter.classList.add('postimages-counter');
-      this.controls.appendChild(this.counter);
+      head.appendChild(headTitle);
+      head.appendChild(this.counter);
+
+      // Зона загрузки: выбор файлов, перетаскивание и вставка из буфера обмена
+      this.dropzone = document.createElement('div');
+      this.dropzone.classList.add('postimages-dropzone');
+      this.dropzone.tabIndex = 0;
+      this.dropzone.innerHTML = `
+        <span class="postimages-dropzone-icon">🖼️</span>
+        <span class="postimages-dropzone-text"><b>Выберите изображения</b>, перетащите их сюда или вставьте из буфера (Ctrl+V)</span>
+        <span class="postimages-dropzone-hint">JPG, PNG, GIF, WEBP · до 10 МБ · не более ${this.maxImages} изображений</span>`;
+
+      const pickButton = document.createElement('button');
+      pickButton.type = 'button';
+      pickButton.classList.add('postimages-upload-button');
+      pickButton.textContent = 'Выбрать файлы';
+      pickButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.fileInput.click();
+      });
+      this.dropzone.appendChild(pickButton);
+
+      this.fileInput = document.createElement('input');
+      this.fileInput.type = 'file';
+      this.fileInput.accept = 'image/*';
+      this.fileInput.multiple = true;
+      this.fileInput.classList.add('postimages-file-input');
+      this.fileInput.addEventListener('change', () => {
+        this.addFiles(this.fileInput.files);
+        this.fileInput.value = '';
+      });
+
+      this.dropzone.addEventListener('click', () => this.fileInput.click());
+      this.dropzone.addEventListener('dragenter', (event) => { event.preventDefault(); this.dropzone.classList.add('postimages-dropzone--over'); });
+      this.dropzone.addEventListener('dragover', (event) => { event.preventDefault(); this.dropzone.classList.add('postimages-dropzone--over'); });
+      this.dropzone.addEventListener('dragleave', () => this.dropzone.classList.remove('postimages-dropzone--over'));
+      this.dropzone.addEventListener('drop', (event) => {
+        event.preventDefault();
+        this.dropzone.classList.remove('postimages-dropzone--over');
+        const files = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files : null;
+        if (files && files.length) this.addFiles(files);
+      });
+
+      // Запасной вариант: добавить изображение по прямой ссылке
+      const manual = document.createElement('details');
+      manual.classList.add('postimages-manual');
+      const manualSummary = document.createElement('summary');
+      manualSummary.textContent = 'Добавить изображение по прямой ссылке';
+      const manualRow = document.createElement('div');
+      manualRow.classList.add('postimages-manual-row');
+      const manualInput = document.createElement('input');
+      manualInput.type = 'url';
+      manualInput.classList.add('postimages-manual-input');
+      manualInput.placeholder = 'https://i.postimg.cc/xxxxxx/image.png';
+      const manualButton = document.createElement('button');
+      manualButton.type = 'button';
+      manualButton.classList.add('postimages-manual-button');
+      manualButton.textContent = 'Добавить';
+      manualButton.addEventListener('click', () => {
+        const url = manualInput.value.trim();
+        if (!url) return;
+        if (!/^https?:\/\//i.test(url)) { showMessage('Ссылка должна начинаться с http:// или https://', 'error'); return; }
+        if (this.items.length >= this.maxImages) { showMessage(`Можно прикрепить не более ${this.maxImages} изображений`, 'info'); return; }
+        this.items.push({
+          id: `manual_${Date.now()}_${Math.floor(Math.random() * 1e4)}`,
+          file: null, name: url.split('/').pop() || 'изображение', size: 0,
+          previewUrl: url, remoteUrl: url, status: 'done', error: '',
+        });
+        manualInput.value = '';
+        this._renderItems();
+        this._emitChange();
+      });
+      manualRow.appendChild(manualInput);
+      manualRow.appendChild(manualButton);
+      manual.appendChild(manualSummary);
+      manual.appendChild(manualRow);
+
+      this.statusLine = document.createElement('p');
+      this.statusLine.classList.add('postimages-status');
+      this.statusLine.hidden = true;
 
       this.previewContainer = document.createElement('div');
       this.previewContainer.classList.add('postimages-preview-list');
+
+      this.controls.appendChild(head);
+      this.controls.appendChild(this.dropzone);
+      this.controls.appendChild(this.fileInput);
+      this.controls.appendChild(manual);
+      this.controls.appendChild(this.previewContainer);
+      this.controls.appendChild(this.statusLine);
       this.container.appendChild(this.controls);
-      this.container.appendChild(this.previewContainer);
-      this.container.appendChild(this.hiddenArea);
-
-      global.addEventListener('postimages:output', this._handleOutput);
-      this._renderPreviews();
+      this._renderItems();
     }
 
-    openUploader() {
-      if (this.urls.length >= this.maxImages) {
-        showMessage(`Можно прикрепить не более ${this.maxImages} изображений`, 'info');
-        return;
-      }
+    /* ---------------------------- Добавление и загрузка файлов ---------------------------- */
 
-      // Открытие popup должно произойти непосредственно внутри пользовательского
-      // click-события, иначе браузер может заблокировать окно загрузчика.
-      if (isPostimagesReady()) {
-        wrapPostimagesOutput();
-        try {
-          if (global.postimage.opt) global.postimage.opt.code = 'hotlink';
-          global.postimage.upload(this.areaId);
-          const popup = global.postimage.windows && global.postimage.windows[this.areaId]
-            ? global.postimage.windows[this.areaId].window
-            : null;
-          if (!popup) showMessage('Браузер заблокировал окно Postimages. Разрешите всплывающие окна для приложения и нажмите ещё раз.', 'error');
-        } catch (error) {
-          console.error('Ошибка запуска Postimages:', error);
-          showMessage(`Не удалось открыть загрузчик Postimages: ${error.message || error}`, 'error');
-        }
-        return;
-      }
-
-      // Если основной script-тег не сработал, пробуем подгрузить файл ещё раз.
-      // После завершения попросим нажать кнопку повторно, чтобы popup открылся
-      // уже прямо из обработчика click и не был заблокирован браузером.
-      this._postimagesLoading = true;
-      this.uploadButton.textContent = 'Подключение…';
-      this._renderPreviews();
-      ensurePostimagesLoaded().then(() => {
-        this._postimagesLoading = false;
-        this.uploadButton.textContent = 'Добавить изображение';
-        this._renderPreviews();
-        showMessage('Загрузчик подключён. Нажмите «Добавить изображение» ещё раз.', 'success');
-      }).catch((error) => {
-        this._postimagesLoading = false;
-        this.uploadButton.textContent = 'Повторить подключение';
-        this._renderPreviews();
-        console.error('Postimages script не загружен:', error);
-        showMessage(`Postimages не подключился. Проверьте путь к скрипту libs/postimages/phpbb3-de-hotlink.js и ответ сервера в Network. ${error.message || ''}`, 'error');
-      });
-    }
-
-    _handleOutput(event) {
-      const detail = event && event.detail;
-      if (!detail || String(detail.areaId) !== this.areaId) return;
-
-      const newUrls = extractImageUrls(detail.content);
-      if (newUrls.length === 0) {
-        showMessage('Не удалось извлечь прямую ссылку на изображение из ответа Postimages. Проверьте формат ответа.', 'error');
-        return;
-      }
+    addFiles(fileList) {
+      const incoming = Array.from(fileList || []);
+      if (incoming.length === 0) return;
 
       let added = 0;
-      for (const url of newUrls) {
-        if (this.urls.includes(url)) continue;
-        if (this.urls.length >= this.maxImages) break;
-        this.urls.push(url);
+      for (const file of incoming) {
+        if (this.items.length >= this.maxImages) break;
+        if (!file) continue;
+        if (!PostimagesUploader.ALLOWED_TYPES.test(file.type || '')) {
+          showMessage(`«${file.name}» не является изображением`, 'error');
+          continue;
+        }
+        if (file.size > PostimagesUploader.MAX_FILESIZE) {
+          showMessage(`«${file.name}» больше 10 МБ`, 'error');
+          continue;
+        }
+        if (this.items.some((item) => item.file && item.file.name === file.name && item.file.size === file.size)) {
+          continue; // такой файл уже добавлен
+        }
+        this.items.push({
+          id: `file_${Date.now()}_${Math.floor(Math.random() * 1e4)}`,
+          file,
+          name: file.name,
+          size: file.size,
+          previewUrl: this._localPreview(file),
+          remoteUrl: '',
+          status: 'pending',
+          error: '',
+        });
         added += 1;
       }
 
-      if (added === 0 && this.urls.length >= this.maxImages) {
+      if (this.items.length >= this.maxImages && incoming.length + this.items.length > this.maxImages) {
         showMessage(`Достигнут лимит: ${this.maxImages} изображений`, 'info');
-      } else if (added > 0) {
-        this._renderPreviews();
-        this.onChange(this.urls.slice());
+      }
+      if (added > 0) {
+        this._renderItems();
+        this._enqueueUploads();
       }
     }
 
-    _renderPreviews() {
-      while (this.previewContainer.firstChild) this.previewContainer.removeChild(this.previewContainer.firstChild);
-      this.counter.textContent = `${this.urls.length}/${this.maxImages}`;
-      this.uploadButton.disabled = this.urls.length >= this.maxImages || this._postimagesLoading;
+    _localPreview(file) {
+      try { return URL.createObjectURL(file); } catch (_) { return ''; }
+    }
 
-      this.urls.forEach((url, index) => {
-        const item = document.createElement('div');
-        item.classList.add('postimages-preview-item');
+    /** Ставим в очередь и загружаем по одному файлу (как parallelUploads: 1 у Postimages) */
+    _enqueueUploads() {
+      for (const item of this.items) {
+        if (item.status === 'pending' && !this._queue.includes(item)) this._queue.push(item);
+      }
+      if (!this._uploading) this._processQueue();
+    }
+
+    async _processQueue() {
+      if (this._uploading) return;
+      this._uploading = true;
+      while (this._queue.length > 0) {
+        const item = this._queue.shift();
+        if (!item || item.status !== 'pending') continue;
+        await this._uploadItem(item);
+      }
+      this._uploading = false;
+      this._updateStatusLine();
+    }
+
+    async _uploadItem(item) {
+      item.status = 'uploading';
+      item.error = '';
+      this._renderItems();
+
+      try {
+        const pageUrl = await this._sendFile(item.file);
+        item.remoteUrl = await this._resolveDirectLink(pageUrl) || pageUrl;
+        item.status = 'done';
+        if (item.remoteUrl && global.contentCache) global.contentCache.cacheImage(item.remoteUrl);
+      } catch (error) {
+        item.status = 'error';
+        item.error = error && error.message ? error.message : 'Не удалось загрузить изображение';
+        console.warn('Ошибка загрузки изображения:', error);
+      }
+
+      this._renderItems();
+      this._emitChange();
+    }
+
+    /** Шаг 1: отправляем файл на /json и получаем ссылку на страницу изображения */
+    async _sendFile(file) {
+      const form = new FormData();
+      form.append('file', file, file.name || 'image');
+      form.append('numfiles', '1');
+      form.append('upload_session', PostimagesUploader.newSession());
+      form.append('pm', '1');
+      form.append('gallery', '');
+      form.append('optsize', '0');
+      form.append('expire', '0');
+      form.append('mode', 'phpbb3');
+      form.append('lang', PostimagesUploader.LANG);
+      form.append('forumurl', encodeURIComponent(global.location.href));
+
+      let response;
+      try {
+        response = await fetch(`${PostimagesUploader.HOST}/json`, {
+          method: 'POST',
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-store',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Cache-Control': 'no-cache',
+          },
+          body: form,
+        });
+      } catch (networkError) {
+        throw new Error('Нет связи с Postimages. Проверьте интернет-соединение и попробуйте снова.');
+      }
+
+      if (!response.ok) {
+        let details = '';
+        try {
+          const data = await response.json();
+          if (data && data.error && data.error.message) details = `: ${data.error.message}`;
+        } catch (_) { /* ответ не в формате JSON */ }
+        if (response.status === 403 || /automated uploads/i.test(details)) {
+          throw new Error(`Postimages отклонил автоматическую загрузку. Нажмите «Повторить» или добавьте изображение по прямой ссылке ниже.`);
+        }
+        if (response.status === 413) {
+          throw new Error(`Файл слишком большой для Postimages (HTTP 413).`);
+        }
+        if (response.status >= 500) {
+          throw new Error(`Сервер Postimages временно недоступен (HTTP ${response.status}). Попробуйте позже.`);
+        }
+        throw new Error(`Postimages отклонил загрузку (HTTP ${response.status})${details}`);
+      }
+
+      let data = null;
+      try { data = await response.json(); } catch (_) { data = null; }
+      if (!data) throw new Error('Postimages вернул ответ в неизвестном формате. Попробуйте загрузить изображение ещё раз.');
+      const pageUrl = String(data.url || data.image || data.page || '').trim();
+      if (!/^https?:\/\//i.test(pageUrl)) throw new Error('Postimages вернул ответ без ссылки на изображение.');
+      return pageUrl;
+    }
+
+    /**
+     * Шаг 2: получаем прямую ссылку на изображение.
+     * Сначала код hotlink (полноразмерная ссылка), затем thumb — на случай,
+     * если у формата hotlink не оказалось значения.
+     */
+    async _resolveDirectLink(pageUrl) {
+      if (!pageUrl) return '';
+      for (const code of ['hotlink', 'thumb']) {
+        const direct = await this._requestPostimagesCode(pageUrl, code);
+        if (direct) return direct;
+      }
+      return '';
+    }
+
+    /** Запрос готового кода (hotlink/thumb) для уже загруженного изображения */
+    async _requestPostimagesCode(pageUrl, code) {
+      const params = new URLSearchParams({
+        dz: '1',
+        to: pageUrl,
+        mode: 'phpbb3',
+        hash: '1',
+        lang: PostimagesUploader.LANG,
+        code,
+        forumurl: global.location.href,
+        areaid: this._areaId,
+        errors: '0',
+      });
+
+      try {
+        const response = await fetch(`${PostimagesUploader.HOST}/mod?${params.toString()}`, {
+          method: 'GET',
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-store',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Cache-Control': 'no-cache',
+          },
+        });
+        if (!response.ok) return '';
+        const text = await response.text();
+        const urls = extractImageUrls(text);
+        const direct = urls.find((url) => /i\.postimg\.cc|i\.postimages\.org/i.test(url)) || urls[0];
+        return direct || '';
+      } catch (_) {
+        return '';
+      }
+    }
+
+    /** Человекочитаемый размер файла */
+    static formatSize(bytes) {
+      const value = Number(bytes) || 0;
+      if (value < 1024) return `${value} Б`;
+      if (value < 1024 * 1024) return `${Math.round(value / 1024)} КБ`;
+      return `${(value / (1024 * 1024)).toFixed(1)} МБ`;
+    }
+
+    /** Уникальный идентификатор загрузки (аналог upload_session у самого Postimages) */
+    static newSession() {
+      return `${Date.now()}${String(Math.random()).substring(1)}`;
+    }
+
+    /* ---------------------------- Отрисовка ---------------------------- */
+
+    _renderItems() {
+      if (!this.previewContainer) return;
+      while (this.previewContainer.firstChild) this.previewContainer.removeChild(this.previewContainer.firstChild);
+
+      const uploaded = this.items.filter((item) => item.status === 'done' && item.remoteUrl).length;
+      const busy = this.items.some((item) => item.status === 'uploading' || item.status === 'pending');
+      this.counter.textContent = `${uploaded}/${this.maxImages}`;
+      this.dropzone.classList.toggle('postimages-dropzone--busy', busy);
+      this.dropzone.classList.toggle('postimages-dropzone--full', this.items.length >= this.maxImages);
+
+      const statusLabels = {
+        pending: 'В очереди…',
+        uploading: 'Загрузка…',
+        done: 'Готово',
+        error: 'Ошибка',
+      };
+
+      for (const item of this.items) {
+        const card = document.createElement('div');
+        card.classList.add('postimages-preview-item', `postimages-preview-item--${item.status}`);
+
         const image = document.createElement('img');
-        image.alt = `Прикреплённое изображение ${index + 1}`;
-        image.src = url;
-        image.addEventListener('click', () => global.imageViewer.open(url));
+        image.alt = `Изображение ${item.name || ''}`.trim();
+        image.src = item.remoteUrl || item.previewUrl || '';
+        image.loading = 'lazy';
+        image.addEventListener('click', () => {
+          const url = item.remoteUrl || item.previewUrl;
+          if (url && global.imageViewer) global.imageViewer.open(url);
+        });
+        card.appendChild(image);
 
         const removeButton = document.createElement('button');
         removeButton.type = 'button';
         removeButton.classList.add('postimages-remove-button');
         removeButton.textContent = '×';
+        removeButton.title = 'Удалить изображение';
         removeButton.setAttribute('aria-label', 'Удалить изображение из публикации');
-        removeButton.addEventListener('click', () => {
-          this.urls.splice(index, 1);
-          this._renderPreviews();
-          this.onChange(this.urls.slice());
-        });
+        removeButton.addEventListener('click', () => this._removeItem(item));
+        card.appendChild(removeButton);
 
-        item.appendChild(image);
-        item.appendChild(removeButton);
-        this.previewContainer.appendChild(item);
-        if (global.contentCache) global.contentCache.cacheImage(url);
-      });
+        const caption = document.createElement('span');
+        caption.classList.add('postimages-item-name');
+        const sizeText = item.size ? ` · ${PostimagesUploader.formatSize(item.size)}` : '';
+        caption.textContent = `${item.name || 'изображение'}${sizeText}`;
+        caption.title = caption.textContent;
+        card.appendChild(caption);
+
+        const status = document.createElement('span');
+        status.classList.add('postimages-item-status');
+        status.textContent = statusLabels[item.status] || '';
+        card.appendChild(status);
+
+        if (item.status === 'error') {
+          const retry = document.createElement('button');
+          retry.type = 'button';
+          retry.classList.add('postimages-retry-button');
+          retry.textContent = 'Повторить';
+          retry.addEventListener('click', () => {
+            item.status = 'pending';
+            item.error = '';
+            this._renderItems();
+            this._enqueueUploads();
+          });
+          card.appendChild(retry);
+          if (item.error) {
+            const errorText = document.createElement('span');
+            errorText.classList.add('postimages-item-error');
+            errorText.textContent = item.error;
+            card.appendChild(errorText);
+          }
+        }
+
+        this.previewContainer.appendChild(card);
+      }
+
+      this._updateStatusLine();
     }
 
+    _updateStatusLine() {
+      if (!this.statusLine) return;
+      const failed = this.items.filter((item) => item.status === 'error');
+      const busy = this.items.some((item) => item.status === 'uploading' || item.status === 'pending');
+      if (busy) {
+        this.statusLine.hidden = false;
+        this.statusLine.className = 'postimages-status';
+        this.statusLine.textContent = 'Загружаю изображения на Postimages…';
+        return;
+      }
+      if (failed.length > 0) {
+        this.statusLine.hidden = false;
+        this.statusLine.className = 'postimages-status postimages-status--error';
+        this.statusLine.textContent = `${failed.length} изображ. не загрузилось: ${failed[0].error}. Нажмите «Повторить» или добавьте ссылку вручную.`;
+        return;
+      }
+      this.statusLine.hidden = true;
+      this.statusLine.textContent = '';
+    }
+
+    _removeItem(item) {
+      this._queue = this._queue.filter((queued) => queued !== item);
+      const index = this.items.indexOf(item);
+      if (index !== -1) this.items.splice(index, 1);
+      if (item.previewUrl && item.previewUrl.startsWith('blob:')) {
+        try { URL.revokeObjectURL(item.previewUrl); } catch (_) { /* уже освобождён */ }
+      }
+      this._renderItems();
+      this._emitChange();
+    }
+
+    /* ---------------------------- Буфер обмена и перетаскивание на страницу ---------------------------- */
+
+    _onPaste(event) {
+      if (!event || !event.clipboardData) return;
+      const files = Array.from(event.clipboardData.files || []);
+      if (files.length === 0) return;
+      event.preventDefault();
+      this.addFiles(files);
+    }
+
+    _onWindowDragOver(event) {
+      if (!event || !event.dataTransfer) return;
+      const types = Array.from(event.dataTransfer.types || []);
+      if (!types.includes('Files')) return;
+      event.preventDefault();
+      if (this.dropzone) this.dropzone.classList.add('postimages-dropzone--over');
+    }
+
+    /* ---------------------------- Публичный интерфейс ---------------------------- */
+
+    /** Сообщить странице, что список изображений изменился */
+    _emitChange() {
+      try { this.onChange(this.getImages()); } catch (error) { console.warn('Ошибка обработчика изображений:', error); }
+      this._updateStatusLine();
+    }
+
+    /** Прямые ссылки на успешно загруженные изображения */
     getImages() {
-      return this.urls.slice();
+      return Array.from(new Set(
+        this.items.filter((item) => item.status === 'done' && item.remoteUrl).map((item) => item.remoteUrl)
+      ));
+    }
+
+    /** Идёт ли загрузка прямо сейчас */
+    isUploading() {
+      return this.items.some((item) => item.status === 'uploading' || item.status === 'pending');
     }
 
     destroy() {
-      global.removeEventListener('postimages:output', this._handleOutput);
+      document.removeEventListener('paste', this._onPaste);
+      global.removeEventListener('dragover', this._onWindowDragOver);
+      for (const item of this.items) {
+        if (item.previewUrl && item.previewUrl.startsWith('blob:')) {
+          try { URL.revokeObjectURL(item.previewUrl); } catch (_) { /* уже освобождён */ }
+        }
+      }
+      this.items = [];
+      this._queue = [];
+      if (this.controls && this.controls.parentNode) this.controls.parentNode.removeChild(this.controls);
     }
   }
+
+  PostimagesUploader.HOST = 'https://postimages.org';
+  PostimagesUploader.LANG = 'english';
+  PostimagesUploader.MAX_FILESIZE = 10 * 1024 * 1024; // 10 МБ на файл
+  PostimagesUploader.ALLOWED_TYPES = /^image\//i;
 
   class ImageViewer {
     constructor(contentCache) {
@@ -782,79 +1125,8 @@
     }
   }
 
-  function isPostimagesReady() {
-    const postimage = global.postimage;
-    return Boolean(
-      postimage &&
-      typeof postimage.upload === 'function' &&
-      typeof postimage.output === 'function' &&
-      postimage.opt &&
-      postimage.windows
-    );
-  }
-
-  function wrapPostimagesOutput() {
-    const postimage = global.postimage;
-    if (!postimage || typeof postimage.output !== 'function' || postimage.__appOutputWrapped) return;
-
-    const originalOutput = postimage.output;
-    postimage.output = function wrappedOutput(areaId, result, closeWindow) {
-      const output = originalOutput.apply(this, arguments);
-      try {
-        global.dispatchEvent(new CustomEvent('postimages:output', {
-          detail: { areaId: String(areaId), content: String(result || ''), closeWindow: Boolean(closeWindow) },
-        }));
-      } catch (_) {
-        // CustomEvent недоступен в очень старых WebView.
-      }
-      return output;
-    };
-    postimage.__appOutputWrapped = true;
-  }
-
-  function findPostimagesScriptUrl() {
-    const scriptTags = Array.from(document.scripts || []);
-    const postimagesTag = scriptTags.find((script) => /phpbb3-de-hotlink(?:\.min)?\.js(?:\?|$)/i.test(script.src || ''));
-    if (postimagesTag) return postimagesTag.src;
-
-    const logicTag = scriptTags.find((script) => /(?:^|\/)images-logic\.js(?:\?|$)/i.test(script.src || ''));
-    if (logicTag && logicTag.src) {
-      return new URL('./postimages/phpbb3-de-hotlink.js', logicTag.src).href;
-    }
-
-    return new URL('libs/postimages/phpbb3-de-hotlink.js', document.baseURI || global.location.href).href;
-  }
-
-  function ensurePostimagesLoaded() {
-    if (isPostimagesReady()) {
-      wrapPostimagesOutput();
-      return Promise.resolve(global.postimage);
-    }
-    if (postimagesLoadPromise) return postimagesLoadPromise;
-
-    const source = findPostimagesScriptUrl();
-    postimagesLoadPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = source;
-      script.async = true;
-      script.dataset.imagesLogicPostimagesRetry = 'true';
-      script.onload = () => {
-        if (!isPostimagesReady()) {
-          reject(new Error(`Скрипт загрузился, но window.postimage.upload не найден: ${source}`));
-          return;
-        }
-        wrapPostimagesOutput();
-        resolve(global.postimage);
-      };
-      script.onerror = () => reject(new Error(`Не удалось загрузить Postimages-скрипт: ${source}`));
-      (document.head || document.body || document.documentElement).appendChild(script);
-    }).catch((error) => {
-      postimagesLoadPromise = null; // разрешаем повторить загрузку после исправления пути/сети
-      throw error;
-    });
-
-    return postimagesLoadPromise;
-  }
+  // Всплывающее окно Postimages больше не используется: весь интерфейс загрузки
+  // встроен прямо в страницу публикации, а запросы уходят через fetch.
 
   function findImagesLogicScriptUrl() {
     if (document.currentScript && document.currentScript.src) return document.currentScript.src;
@@ -890,19 +1162,12 @@
 
   installDatabaseExtensions();
 
-  const postimagesReady = ensurePostimagesLoaded()
-    .then(() => {
-      wrapPostimagesOutput();
-      return true;
-    })
-    .catch((error) => {
-      console.error('Postimages script не инициализирован:', error);
-      return false;
-    });
-  global.postimagesReady = postimagesReady;
+  // Загрузка изображений идёт напрямую через fetch к Postimages, поэтому всплывающий
+  // загрузчик (libs/postimages/phpbb3-de-hotlink.js) больше не используется.
+  global.postimagesReady = Promise.resolve(false);
   global.imagesLogicStatus = () => ({
-    postimagesLoaded: isPostimagesReady(),
-    postimagesScript: findPostimagesScriptUrl(),
+    uploader: 'fetch (Postimages JSON API)',
+    uploadHost: PostimagesUploader.HOST,
     serviceWorkerSupported: Boolean(global.navigator && global.navigator.serviceWorker),
     secureContext: Boolean(global.isSecureContext),
     serviceWorkerUrl: global.imageServiceWorkerUrl || null,

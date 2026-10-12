@@ -151,6 +151,18 @@
                         </div>
                     </div>
 
+                    <div class="group-selector"> <!-- Ввод изучаемого языка (копия механизма выбора подгруппы) -->
+                        <div class="form-group">
+                            <div class="input-wrapper">
+                                <input type="text" id="auth-input-language" readonly required>
+                                <label for="auth-input-language">Изучаемый язык</label><span class="focus-border"></span>
+                            </div>
+                        </div>
+                        <div id="auth-input-languageDropdown" class="auth-input-dropdown">
+                            <div id="auth-input-languageContent" class="auth-input-dropdownContent"></div>
+                        </div>
+                    </div>
+
                     
                     <button type="submit" class="auth-submit-button">Завершить</button>
                     <button id="auth-button-backOnTrack" class="auth-supbutton">Вернуться к регистрации</button>
@@ -216,8 +228,7 @@
     <script src="libs/auth-logic.js"></script>
     <!-- <script src="service-worker.js"></script> -->
 
-    <!-- Библиотеки и функции Postimages -->
-     <script src="libs/postimages/phpbb3-de-hotlink.js"></script>
+    <!-- Библиотеки и функции изображений (загрузка идёт через fetch, без всплывающих окон) -->
      <script src="libs/images-logic.js"></script>
 
     <!-- Постоянные данные приложения -->

@@ -698,6 +698,26 @@ class ScheduleRenderer {
       return (eventSubgroup === 0) ? true : userSubgroup == eventSubgroup;
     }
 
+    // ✓ Проверить совпадение изучаемого языка пользователя и языка занятия
+    // В расписании язык не выделен отдельным параметром, поэтому ищем слово
+    // Английский / Немецкий / Французский в названии или описании занятия.
+    const isSameLanguage = (event) => {
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      const userLanguage = userData.userLanguage ? String(userData.userLanguage) : '';
+      if (!userLanguage) return true; // язык не выбран — фильтр не применяется
+      const languages = [
+        { name: 'Английский', pattern: /английск/i },
+        { name: 'Немецкий', pattern: /немецк/i },
+        { name: 'Французский', pattern: /французск/i },
+      ];
+      const text = `${event.summary || ''} ${event.description || ''}`;
+      const eventRule = languages.find(rule => rule.pattern.test(text));
+      if (!eventRule) return true; // занятие не про язык
+      const userRule = languages.find(rule => rule.pattern.test(userLanguage));
+      if (!userRule) return true;
+      return userRule.name === eventRule.name;
+    }
+
     // ✓ Ищем и добавляем текущее занятие
     let currentClassElement = undefined;
     const currentEvent = this.sheduleData.find(event => {
@@ -707,6 +727,7 @@ class ScheduleRenderer {
         !Number.isNaN(start.getTime()) &&
         !Number.isNaN(end.getTime()) &&
         isSameSubgroup(event) &&
+        isSameLanguage(event) &&
         now >= start &&
         now <= end
       );
@@ -727,6 +748,7 @@ class ScheduleRenderer {
           !Number.isNaN(endTime.getTime()) &&
           startTime > justifyDate(currentEvent.endTime) &&
           isSameSubgroup(event) &&
+          isSameLanguage(event) &&
           isSameDay(startTime, now)
         );
       });
@@ -740,6 +762,7 @@ class ScheduleRenderer {
           !Number.isNaN(startTime.getTime()) &&
           !Number.isNaN(endTime.getTime()) &&
           startTime > now &&
+          isSameLanguage(event) &&
           isSameDay(startTime, now)
         );
       });

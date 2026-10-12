@@ -214,28 +214,37 @@ class Database {
     }
   }
 
-  // ✓ Сохранить дополнительные данные аккаунта
-  async saveAccount(userGroup, userSubgroup) {
+  // ✓ Сохранить дополнительные данные аккаунта (группа, подгруппа, изучаемый язык)
+  // Поддерживаются оба варианта вызова: saveAccount(group, subgroup, language)
+  // и saveAccount({ userGroup, userSubgroup, userLanguage })
+  async saveAccount(userGroup, userSubgroup, userLanguage) {
     try {
       const user = this.auth.getCurrentUser();
       if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
 
-      // ✓ Стандартизация информации о тексте
-      const accountId = user.uid;
+      // ✓ Приводим аргументы к одному виду
+      const payload = (userGroup && typeof userGroup === 'object')
+        ? userGroup
+        : { userGroup, userSubgroup, userLanguage };
+
+      const subgroup = Number(payload.userSubgroup);
       const accountData = {
         userId: user.uid, // Уникальный идентификатор пользователя
         userName: user.displayName || "Анонимный пользователь", // Публичное имя пользователя
         userEmail: user.email,
-        userGroup, // Группа пользователя
-        userSubgroup, // Подгруппа пользователя
-        timestamp: Date.now(), // Дата публикации
+        timestamp: Date.now(), // Время последнего обновления данных
       };
 
+      // ✓ Записываем только заполненные поля, чтобы не затирать уже сохранённые значения
+      if (payload.userGroup) { accountData.userGroup = payload.userGroup; }
+      if (subgroup === 1 || subgroup === 2) { accountData.userSubgroup = subgroup; }
+      if (payload.userLanguage) { accountData.userLanguage = payload.userLanguage; }
+
       // ✓ Запись документа в базу данных (коллекцию) "accounts" под уникальным ID
-      await this.db.collection("accounts").doc(accountId).set(accountData, { merge: true });
-      return { success: true, accountId, message: "Данные аккаунта успешно добавлены на сервер" };
+      await this.db.collection("accounts").doc(user.uid).set(accountData, { merge: true });
+      return { success: true, accountId: user.uid, account: accountData, message: "Данные аккаунта успешно добавлены на сервер" };
     } catch (error) {
-      return { success: false, error: error.code, message: `Ошибка отправки данных аккаунта на сервер: ${error.message}` } 
+      return { success: false, error: error.code, message: `Ошибка отправки данных аккаунта на сервер: ${error.message}` }
     }
   }
 
@@ -246,8 +255,15 @@ class Database {
       const accounts = [];
       snapshot.forEach(doc => { accounts.push(doc.data()); });
       const account = accounts[0];
-      if (!account) { return { success: false, error: error.code, message: `Ошибка получения данных аккаунта с сервера: ${error.message}` }; }
-      return { success: true, account };
+      if (!account) { return { success: false, message: "Данные аккаунта не найдены" }; }
+      return {
+        success: true,
+        account: {
+          ...account,
+          userSubgroup: Number(account.userSubgroup) === 2 ? 2 : (Number(account.userSubgroup) === 1 ? 1 : null),
+          userLanguage: account.userLanguage || null,
+        },
+      };
     } catch (error) {
       return { success: false, error: error.code, message: `Ошибка получения данных аккаунта с сервера: ${error.message}` };
     }

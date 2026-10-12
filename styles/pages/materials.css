@@ -292,7 +292,6 @@ p.materials-content {
 .postimages-preview-item { position: relative; width: 72px; height: 72px; }
 .postimages-preview-item img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; cursor: zoom-in; }
 .postimages-remove-button { position: absolute; top: -7px; right: -7px; width: 23px; height: 23px; padding: 0; border: 0; border-radius: 50%; color: #fff; background: #a01212; font-size: 18px; line-height: 1; cursor: pointer; }
-.postimages-result-area { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; opacity: 0 !important; }
 
 /* Fullscreen image viewer */
 .image-viewer { position: fixed; inset: 0; z-index: 20000; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.94); touch-action: none; }
@@ -309,4 +308,167 @@ p.materials-content {
   .homework-day-date { text-align: left; }
   .homework-item { padding: 10px; }
   .image-viewer-image { max-width: 96vw; max-height: 76vh; }
+}
+/* =====================================================================================
+ * Домашние задания и материалы: карточки занятий, кнопки, сниппеты, значки
+ * ===================================================================================== */
+
+/* Карточка занятия: заголовок, действия и публикации друг под другом */
+.homework-item { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+.homework-item-wrapper { display: flex; flex-direction: column; }
+
+/* Действия занятия: «Добавить ДЗ» слева, «Отметить ДЗ сделанным» — справа от неё */
+.homework-item-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+.homework-add-button { align-self: auto; margin-top: 0; }
+
+/* Кнопка отметки о выполнении: текст слева, кружок — в правой части кнопки */
+.homework-checkpoint {
+  display: inline-flex; align-items: center; gap: 9px;
+  width: auto; height: auto; min-height: 30px; padding: 4px 11px;
+  border: 1px solid rgba(75, 98, 132, 0.25); border-radius: 10px;
+  color: #31445f; background: #eef3fa; font-size: 12px; cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.homework-checkpoint:hover { transform: translateY(-1px); border-color: #238247; }
+.homework-checkpoint-label { white-space: nowrap; }
+.homework-checkpoint-mark {
+  display: grid; place-items: center; width: 18px; height: 18px; min-height: 18px;
+  border: 2px solid #75849a; border-radius: 50%; color: #fff; background: transparent;
+  font-size: 11px; font-weight: 800; line-height: 1;
+}
+.homework-checkpoint--completed { border-color: #238247; background: #e9f7ee; color: #1e6b3a; }
+.homework-checkpoint--completed .homework-checkpoint-mark { border-color: #238247; background: #238247; }
+
+/* Сниппет публикации: превью, метаданные публикации */
+.homework-post-details > summary.homework-post-snippet {
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px;
+}
+.homework-post-snippet-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.homework-post-preview {
+  flex: 1 1 auto; overflow: hidden; white-space: normal; text-overflow: clip;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+}
+.homework-post-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.homework-post-author { display: inline; margin: 0; color: #4a5568; font-size: 12px; font-weight: 700; }
+.homework-post-date { color: #7c8492; font-size: 11px; }
+
+/* Превью скрывается при раскрытии сниппета — полный текст не дублируется */
+.homework-post-details[open] > summary .homework-post-preview { display: none; }
+
+/* Красный закруглённый значок администратора */
+.homework-post-badge-host { margin-left: auto; display: inline-flex; }
+.homework-admin-badge {
+  display: inline-flex; align-items: center; padding: 1px 9px;
+  border: 2px solid #d02b2b; border-radius: 999px;
+  color: #c81e1e; background: rgba(208, 43, 43, 0.08);
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap;
+}
+
+/* Список дисциплин в режиме «Материалы» с раскрывающимися вариантами */
+.materials-subject-list { display: flex; flex-direction: column; gap: 9px; }
+.materials-discipline { overflow: hidden; border: 1px solid rgba(53, 69, 99, 0.12); border-radius: 12px; background: #fff; }
+.materials-discipline-header {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 12px 14px;
+  border: 0; border-left: 5px solid var(--lesson-kind-color, #75849a);
+  background: #fff; text-align: left; cursor: pointer;
+}
+.materials-discipline-title { flex: 1 1 auto; color: #1e2b40; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.materials-discipline-meta { flex: 0 0 auto; color: #687386; font-size: 12px; }
+.materials-discipline-arrow { flex: 0 0 auto; color: #76849a; font-size: 24px; line-height: 1; transition: transform 160ms ease; }
+.materials-discipline--open .materials-discipline-arrow { transform: rotate(90deg); }
+.materials-discipline-variants { display: none; flex-direction: column; gap: 7px; padding: 0 10px 10px; }
+.materials-discipline--open .materials-discipline-variants { display: flex; }
+.materials-variant-button {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 11px;
+  border: 1px solid rgba(53, 69, 99, 0.12); border-left: 4px solid var(--lesson-kind-color, #75849a);
+  border-radius: 10px; background: #f8f9fc; text-align: left; cursor: pointer;
+}
+.materials-variant-title { flex: 1 1 auto; color: #253148; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.materials-variant-meta { flex: 0 0 auto; color: #687386; font-size: 12px; }
+
+/* Значок «идёт сейчас» */
+.materials-now-badge {
+  flex: 0 0 auto; padding: 1px 8px; border-radius: 999px;
+  color: #fff; background: #a01212; font-size: 10.5px; font-weight: 800; white-space: nowrap;
+}
+.materials-occurrence--now { border-color: rgba(160, 18, 18, 0.45); box-shadow: 0 0 0 2px rgba(160, 18, 18, 0.12); }
+.materials-occurrence-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-left: auto; }
+
+/* Страница занятия: переключатель домашнего задания, дни материалов, действия */
+.lesson-homework-toggle { margin: 8px 0 2px !important; }
+.lesson-occurrence-note { margin: 6px 0 8px; color: #687386; font-size: 12px; }
+.lesson-day-switch { position: static; width: 100%; margin: 8px 0 4px; height: 62px !important; }
+.lesson-day-button { min-width: 76px; max-width: 96px; font-size: 13px; }
+.lesson-content-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.lesson-content-add { min-height: 32px; }
+.lesson-content-section--notice { text-align: center; }
+
+/* =========================== Материалы: публикация и загрузка изображений =========================== */
+
+.materials-select-group { display: flex; flex-wrap: wrap; gap: 14px; margin: 6px 0 10px; }
+.materials-select-group label { display: inline-flex; align-items: center; gap: 7px; color: #253148; font-size: 14px; cursor: pointer; }
+.materials-select-group input[type="radio"] { width: 17px; height: 17px; accent-color: #a01212; }
+.materials-fixed-type-note { margin: 6px 0 10px; color: #687386; font-size: 13px; }
+.materials-image-uploader-container { width: 100%; }
+
+.postimages-uploader { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: 100%; margin: 10px 0; }
+.postimages-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.postimages-head-title { margin: 0; color: #253148; font-size: 14px; font-weight: 700; }
+.postimages-counter { flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; color: #31445f; background: #e8edf6; font-size: 12px; font-weight: 700; }
+.postimages-dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 18px 14px; border: 2px dashed rgba(75,98,132,.35); border-radius: 14px;
+  color: #4a5a72; background: #f7f9fd; text-align: center; cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.postimages-dropzone:hover { border-color: rgba(160,18,18,.5); background: #fdf6f6; }
+.postimages-dropzone--over { border-color: #a01212; background: #fbecec; }
+.postimages-dropzone--busy { opacity: .75; }
+.postimages-dropzone--full { border-color: #238247; background: #f1fbf4; }
+.postimages-dropzone-icon { font-size: 26px; line-height: 1; }
+.postimages-dropzone-text { font-size: 13px; line-height: 1.45; }
+.postimages-dropzone-hint { color: #7c8492; font-size: 11px; }
+.postimages-file-input { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; opacity: 0 !important; }
+.postimages-manual { width: 100%; }
+.postimages-manual > summary { color: #4a6e8f; font-size: 12px; cursor: pointer; }
+.postimages-manual-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.postimages-manual-input { flex: 1 1 200px; min-width: 0; padding: 8px 10px; border: 1px solid rgba(75,98,132,.3); border-radius: 9px; font-size: 13px; }
+.postimages-manual-button { padding: 8px 12px; border: 1px solid rgba(75,98,132,.25); border-radius: 9px; color: #31445f; background: #eef3fa; font-size: 13px; cursor: pointer; }
+.postimages-status { margin: 0; color: #4a6e8f; font-size: 12px; line-height: 1.45; }
+.postimages-status--error { color: #a01212; font-weight: 600; }
+.postimages-preview-list { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0 12px; }
+.postimages-preview-item { position: relative; width: 92px; padding-bottom: 31px; }
+.postimages-preview-item img { width: 92px; height: 92px; border-radius: 10px; object-fit: cover; background: #e7eaf0; cursor: zoom-in; }
+.postimages-preview-item--uploading img { opacity: .55; }
+.postimages-preview-item--pending img { opacity: .4; }
+.postimages-preview-item--error img { filter: grayscale(1); }
+.postimages-remove-button {
+  position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; padding: 0; border: 0;
+  border-radius: 50%; color: #fff; background: #a01212; font-size: 18px; line-height: 1; cursor: pointer;
+}
+.postimages-item-status { position: absolute; right: 0; bottom: 0; left: 0; color: #687386; font-size: 11px; text-align: center; }
+.postimages-preview-item--error .postimages-item-status { color: #a01212; font-weight: 700; }
+.postimages-preview-item--uploading .postimages-item-status { color: #4a6e8f; }
+.postimages-retry-button {
+  display: block; width: 100%; margin-top: 3px; padding: 3px 6px;
+  border: 1px solid rgba(160,18,18,.35); border-radius: 8px; color: #a01212; background: #fdf3f3;
+  font-size: 11px; cursor: pointer;
+}
+.postimages-item-error { display: block; margin-top: 3px; color: #a01212; font-size: 10px; line-height: 1.3; overflow-wrap: anywhere; }
+
+.homework-admin-badge {
+  display: inline-flex; align-items: center; padding: 1px 7px; border: 1.5px solid #a01212;
+  border-radius: 999px; color: #a01212; font-size: 10px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;
+}
+
+@media (max-width: 480px) {
+  .postimages-preview-item, .postimages-preview-item img { width: 74px; }
+  .postimages-preview-item img { height: 74px; }
+  .postimages-dropzone { padding: 14px 10px; }
+}
+
+.postimages-item-name {
+  position: absolute; right: 0; bottom: 14px; left: 0;
+  overflow: hidden; color: #4a5568; font-size: 10px; line-height: 1.2;
+  text-align: center; text-overflow: ellipsis; white-space: nowrap;
 }
