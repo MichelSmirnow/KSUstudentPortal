@@ -473,7 +473,7 @@ class ScheduleRenderer {
 
     // ✓ Обработчик нажатия на занятие
     eventElementContainer.addEventListener('click', async () => {
-      await navigateTo('lesson', event);
+      await navigateTo('lesson', { event, source: 'schedule' });
     });
 
     return eventElementContainer;
@@ -576,7 +576,7 @@ class ScheduleRenderer {
 
     // ✓ Обработчик нажатия на занятие
     dayEventContainer.addEventListener('click', async () => {
-      await navigateTo('lesson', event);
+      await navigateTo('lesson', { event, source: 'schedule' });
     });
 
     // ✓ Тик обновления оставшегося времени

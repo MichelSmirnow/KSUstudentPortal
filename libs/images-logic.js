@@ -330,6 +330,10 @@
           textType,
           imageCount: imageUrls.length,
           timestamp,
+          // Публикация появляется в приложении только после проверки администратором
+          moderation: 'pending',
+          reportCount: 0,
+          reportedBy: [],
         });
 
         const imageIds = [];
@@ -353,6 +357,9 @@
             imageType: textType,
             timestamp,
             order: index,
+            moderation: 'pending',
+            reportCount: 0,
+            reportedBy: [],
           });
         });
 
@@ -880,6 +887,37 @@
     _emitChange() {
       try { this.onChange(this.getImages()); } catch (error) { console.warn('Ошибка обработчика изображений:', error); }
       this._updateStatusLine();
+    }
+
+    /**
+     * Добавить уже загруженные изображения по ссылкам — используется при редактировании
+     * публикации: показать прикреплённые картинки, чтобы их можно было снять или добавить новые.
+     */
+    addRemoteImages(urls) {
+      const list = Array.isArray(urls) ? urls : [];
+      let added = 0;
+      for (const raw of list) {
+        const url = String(raw || '').trim();
+        if (!url || !/^https?:\/\//i.test(url)) continue;
+        if (this.items.length >= this.maxImages) break;
+        if (this.items.some((item) => item.remoteUrl === url)) continue;
+        this.items.push({
+          id: `remote_${Date.now()}_${Math.floor(Math.random() * 1e4)}`,
+          file: null,
+          name: url.split('/').pop() || 'изображение',
+          size: 0,
+          previewUrl: url,
+          remoteUrl: url,
+          status: 'done',
+          error: '',
+        });
+        added += 1;
+      }
+      if (added > 0) {
+        this._renderItems();
+        this._emitChange();
+      }
+      return added;
     }
 
     /** Прямые ссылки на успешно загруженные изображения */

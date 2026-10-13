@@ -304,6 +304,23 @@ class HomeworkRenderer {
     return ({ lecture: '#25cc25', practice: '#fcb826', lab: '#be26be', other: '#75849a' })[kind] || '#75849a';
   }
 
+  /** Порядок видов занятий внутри дисциплины: лекция → практика → лабораторная → прочее */
+  static getKindOrder(kind) {
+    return ({ lecture: 0, practice: 1, lab: 2 })[kind] ?? 3;
+  }
+
+  /**
+   * Цвет дисциплины в материалах:
+   * есть лабораторные — фиолетовый, иначе есть практики — жёлтый,
+   * если ни практик, ни лабораторных нет (только лекции) — зелёный.
+   */
+  static getDisciplineColor(kinds) {
+    const list = Array.isArray(kinds) ? kinds : [];
+    if (list.includes('lab')) return HomeworkRenderer.getLessonColor('lab');
+    if (list.includes('practice')) return HomeworkRenderer.getLessonColor('practice');
+    return HomeworkRenderer.getLessonColor('lecture');
+  }
+
   /** В домашних заданиях участвуют только практики и лабораторные */
   static isHomeworkKind(kind) {
     return HomeworkRenderer.HOMEWORK_KINDS.includes(kind);
@@ -603,7 +620,7 @@ class HomeworkRenderer {
     openButton.type = 'button';
     openButton.classList.add('homework-item-open');
     openButton.title = 'Открыть информацию о занятии';
-    openButton.addEventListener('click', () => this._navigate('lesson', item.event));
+    openButton.addEventListener('click', () => this._navigate('lesson', { event: item.event, source: 'homework' }));
 
     const title = document.createElement('span');
     title.classList.add('homework-item-subject');
@@ -613,6 +630,7 @@ class HomeworkRenderer {
     meta.classList.add('homework-item-meta');
     const parts = [
       item.kindName,
+      HomeworkRenderer.formatDate(item.start),
       `${HomeworkRenderer.formatTime(item.start)}–${HomeworkRenderer.formatTime(item.end)}`,
     ];
     if (item.subgroup) parts.push(`${item.subgroup}-я подгруппа`);
@@ -628,7 +646,7 @@ class HomeworkRenderer {
     const actions = document.createElement('div');
     actions.classList.add('homework-item-actions');
 
-    const addButton = this._createAddButton(item.event, 'homework', 'Добавить ДЗ');
+    const addButton = this._createAddButton(item.event, 'homework', 'Добавить ДЗ на эту пару', { source: 'homework' });
     addButton.classList.add('homework-add-button');
     actions.appendChild(addButton);
 
@@ -650,7 +668,7 @@ class HomeworkRenderer {
       this._clearChildren(postsContainer);
       if (homeworkPosts.length === 0) return;
       for (const post of homeworkPosts) {
-        postsContainer.appendChild(this._createPostSnippet(item.event, post, 'homework'));
+        postsContainer.appendChild(this._createPostSnippet(item.event, post, 'homework', { source: 'homework' }));
       }
     }).catch((error) => {
       console.warn('Не удалось загрузить домашнее задание пары:', error);
@@ -717,10 +735,12 @@ class HomeworkRenderer {
    * Сниппет публикации:
    *  - превью текста не длиннее 100 символов с троеточием;
    *  - при открытии превью скрывается (текст не дублируется), полный текст — внутри;
-   *  - автор и время публикации (ЧЧ:ММ, ДД.ММ.ГГГГ) видны всегда, в том числе после раскрытия;
-   *  - для публикаций администраторов справа появляется красный значок «Админ».
+   *  - автор, его группа обучения и время публикации (ЧЧ:ММ, ДД.ММ.ГГГГ) видны всегда;
+   *  - справа от имени — значки статусов: админ (красный), староста (синий),
+   *    преподаватель (фиолетовый) и свой тег администрации (синий);
+   *  - здесь же — статус модерации и меню действий из трёх точек.
    */
-  _createPostSnippet(event, post, type) {
+  _createPostSnippet(event, post, type, options = {}) {
     const wrapper = document.createElement('div');
     wrapper.classList.add('homework-post');
     wrapper.classList.add(type === 'material' ? 'homework-post--material' : 'homework-post--homework');
@@ -758,6 +778,15 @@ class HomeworkRenderer {
     author.textContent = post.author || 'Автор не указан';
     metaRow.appendChild(author);
 
+    /* Группа обучения автора публикации */
+    const authorGroup = post.userGroup ? String(post.userGroup) : '';
+    if (authorGroup) {
+      const group = document.createElement('span');
+      group.classList.add('homework-post-group');
+      group.textContent = `· группа ${authorGroup}`;
+      metaRow.appendChild(group);
+    }
+
     const publishedAt = HomeworkRenderer.formatDateTime(post.timestamp);
     if (publishedAt) {
       const date = document.createElement('span');
@@ -766,19 +795,49 @@ class HomeworkRenderer {
       metaRow.appendChild(date);
     }
 
-    /* Значок администратора добавляется асинхронно, когда подтянется список админов */
+    /* Публикация ещё не прошла модерацию */
+    if (String(post.moderation || '') === 'pending') {
+      const moderation = document.createElement('span');
+      moderation.classList.add('homework-moderation-badge');
+      moderation.textContent = 'Не проверено';
+      moderation.title = 'Публикация ожидает проверки администратором';
+      metaRow.appendChild(moderation);
+    }
+
+    /* Значки статусов: админ, староста, преподаватель, свой тег (тянутся из userdata) */
     const badgeHost = document.createElement('span');
     badgeHost.classList.add('homework-post-badge-host');
     metaRow.appendChild(badgeHost);
     summary.appendChild(metaRow);
 
-    HomeworkRenderer.getAdminIds().then((adminIds) => {
-      if (!HomeworkRenderer.isAdminAuthor(post, adminIds) || !badgeHost.isConnected) return;
-      const badge = document.createElement('span');
-      badge.classList.add('homework-admin-badge');
-      badge.textContent = HomeworkRenderer.ADMIN_BADGE_TEXT;
-      badgeHost.appendChild(badge);
-    });
+    const context = {
+      event,
+      type,
+      subject: (HomeworkRenderer.getEventDetails(event).subject) || post.subject || '',
+      start: HomeworkRenderer.toDate(event && event.startTime),
+      end: HomeworkRenderer.toDate(event && event.endTime),
+      source: options.source || 'materials',
+    };
+
+    if (window.UserBadges && typeof window.UserBadges.renderInto === 'function') {
+      window.UserBadges.renderInto(badgeHost, post);
+    } else {
+      HomeworkRenderer.getAdminIds().then((adminIds) => {
+        if (!HomeworkRenderer.isAdminAuthor(post, adminIds) || !HomeworkRenderer.isRenderAlive(badgeHost)) return;
+        const badge = document.createElement('span');
+        badge.classList.add('homework-admin-badge');
+        badge.textContent = HomeworkRenderer.ADMIN_BADGE_TEXT;
+        badgeHost.appendChild(badge);
+      });
+    }
+
+    /* Меню действий публикации: жалоба, поделиться, скопировать, редактировать, удалить */
+    if (window.PostMenu && typeof window.PostMenu.buildButton === 'function') {
+      const menuArea = document.createElement('span');
+      menuArea.classList.add('homework-post-menu-area');
+      menuArea.appendChild(window.PostMenu.buildButton(post, context));
+      metaRow.appendChild(menuArea);
+    }
 
     /* Полный текст и изображения */
     const fullContent = document.createElement('div');
@@ -951,6 +1010,11 @@ class HomeworkRenderer {
         .sort((a, b) => a.start - b.start);
       return { ...variant, descriptors };
     }).sort((a, b) => {
+      // Лекция всегда первая, затем практика/лабораторная, затем прочее.
+      const kindDifference = HomeworkRenderer.getKindOrder(a.kind) - HomeworkRenderer.getKindOrder(b.kind);
+      if (kindDifference !== 0) return kindDifference;
+      const labelDifference = String(a.languageLabel || '').localeCompare(String(b.languageLabel || ''), 'ru');
+      if (labelDifference !== 0) return labelDifference;
       const aLast = a.descriptors.length ? a.descriptors[a.descriptors.length - 1].start : 0;
       const bLast = b.descriptors.length ? b.descriptors[b.descriptors.length - 1].start : 0;
       return bLast - aLast;
@@ -963,7 +1027,8 @@ class HomeworkRenderer {
     const header = document.createElement('button');
     header.type = 'button';
     header.classList.add('materials-discipline-header');
-    header.style.setProperty('--lesson-kind-color', visibleVariants[0] ? visibleVariants[0].color : '#75849a');
+    // Цвет группы дисциплин: лабы — фиолетовый, практики — жёлтый, только лекции — зелёный.
+    header.style.setProperty('--lesson-kind-color', HomeworkRenderer.getDisciplineColor(variants.map((variant) => variant.kind)));
 
     const title = document.createElement('span');
     title.classList.add('materials-discipline-title');
@@ -1156,7 +1221,7 @@ class HomeworkRenderer {
 
     openButton.appendChild(name);
     openButton.appendChild(meta);
-    openButton.addEventListener('click', () => this._navigate('lesson', event));
+    openButton.addEventListener('click', () => this._navigate('lesson', { event, source: 'materials' }));
     top.appendChild(openButton);
 
     if (ongoing) {
@@ -1168,8 +1233,8 @@ class HomeworkRenderer {
 
     const actions = document.createElement('div');
     actions.classList.add('materials-occurrence-actions');
-    const addHomework = this._createAddButton(event, 'homework', 'Добавить ДЗ');
-    const addMaterial = this._createAddButton(event, 'material', 'Добавить материал');
+    const addHomework = this._createAddButton(event, 'homework', 'Добавить ДЗ', { source: 'materials' });
+    const addMaterial = this._createAddButton(event, 'material', 'Добавить материал', { source: 'materials' });
     actions.appendChild(addHomework);
     actions.appendChild(addMaterial);
     top.appendChild(actions);
@@ -1184,8 +1249,8 @@ class HomeworkRenderer {
       this._clearChildren(postsContainer);
       const materialPosts = HomeworkRenderer.buildPosts(content.texts, content.images, 'material');
       const homeworkPosts = HomeworkRenderer.buildPosts(content.texts, content.images, 'homework');
-      materialPosts.forEach((post) => postsContainer.appendChild(this._createPostSnippet(event, post, 'material')));
-      homeworkPosts.forEach((post) => postsContainer.appendChild(this._createPostSnippet(event, post, 'homework')));
+      materialPosts.forEach((post) => postsContainer.appendChild(this._createPostSnippet(event, post, 'material', { source: 'materials' })));
+      homeworkPosts.forEach((post) => postsContainer.appendChild(this._createPostSnippet(event, post, 'homework', { source: 'materials' })));
     }).catch((error) => console.warn('Не удалось загрузить публикации пары:', error));
 
     return card;
@@ -1197,7 +1262,7 @@ class HomeworkRenderer {
    * Содержимое страницы занятия: переключатель «Сегодняшнее ДЗ / ДЗ на следующее
    * занятие», переключатель дней для материалов, сами публикации и кнопки добавления.
    */
-  static async renderLessonContents(event) {
+  static async renderLessonContents(event, options = {}) {
     const renderer = new HomeworkRenderer(HomeworkRenderer._currentSchedule());
     const root = document.createElement('div');
     root.classList.add('lesson-materials-content');
@@ -1205,7 +1270,7 @@ class HomeworkRenderer {
     const descriptor = HomeworkRenderer.describeEvent(event);
 
     if (HomeworkRenderer.isHomeworkKind(descriptor.kind)) {
-      const homeworkSection = await renderer._createLessonHomeworkSection(descriptor);
+      const homeworkSection = await renderer._createLessonHomeworkSection(descriptor, options);
       if (homeworkSection) root.appendChild(homeworkSection);
     } else {
       const notice = document.createElement('section');
@@ -1219,7 +1284,7 @@ class HomeworkRenderer {
       root.appendChild(notice);
     }
 
-    root.appendChild(await renderer._createLessonMaterialsSection(descriptor));
+    root.appendChild(await renderer._createLessonMaterialsSection(descriptor, options));
     return root;
   }
 
@@ -1259,8 +1324,15 @@ class HomeworkRenderer {
     return this._occurrencesFor(descriptor, { ignoreSubgroup: true });
   }
 
-  /** Секция домашнего задания с переключателем «сегодня / следующее занятие» */
-  async _createLessonHomeworkSection(descriptor) {
+  /**
+   * Секция домашнего задания на странице занятия.
+   *
+   * Переключатель: «ДЗ на эту пару» / «ДЗ на следующую пару» — то есть домашнее задание,
+   * прикреплённое к открытой паре или к следующей такой же паре в расписании.
+   * Какую вкладку открыть первой, решает источник перехода: из списка ДЗ — «эта пара»,
+   * из расписания и материалов — «следующая пара» (чтобы удобно было задать ДЗ вперёд).
+   */
+  async _createLessonHomeworkSection(descriptor, options = {}) {
     const section = document.createElement('section');
     section.classList.add('lesson-content-section', 'lesson-content-section--homework');
 
@@ -1272,26 +1344,24 @@ class HomeworkRenderer {
     section.appendChild(heading);
 
     const occurrences = this._homeworkOccurrences(descriptor);
-    const now = new Date();
-    const todayKey = HomeworkRenderer.formatDateKey(now);
-    const todayOccurrence = occurrences.find((item) => item.dateKey === todayKey) || null;
-    const nextOccurrence = occurrences.find((item) => item.start > now) || null;
+    const thisOccurrence = descriptor;
+    const nextOccurrence = occurrences.find((item) => item.start > thisOccurrence.start) || null;
 
     /* Переключатель над блоком домашнего задания */
     const toggle = document.createElement('div');
     toggle.classList.add('lesson-homework-toggle', 'flex-container', 'radio-container');
 
-    const todayButton = document.createElement('button');
-    todayButton.type = 'button';
-    todayButton.classList.add('radio-button');
-    todayButton.textContent = 'Сегодняшнее ДЗ';
+    const thisButton = document.createElement('button');
+    thisButton.type = 'button';
+    thisButton.classList.add('radio-button');
+    thisButton.textContent = 'ДЗ на эту пару';
 
     const nextButton = document.createElement('button');
     nextButton.type = 'button';
     nextButton.classList.add('radio-button');
-    nextButton.textContent = 'ДЗ на следующее занятие';
+    nextButton.textContent = 'ДЗ на следующую пару';
 
-    toggle.appendChild(todayButton);
+    toggle.appendChild(thisButton);
     toggle.appendChild(nextButton);
     section.appendChild(toggle);
 
@@ -1307,52 +1377,62 @@ class HomeworkRenderer {
     actions.classList.add('lesson-content-actions');
     section.appendChild(actions);
 
-    let currentTarget = todayOccurrence ? 'today' : 'next';
+    const source = options.source || 'materials';
+    let currentTarget = source === 'homework' ? 'this' : (nextOccurrence ? 'next' : 'this');
 
     const draw = async () => {
-      const occurrence = currentTarget === 'today' ? todayOccurrence : nextOccurrence;
-      todayButton.classList.toggle('selected', currentTarget === 'today');
+      const occurrence = currentTarget === 'next' ? nextOccurrence : thisOccurrence;
+      thisButton.classList.toggle('selected', currentTarget === 'this');
       nextButton.classList.toggle('selected', currentTarget === 'next');
-      todayButton.setAttribute('aria-pressed', String(currentTarget === 'today'));
+      thisButton.setAttribute('aria-pressed', String(currentTarget === 'this'));
       nextButton.setAttribute('aria-pressed', String(currentTarget === 'next'));
       this._clearChildren(postsContainer);
       this._clearChildren(actions);
 
       if (!occurrence) {
-        note.textContent = currentTarget === 'today'
-          ? 'Сегодня пары по этой дисциплине нет.'
-          : 'Ближайшая пара по этой дисциплине не найдена в расписании.';
+        note.textContent = 'Следующая такая же пара не найдена в расписании — добавьте ДЗ к текущей паре.';
         const empty = document.createElement('p');
         empty.classList.add('lesson-content-empty');
-        empty.textContent = 'Домашнее задание показать не для чего.';
+        empty.textContent = 'Добавлять ДЗ на следующую пару пока не для чего.';
         postsContainer.appendChild(empty);
+        const fallback = this._createAddButton(thisOccurrence.event, 'homework', `Добавить ДЗ на эту пару (${HomeworkRenderer.formatDate(thisOccurrence.start)})`, { source });
+        fallback.classList.add('lesson-content-add');
+        actions.appendChild(fallback);
         return;
       }
 
       const timeLabel = `${HomeworkRenderer.formatDate(occurrence.start)} · ${HomeworkRenderer.formatTime(occurrence.start)}–${HomeworkRenderer.formatTime(occurrence.end)}`;
       const ongoingLabel = HomeworkRenderer.isOngoing(occurrence, new Date()) ? ' · идёт сейчас' : '';
-      note.textContent = `${currentTarget === 'today' ? 'ДЗ с занятия' : 'Ближайшее занятие'}: ${timeLabel}${ongoingLabel}`;
+      const prefix = currentTarget === 'next' ? 'Следующая пара' : 'Эта пара';
+      note.textContent = `${prefix}: ${timeLabel}${ongoingLabel}`;
 
-      const addButton = this._createAddButton(occurrence.event, 'homework', 'Добавить ДЗ');
+      const addButton = this._createAddButton(
+        occurrence.event,
+        'homework',
+        currentTarget === 'next' ? 'Добавить ДЗ на следующую пару' : 'Добавить ДЗ на эту пару',
+        { source }
+      );
       addButton.classList.add('lesson-content-add');
       actions.appendChild(addButton);
 
       const content = await this._loadEventContent(occurrence.event, false);
-      if (!postsContainer.isConnected) return;
+      if (!HomeworkRenderer.isRenderAlive(postsContainer)) return;
       const posts = HomeworkRenderer.buildPosts(content.texts, content.images, 'homework');
       if (posts.length === 0) {
         const empty = document.createElement('p');
         empty.classList.add('lesson-content-empty');
-        empty.textContent = 'К этому занятию пока не прикреплено домашнее задание.';
+        empty.textContent = currentTarget === 'next'
+          ? 'На следующую пару домашнее задание ещё не задано.'
+          : 'К этой паре домашнее задание не прикреплено.';
         postsContainer.appendChild(empty);
         return;
       }
       for (const post of posts) {
-        postsContainer.appendChild(this._createPostSnippet(occurrence.event, post, 'homework'));
+        postsContainer.appendChild(this._createPostSnippet(occurrence.event, post, 'homework', { source: currentTarget === 'next' ? 'homework' : source }));
       }
     };
 
-    todayButton.addEventListener('click', () => { currentTarget = 'today'; draw(); });
+    thisButton.addEventListener('click', () => { currentTarget = 'this'; draw(); });
     nextButton.addEventListener('click', () => { currentTarget = 'next'; draw(); });
 
     await draw();
@@ -1360,7 +1440,8 @@ class HomeworkRenderer {
   }
 
   /** Секция материалов с переключателем дней (как недели в расписании) */
-  async _createLessonMaterialsSection(descriptor) {
+  async _createLessonMaterialsSection(descriptor, options = {}) {
+    const source = options.source || 'materials';
     const section = document.createElement('section');
     section.classList.add('lesson-content-section', 'lesson-content-section--material');
 
@@ -1417,12 +1498,12 @@ class HomeworkRenderer {
       const subgroupLabel = selected.subgroup ? ` · ${selected.subgroup}-я подгруппа` : '';
       note.textContent = `${selected.kindName}: ${timeLabel}${subgroupLabel}${ongoingLabel}`;
 
-      const addButton = this._createAddButton(selected.event, 'material', 'Добавить материал');
+      const addButton = this._createAddButton(selected.event, 'material', 'Добавить материал', { source });
       addButton.classList.add('lesson-content-add');
       actions.appendChild(addButton);
 
       const content = await this._loadEventContent(selected.event, false);
-      if (!postsContainer.isConnected) return;
+      if (!HomeworkRenderer.isRenderAlive(postsContainer)) return;
       const posts = HomeworkRenderer.buildPosts(content.texts, content.images, 'material');
       if (posts.length === 0) {
         const empty = document.createElement('p');
@@ -1432,7 +1513,7 @@ class HomeworkRenderer {
         return;
       }
       for (const post of posts) {
-        postsContainer.appendChild(this._createPostSnippet(selected.event, post, 'material'));
+        postsContainer.appendChild(this._createPostSnippet(selected.event, post, 'material', { source }));
       }
     };
 
@@ -1464,12 +1545,21 @@ class HomeworkRenderer {
       if (!groups.has(key)) {
         groups.set(key, {
           postId: record.postId || key,
+          textIds: [],
+          imageIds: [],
           textContent: '',
+          textType: String(record.textType || ''),
           author: record.author || '',
+          authorEmail: record.authorEmail || '',
           userId: record.userId || '',
           userGroup: record.userGroup || '',
           userSubgroup: record.userSubgroup || null,
           targetSubgroup: record.targetSubgroup ?? null,
+          subject: String(record.subject || ''),
+          subjectTimestamp: Number(record.subjectTimestamp) || 0,
+          moderation: '',
+          reportCount: Number(record.reportCount) || 0,
+          reportedBy: Array.isArray(record.reportedBy) ? record.reportedBy.slice() : [],
           isAdmin: record.isAdmin === true || record.authorIsAdmin === true,
           timestamp: Number(record.timestamp) || 0,
           images: [],
@@ -1484,8 +1574,17 @@ class HomeworkRenderer {
       const post = getOrCreate(key, text);
       post.textContent = String(text.textContent || '');
       post.author = text.author || post.author;
+      post.authorEmail = text.authorEmail || post.authorEmail;
       post.userId = text.userId || post.userId;
       post.userGroup = text.userGroup || post.userGroup;
+      post.textType = text.textType === 'homework' ? 'homework' : (post.textType || 'material');
+      post.subject = text.subject || post.subject;
+      post.subjectTimestamp = Number(text.subjectTimestamp) || post.subjectTimestamp;
+      post.reportCount = Math.max(post.reportCount, Number(text.reportCount) || 0);
+      if (Array.isArray(text.reportedBy)) post.reportedBy = text.reportedBy.slice();
+      if (text.moderation === 'pending') post.moderation = 'pending';
+      else if (!post.moderation) post.moderation = String(text.moderation || '');
+      if (text.textId) post.textIds.push(String(text.textId));
       post.timestamp = Number(text.timestamp) || post.timestamp;
     });
 
@@ -1495,7 +1594,13 @@ class HomeworkRenderer {
       const post = getOrCreate(key, image);
       post.images.push(image);
       post.author = image.author || post.author;
+      post.authorEmail = image.authorEmail || post.authorEmail;
       post.userId = image.userId || post.userId;
+      post.reportCount = Math.max(post.reportCount, Number(image.reportCount) || 0);
+      if (Array.isArray(image.reportedBy)) post.reportedBy = image.reportedBy.slice();
+      if (image.moderation === 'pending') post.moderation = 'pending';
+      else if (!post.moderation) post.moderation = String(image.moderation || '');
+      if (image.imageId) post.imageIds.push(String(image.imageId));
       post.timestamp = Number(image.timestamp) || post.timestamp;
     });
 
@@ -1642,7 +1747,7 @@ class HomeworkRenderer {
     return `${this.options.storageKeyPrefix}:${scope}`;
   }
 
-  _createAddButton(event, type, label) {
+  _createAddButton(event, type, label, options = {}) {
     const button = document.createElement('button');
     button.type = 'button';
     button.classList.add('materials-add-inline');
@@ -1650,7 +1755,7 @@ class HomeworkRenderer {
     button.addEventListener('click', (clickEvent) => {
       clickEvent.preventDefault();
       clickEvent.stopPropagation();
-      this._navigate('addmatr', { event, fixedType: type });
+      this._navigate('addmatr', { event, fixedType: type, source: options.source || null });
     });
     return button;
   }
@@ -1677,6 +1782,17 @@ class HomeworkRenderer {
 
   _clearChildren(element) {
     while (element && element.firstChild) element.removeChild(element.firstChild);
+  }
+
+  /**
+   * Нужен ли ещё этот узел. Во время первой отрисовки дерево может быть ещё не вставлено
+   * в документ — это нормально; удалённым считаем только тот узел, который уже был в документе
+   * и после асинхронной работы из него пропал.
+   */
+  static isRenderAlive(node) {
+    if (!node) return false;
+    if (node.isConnected) { node.__wasInDocument = true; return true; }
+    return node.__wasInDocument !== true;
   }
 
   _observeRootRemoval() {

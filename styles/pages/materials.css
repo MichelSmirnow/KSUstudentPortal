@@ -356,6 +356,15 @@ p.materials-content {
 .homework-post-details[open] > summary .homework-post-preview { display: none; }
 
 /* Красный закруглённый значок администратора */
+/* Меню действий публикации (три точки справа) */
+.homework-post-menu-area { flex: 0 0 auto; display: inline-flex; align-items: center; margin-left: auto; }
+
+/* Пометка при редактировании публикации */
+.materials-edit-note {
+  margin: 6px 0 10px; padding: 9px 12px; border-left: 4px solid #d98a00; border-radius: 9px;
+  color: #7a5200; background: rgba(252, 184, 38, 0.12); font-size: 12.5px; line-height: 1.45;
+}
+
 .homework-post-badge-host { margin-left: auto; display: inline-flex; }
 .homework-admin-badge {
   display: inline-flex; align-items: center; padding: 1px 9px;

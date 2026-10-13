@@ -454,7 +454,7 @@ async function generatePageContent(id) {
       </div>
       <img class="banner-half" src="images/supbanners/services.png"/>
     </div>
-    <button onclick="" class="account-service-button" id="account-service-admin">
+    <button onclick="navigateTo('adminpanel')" class="account-service-button" id="account-service-admin">
       <img src="images/ui/admin.png" />  
       <div class="account-service-button-subcontainer"><p><b>Панель администратора</b></p><p style="font-size: 13px;">Управление приложением</p></div>
     </button>
@@ -637,10 +637,16 @@ async function generateSubpageContent(id, data) {
   const generatePageContentContainer = document.createElement('div');
   generatePageContentContainer.id = 'subpage';
   if (id === 'lesson') { // ✓ Перекравающее окно информации о занятии (data - элемент расписания)
-    
+
+    // ✓ data может быть как самим занятием, так и объектом { event, source }.
+    // Источник перехода решает, какую вкладку домашнего задания открыть первой:
+    // из списка ДЗ — «ДЗ на эту пару», из расписания и материалов — «ДЗ на следующую пару».
+    const lessonSource = data && data.event ? (data.source || 'schedule') : 'schedule';
+    const lessonData = data && data.event ? data.event : data;
+
     // ✓ Получаем данные о занятии и преподавателе для отображения
     generatePageContentContainer.style.position = 'relative';
-    const extractedData = ScheduleRenderer.extractElementData(data);
+    const extractedData = ScheduleRenderer.extractElementData(lessonData);
     const teacherData = extractTeachersData(extractedData.teacher);
     const extractedSubject = extractedData.subject 
       ? ((extractedData.subject).length > 66
@@ -665,7 +671,7 @@ async function generateSubpageContent(id, data) {
 
       // Сначала добавьте сюда существующую верхнюю карточку преподавателя и пары.
       generatePageContentContainer.appendChild(
-        await window.HomeworkRenderer.renderLessonContents(data)
+        await window.HomeworkRenderer.renderLessonContents(lessonData, { source: lessonSource })
       );
 
     } else { // ✓ Если пользовать не авторизован, намекаем ему зарегистрироваться
@@ -759,7 +765,7 @@ async function generateSubpageContent(id, data) {
         <p style="color: #333; font-size: 14px">ВНИМАНИЕ! Это действие безвозвратное. Удаление аккаунта повлечет утрату полученных достижений и удаление ВСЕХ опубликованным вами материалов!</p>
       </div>` : ``}
       `;
-  } else if (id === 'addmatr') {
+  } else if (id === 'addmatr') { // ✓ Публикация материала/ДЗ (в том числе редактирование)
     const addData = data && data.event
       ? data
       : { event: data, fixedType: null };
@@ -767,6 +773,14 @@ async function generateSubpageContent(id, data) {
     const fixedType = addData.fixedType === 'homework' || addData.fixedType === 'material'
       ? addData.fixedType
       : null;
+    const editData = addData.edit && typeof addData.edit === 'object' ? addData.edit : null;
+    const returnSource = addData.source || 'materials';
+    let imageUploader = null;
+    const destroyUploader = () => { if (imageUploader && typeof imageUploader.destroy === 'function') imageUploader.destroy(); };
+    const backToLesson = async () => {
+      destroyUploader();
+      await navigateTo('lesson', { event: lessonEvent, source: returnSource });
+    };
 
     // ✓ Шапка страницы публикации: сразу видно, к какой паре прикрепляем материал
     const addHeader = document.createElement('div');
@@ -784,10 +798,18 @@ async function generateSubpageContent(id, data) {
       <p style="font-size: 13px;">${addHeaderMeta}</p>`;
     generatePageContentContainer.appendChild(addHeader);
 
+    if (editData) {
+      const editNote = document.createElement('p');
+      editNote.classList.add('materials-edit-note');
+      editNote.textContent = 'Редактирование публикации: после нажатия «Опубликовать» старая версия удаляется, а новая снова отправляется на проверку администрации.';
+      generatePageContentContainer.appendChild(editNote);
+    }
+
     const textarea = document.createElement('textarea');
     textarea.classList.add('materials-textarea');
     textarea.setAttribute('aria-label', 'Текст публикации');
     textarea.placeholder = 'Текст публикации: задание, пояснение или описание материалов';
+    if (editData) textarea.value = String(editData.textContent || '');
     generatePageContentContainer.appendChild(textarea);
 
     if (fixedType) {
@@ -800,29 +822,42 @@ async function generateSubpageContent(id, data) {
     } else {
       const radioGroup = document.createElement('div');
       radioGroup.classList.add('materials-select-group');
+      const currentType = editData && editData.textType === 'homework' ? 'homework' : 'material';
       radioGroup.innerHTML = `
-        <label><input type="radio" name="task-type" value="material" checked> Материал</label>
-        <label><input type="radio" name="task-type" value="homework"> Домашнее задание</label>`;
+        <label><input type="radio" name="task-type" value="material" ${currentType === 'material' ? 'checked' : ''}> Материал</label>
+        <label><input type="radio" name="task-type" value="homework" ${currentType === 'homework' ? 'checked' : ''}> Домашнее задание</label>`;
       generatePageContentContainer.appendChild(radioGroup);
     }
 
     const uploaderContainer = document.createElement('div');
     uploaderContainer.classList.add('materials-image-uploader-container');
     generatePageContentContainer.appendChild(uploaderContainer);
-    const imageUploader = new window.PostimagesUploader(uploaderContainer, {
+    imageUploader = new window.PostimagesUploader(uploaderContainer, {
       maxImages: 10,
     });
+
+    // ✓ При редактировании показываем уже прикреплённые изображения: их можно снять или добавить новые
+    if (editData && Array.isArray(editData.images) && editData.images.length > 0
+      && typeof imageUploader.addRemoteImages === 'function') {
+      imageUploader.addRemoteImages(editData.images);
+    }
 
     const submitButton = document.createElement('button');
     submitButton.type = 'button';
     submitButton.id = 'materials-submit';
     submitButton.classList.add('account-standartButton');
-    submitButton.textContent = 'Опубликовать';
+    submitButton.textContent = editData ? 'Опубликовать заново' : 'Опубликовать';
     submitButton.addEventListener('click', async () => {
+      const restoreButton = () => {
+        submitButton.disabled = false;
+        submitButton.textContent = editData ? 'Опубликовать заново' : 'Опубликовать';
+      };
       submitButton.disabled = true;
       submitButton.textContent = 'Публикация...';
+
       if (typeof imageUploader.isUploading === 'function' && imageUploader.isUploading()) {
         showNotification('Дождитесь окончания загрузки изображений на Postimages', 'info');
+        restoreButton();
         return;
       }
 
@@ -830,8 +865,23 @@ async function generateSubpageContent(id, data) {
       const images = imageUploader.getImages();
       if (!textContent && images.length === 0) {
         showNotification('Добавьте текст или изображение', 'info');
+        restoreButton();
         return;
       }
+
+      // ✓ Проверяем, не заблокирован ли аккаунт администрацией (запрет на публикацию)
+      try {
+        const blockState = window.UserBadges && typeof window.UserBadges.getBlockState === 'function'
+          ? await window.UserBadges.getBlockState()
+          : { blocked: false };
+        if (blockState.blocked) {
+          showNotification(blockState.reason
+            ? `Публикация недоступна: аккаунт заблокирован (${blockState.reason})`
+            : 'Публикация недоступна: аккаунт заблокирован администрацией', 'error');
+          restoreButton();
+          return;
+        }
+      } catch (error) { /* если роли не загрузились — публикацию не блокируем */ }
 
       let textType = fixedType || 'material';
       if (!fixedType) {
@@ -839,6 +889,20 @@ async function generateSubpageContent(id, data) {
           '.materials-select-group input[type="radio"]:checked'
         );
         if (selectedType) textType = selectedType.value;
+      }
+
+      // ✓ Редактирование: старая версия публикации удаляется только сейчас, при публикации
+      if (editData) {
+        const removal = await window.database.deletePosts({
+          postId: editData.postId,
+          textIds: editData.textIds,
+          imageIds: editData.imageIds,
+        });
+        if (!removal || (removal.success !== true && removal.deleted === 0)) {
+          showNotification((removal && removal.message) || 'Не удалось заменить прежнюю версию публикации', 'error');
+          restoreButton();
+          return;
+        }
       }
 
       let userData = {};
@@ -858,28 +922,28 @@ async function generateSubpageContent(id, data) {
 
       if (!result || result.success !== true) {
         showNotification(result && result.message ? result.message : 'Не удалось сохранить публикацию', 'error');
-        submitButton.disabled = false;
-        submitButton.textContent = 'Опубликовать';
+        restoreButton();
         return;
       }
 
-      imageUploader.destroy();
-      showNotification('Публикация успешно сохранена', 'success');
-      await navigateTo('lesson', lessonEvent);
+      destroyUploader();
+      showNotification(editData
+        ? 'Публикация обновлена и отправлена на проверку администрации'
+        : 'Публикация сохранена и отправлена на проверку администрации', 'success');
+      await backToLesson();
     });
 
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
     closeButton.id = 'materials-back';
     closeButton.classList.add('account-standartButton');
-    closeButton.textContent = 'Отмена';
-    closeButton.addEventListener('click', async () => {
-      imageUploader.destroy();
-      await navigateTo('lesson', lessonEvent);
-    });
+    closeButton.textContent = editData ? 'Отменить редактирование' : 'Отмена';
+    closeButton.addEventListener('click', async () => { await backToLesson(); });
 
     generatePageContentContainer.appendChild(submitButton);
     generatePageContentContainer.appendChild(closeButton);
+  } else if (id === 'adminpanel') { // ✓ Панель администратора: пользователи и модерация
+    generatePageContentContainer.appendChild(await window.AdminPanel.render());
   } else if (id === 'subject') {
     let events = Array.isArray(groupData[CurrentGroup])
       ? groupData[CurrentGroup]
@@ -1052,14 +1116,37 @@ async function navigateTo(page, data) {
   const state = { page, ...data };
   history.pushState( state, "", `#${page}` ); // Добавляем страницу в историю браузера/WebView
   appState.page = page;
+  appState.data = data;
   await generateSubpage(page, data);
 }
+
+// ✓ Обновить текущую открытую страницу (используется после действий с публикациями)
+async function refreshCurrentPage() {
+  try {
+    if (appState && appState.page && appState.page !== 'home') {
+      await generateSubpage(appState.page, appState.data);
+      return;
+    }
+    const target = navOpened || 'nav-shedule';
+    const content = await generatePageContent(target);
+    containerMain.innerHTML = '';
+    containerMain.appendChild(content);
+  } catch (error) {
+    console.warn('Не удалось обновить страницу:', error);
+  }
+}
+
+// ✓ Общие функции для остальных модулей (admin.js, homework.js)
+window.navigateTo = navigateTo;
+window.generatePage = generatePage;
+window.refreshCurrentPage = refreshCurrentPage;
 
 // ✓ Обработка нажатия системной кнопки возврата по странице
 window.addEventListener("popstate", async function (event) {
   const state = event.state;
   if (state && state.page) { // ✓ Отрисовываем предыдущую виртуальную страницу
     appState.page = state.page;
+    appState.data = state;
     if (appState.page !== 'home') {
       await generateSubpage(state.page, state);
     } else {
@@ -1140,6 +1227,7 @@ class AuthProcessor {
     const groupChange = document.getElementById('header-group-p');
     const userData = JSON.parse(localStorage.getItem('userData') || '{}');
     CurrentGroup = userData.userGroup ? userData.userGroup : '26-ИСбо-4';
+    window.CurrentGroup = CurrentGroup; // Группа нужна модулям материалов и администрирования
     const userSubroup = userData.userSubgroup ? userData.userSubgroup : 1;
     (document.getElementById('header-group')).innerHTML = `${CurrentGroup}(${userSubroup})`;
     if (userData.userLanguage) { (document.getElementById('header-group')).title = `Изучаемый язык: ${userData.userLanguage}`; }
