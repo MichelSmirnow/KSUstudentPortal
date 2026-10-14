@@ -320,3 +320,71 @@
 
 
 
+
+/* ========== СТРАНИЦА ПРЕПОДАВАТЕЛЯ (вкладки «Информация» и «Расписание») ========== */
+
+/* ✓ Шапка страницы преподавателя повторяет карточку из окна информации о паре
+   (.materials-teacher / .materials-teacher-info), но фото здесь крупнее */
+
+.teacher-subpage-hero .materials-teacher {
+  left: -14px; top: 0; width: 164px; height: 200px;
+}
+
+.teacher-subpage-hero .materials-teacher-info {
+  right: -14px; top: 0; width: calc(100% - 172px); height: 200px;
+}
+
+.teacher-subpage-hero .materials-teacher-name { font-size: 17px; }
+
+.teacher-subpage-title { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+.teacher-subpage-name { font-size: 17px; font-weight: 600; margin: 0; }
+
+.teacher-subpage-post { font-size: 14px; color: #444; margin: 0; }
+
+.teacher-subpage-place { font-size: 13px; color: #777; margin: 0; }
+
+.teacher-subpage-tabs { margin: 0 !important; }
+
+.teacher-subpage-pane { padding: 4px 4px 24px; }
+
+.teacher-subpage-section {
+
+  background: #fff; border: 1px solid #e8e8e8; border-radius: 12px; padding: 14px 16px; margin: 12px 0;
+
+}
+
+.teacher-subpage-section p { margin: 4px 0; }
+
+.teacher-subpage-section-title {
+
+  font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: #8a8f98 !important; margin-bottom: 6px !important;
+
+}
+
+.teacher-subpage-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+
+.teacher-subpage-row span { color: #666; }
+
+.teacher-subpage-row b { text-align: right; }
+
+.teacher-course-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+
+.teacher-course {
+
+  display: inline-block; padding: 6px 12px; border-radius: 100px; background: #f2f3f7;
+
+  font-size: 13px; color: #333; line-height: 1.25;
+
+}
+
+.teacher-subpage-list { margin: 6px 0 0 18px; padding: 0; font-size: 13px; color: #555; }
+
+.teacher-subpage-loading, .teacher-subpage-empty { color: #777; font-size: 14px; padding: 8px 4px; }
+
+.teacher-subpage-note { padding: 12px 4px; }
+
+.teacher-subpage-hint { font-size: 12px; color: #9aa0a6; padding: 0 4px; }
+
+
+

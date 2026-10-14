@@ -35,10 +35,11 @@ class KafederRenderer {
         ${teacher.academicDegree ? `<div class="teacher-degree">${teacher.academicDegree}</div>` : ''}
         ${teacher.workPost ? `<div class="teacher-post">${teacher.workPost}</div>` : 'Преподаватель кафедры'}
       </div>`;
+      applyTeacherImageFallback(teacherElement.querySelector('.teacher-image'));
 
       // ✓ Добавляем обработчик нажатия на учителя
       teacherElement.addEventListener('click', async () => {
-        await navigateTo('teacher', teacher); // teacher ЭТО ОБЬЕКТ!!! ЕГО НАДО ПО ДРУГОМУ ПАРСИРОВАТЬ!!!
+        await navigateTo('teacher', teacher);
       });
 
       container.appendChild(teacherElement);
@@ -64,13 +65,12 @@ class KafederRenderer {
   renderInstitutes(container) {
     Object.entries(teachersData).forEach(([key, value]) => {
       const instituteStyle = institutesStyle[key];
-      console.log(instituteStyle);
       const InstituteContainer = document.createElement('details');
       InstituteContainer.classList.add('kafeder-institute');
       InstituteContainer.innerHTML = `
       <summary class="institute-title" style="background-image: url(${instituteStyle.backgroundImage});">
         <div class="institute-background-image" style="background-image: linear-gradient(${instituteStyle.backgroundGradient}) !important;"></div>
-        <div class="institute-title-info"><div class="institute-title-info-subcontainer" style="text-shadow: ${instituteStyle.textShadow}; color: ${instituteStyle.textColor};">
+        <div class="institute-title-info"><div class="institute-title-info-subcontainer" style="${instituteStyle.textShadow ? `text-shadow: ${instituteStyle.textShadow};` : ''}">
           <p>${key}</p>
           <p style="padding-top: 3px; font-size: 18px;"><b>${instituteStyle.abbreviation}</b></p>
         </div></div>
@@ -239,6 +239,135 @@ function generateNoAuthContainer() {
   <p style="color: #333 !important; font-size: 13px !important;">Код ошибки (для тестировщиков): NOAUTH</p>
   <img style="width: 100%; margin-top: -30px; filter: drop-shadow(0 10px 5px rgba(2, 8, 61, 0.35)); src="images/supbanners/ " />`;
   return noAuthContainer;
+}
+
+
+/* ======== Преподаватели: заглушка фото и поиск по данным расписания ======== */
+
+// ✓ Заглушка «человек-аккаунт-профиль», если фото преподавателя не нашлось
+const TEACHER_DUMMY_IMAGE = 'images/teachers/no-photo.jpg';
+
+// ✓ Если фото не загрузилось — мгновенно подставляем заглушку
+function applyTeacherImageFallback(imageElement) {
+  if (!imageElement || imageElement.dataset.teacherFallback === 'ready') return imageElement || null;
+  imageElement.dataset.teacherFallback = 'ready';
+  imageElement.addEventListener('error', () => {
+    if (imageElement.dataset.teacherFallback === 'applied') return;
+    imageElement.dataset.teacherFallback = 'applied';
+    imageElement.src = TEACHER_DUMMY_IMAGE;
+  });
+  if (imageElement.complete && imageElement.naturalWidth === 0) {
+    imageElement.dataset.teacherFallback = 'applied';
+    imageElement.src = TEACHER_DUMMY_IMAGE;
+  }
+  return imageElement;
+}
+
+// ✓ Нормализация ФИО: «ё» → «е», пробелы, точки, регистр
+function normalizeTeacherName(value) {
+  return String(value || '')
+    .replace(/\u0451/g, '\u0435').replace(/\u0401/g, '\u0415')
+    .replace(/\./g, '. ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+// ✓ «Марголина Н.Л.» и «Марголина Наталия Львовна» → «марголина н л»
+function teacherInitialsKey(value) {
+  const parts = String(value || '').replace(/\./g, ' . ').split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return null;
+  const surname = normalizeTeacherName(parts[0]);
+  const letters = parts.slice(1).filter((part) => part !== '.').map((part) => part[0].toLowerCase());
+  if (!surname || letters.length < 2) return null;
+  return `${surname} ${letters.join(' ')}`;
+}
+
+// ✓ Найти преподавателя по строке расписания («Ф И.О.»), ключу или полному ФИО
+function findTeacherRecord(query) {
+  const raw = String(query || '').trim();
+  if (!raw || typeof teachersData === 'undefined') return null;
+  const byKey = new Map();
+  const byFull = new Map();
+  const byInitials = new Map();
+  Object.entries(teachersData).forEach(([instituteName, departments]) => {
+    Object.entries(departments).forEach(([departmentName, teachersObj]) => {
+      Object.entries(teachersObj).forEach(([key, teacher]) => {
+        const record = { ...teacher, key, instituteName, departmentName };
+        const full = normalizeTeacherName(teacher.fullName);
+        const initials = teacherInitialsKey(teacher.fullName);
+        // Один человек может числиться на двух кафедрах — берём карточку с более полными данными
+        record.teacherScore = (record.sheduleCode ? 2 : 0)
+          + ((Array.isArray(record.courses) && record.courses.length) ? 1 : 0)
+          + (record.academicDegree ? 1 : 0);
+        const put = (map, mapKey) => {
+          if (!mapKey) return;
+          const previous = map.get(mapKey);
+          if (!previous || record.teacherScore > (previous.teacherScore || 0)) map.set(mapKey, record);
+        };
+        put(byKey, key);
+        put(byFull, full);
+        put(byInitials, initials);
+      });
+    });
+  });
+  // Строка из расписания может содержать «хвост» («Киприна Л.Ю. группа: 26-ИСбо-4») — берём и укороченные варианты
+  const words = raw.split(/\s+/).filter(Boolean);
+  const variants = new Set([raw]);
+  for (let length = Math.min(4, words.length); length >= 2; length -= 1) {
+    variants.add(words.slice(0, length).join(' '));
+  }
+  const attempts = [];
+  variants.forEach((variant) => {
+    attempts.push(variant, normalizeTeacherName(variant), teacherInitialsKey(variant));
+  });
+  for (const attempt of attempts) {
+    if (!attempt) continue;
+    if (byKey.has(attempt)) return byKey.get(attempt);
+    if (byFull.has(attempt)) return byFull.get(attempt);
+    if (byInitials.has(attempt)) return byInitials.get(attempt);
+  }
+  return null;
+}
+
+// ✓ Вкладка «Информация»: все общедоступные сведения о преподавателе
+function generateTeacherInfoContainer(teacher) {
+  const block = (title, body) => (body ? `<div class="teacher-subpage-section"><p class="teacher-subpage-section-title">${title}</p>${body}</div>` : '');
+  const row = (label, value) => (value ? `<p class="teacher-subpage-row"><span>${label}</span><b>${value}</b></p>` : '');
+  const courses = Array.isArray(teacher.courses) ? teacher.courses.filter(Boolean) : [];
+
+  const common = [
+    row('Учёная степень', teacher.academicDegree),
+    row('Учёное звание', teacher.academicTitle),
+    row('Должность', teacher.workPost),
+    row('Институт', teacher.instituteName),
+    row('Кафедра', teacher.departmentName),
+  ].join('');
+
+  const contacts = [
+    row('Электронная почта', teacher.email),
+    row('Телефон', teacher.phone),
+    row('Адрес', teacher.address),
+  ].join('');
+
+  const coursesList = courses.length
+    ? `<div class="teacher-course-list">${courses.map((course) => `<span class="teacher-course">${course}</span>`).join('')}</div>`
+    : `<p class="teacher-subpage-empty">Список дисциплин пока не заполнен</p>`;
+
+  const extra = Array.isArray(teacher.extra) && teacher.extra.length
+    ? `<ul class="teacher-subpage-list">${teacher.extra.map((item) => `<li>${item}</li>`).join('')}</ul>`
+    : '';
+
+  return `
+    ${block('Общие сведения', common)}
+    ${block('Дисциплины', coursesList)}
+    ${block('Контакты', contacts)}
+    ${block('Образование', teacher.education ? `<p>${teacher.education}</p>` : '')}
+    ${block('Опыт работы', teacher.experience ? `<p>${teacher.experience}</p>` : '')}
+    ${block('Профессиональные интересы', teacher.interests ? `<p>${teacher.interests}</p>` : '')}
+    ${block('Дополнительно', extra)}
+    ${teacher.sheduleCode ? `<p class="teacher-subpage-hint">Код расписания в ЭЙОС: ${teacher.sheduleCode}</p>` : ''}
+  `;
 }
 
 /* ======== Генерация основного контента страницы (нижнее навигационное меню) ======== */
@@ -583,18 +712,9 @@ async function generatePage(id, skip) {
 async function generateSubpageContent(id, data) {
   if (!data) { }
 
-  // ✓ Получить данные о преподавателе
+  // ✓ Получить данные о преподавателе (полная карточка из teachersData)
   function extractTeachersData(teacher) {
-    extractedTeacher = teacher.substring(teacher.indexOf(' ') + 1);
-    let performedTeacher = extractedTeacher;
-    for (const institute of Object.values(teachersData)) {
-      for (const department of Object.values(institute)) {
-        if (department[extractedTeacher]) {
-          performedTeacher = department[extractedTeacher]; break;
-        }
-      }
-    }
-    return performedTeacher;
+    return findTeacherRecord(teacher);
   }
 
   // ✓ Отформатировать дату публикации
@@ -647,7 +767,25 @@ async function generateSubpageContent(id, data) {
     // ✓ Получаем данные о занятии и преподавателе для отображения
     generatePageContentContainer.style.position = 'relative';
     const extractedData = ScheduleRenderer.extractElementData(lessonData);
-    const teacherData = extractTeachersData(extractedData.teacher);
+    const teacherRecord = extractTeachersData(extractedData.teacher);
+    const teacherData = teacherRecord || { fullName: extractedData.teacher || 'Преподаватель С.', image: TEACHER_DUMMY_IMAGE };
+
+    // ✓ По клику на фото или имя преподавателя открываем его страницу
+    const bindLessonTeacherLinks = () => {
+      const photo = generatePageContentContainer.querySelector('.materials-teacher');
+      const name = generatePageContentContainer.querySelector('.materials-teacher-name');
+      [photo, name].forEach((node) => {
+        if (!node || node.dataset.teacherLink === 'ready') return;
+        node.dataset.teacherLink = 'ready';
+        node.classList.add('materials-teacher-clickable');
+        node.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          if (!teacherRecord) return;
+          await navigateTo('teacher', teacherRecord);
+        });
+      });
+      applyTeacherImageFallback(photo);
+    };
     const extractedSubject = extractedData.subject 
       ? ((extractedData.subject).length > 66
         ? `${(extractedData.subject).substring(0,66)}...`
@@ -662,12 +800,14 @@ async function generateSubpageContent(id, data) {
       <div class="info-container"><div class="relative-container" style="height: 200px !important">
         <img class="materials-teacher" src="${teacherData.image}"/>
         <div class="materials-teacher-info" style="border-left: 5px solid ${extractedData.subjectMatchColor ? extractedData.subjectMatchColor : `rgb(0,0,0)`}">
-          <p><span>${teacherData.fullName ? teacherData.fullName : `Преподаватель С.`}<span></p>
+          <p class="materials-teacher-name"><span>${teacherData.fullName ? teacherData.fullName : `Преподаватель С.`}<span></p>
           <p><b>${extractedSubject}</b></p>
           <p><span style="font-size: 14px;">${extractedData.name ? extractedData.name : `Занятие`}</span></p>
           <p><span style="font-size: 14px;">Аудитория - </span><b>${extractedData.room ? extractedData.room : `Туалет`}</b></p>
         </div>
       </div></div>`;
+
+      bindLessonTeacherLinks();
 
       // Сначала добавьте сюда существующую верхнюю карточку преподавателя и пары.
       generatePageContentContainer.appendChild(
@@ -679,38 +819,138 @@ async function generateSubpageContent(id, data) {
       <div class="info-container"><div class="relative-container" style="height: 200px !important">
         <img class="materials-teacher" src="${teacherData.image}"/>
         <div class="materials-teacher-info" style="border-left: 5px solid ${extractedData.subjectMatchColor ? extractedData.subjectMatchColor : `rgb(0,0,0)`}">
-          <p><span>${teacherData.fullName ? teacherData.fullName : `Преподаватель С.`}<span></p>
+          <p class="materials-teacher-name"><span>${teacherData.fullName ? teacherData.fullName : `Преподаватель С.`}<span></p>
           <p><b>${extractedSubject}</b></p>
           <p><span style="font-size: 14px;">${extractedData.name ? extractedData.name : `Занятие`}</span></p>
           <p><span style="font-size: 14px;">Аудитория - </span><b>${extractedData.room ? extractedData.room : `Туалет`}</b></p>
         </div>
       </div></div>`;
+      bindLessonTeacherLinks();
       generatePageContentContainer.appendChild(generateNoAuthContainer());
     }
 
-  } else if (id === 'teacher') { // Перекрывающее окно информации о преподавателе (data - инициалы преподавателя)
-    const teacherData = data; let sheduleFiller;
+  } else if (id === 'teacher') { // ✓ Страница преподавателя: вкладки «Информация» и «Расписание»
+    const teacherData = data || {};
+    const teacherPlace = [teacherData.instituteName, teacherData.departmentName].filter(Boolean);
 
-    // Получаем расписание преподавателя
-    exitBlock: { if (!groupData[teacherData.fullName]) { 
-      groupData[teacherData.fullName] = await fetchShedule(teacherData.sheduleCode, 'teacher'); 
-      if (!groupData[teacherData.fullName]) {
-        sheduleContainer.appendChild(generateNoEthernetContainer());
-        break exitBlock;
+    // ✓ Шапка — та же карточка, что и в окне информации о паре (ui.js: lesson),
+    // только фото крупнее. Разметка и классы берутся из перекрывающего окна занятия.
+    const teacherHeader = document.createElement('div');
+    teacherHeader.classList.add('info-container');
+    const teacherDegreeLine = [teacherData.academicDegree, teacherData.academicTitle].filter(Boolean).join(', ');
+    teacherHeader.innerHTML = `
+      <div class="relative-container teacher-subpage-hero" style="height: 200px !important">
+        <img class="materials-teacher" src="${teacherData.image || TEACHER_DUMMY_IMAGE}" alt="${teacherData.fullName || 'Преподаватель'}">
+        <div class="materials-teacher-info" style="border-left: 5px solid #667eea">
+          <p class="materials-teacher-name"><span>${teacherData.fullName || 'Преподаватель'}</span></p>
+          ${teacherData.workPost ? `<p><b>${teacherData.workPost}</b></p>` : ''}
+          ${teacherDegreeLine ? `<p><span style="font-size: 14px;">${teacherDegreeLine}</span></p>` : ''}
+          ${teacherPlace.length ? `<p><span style="font-size: 13px;">${teacherPlace.join(' · ')}</span></p>` : ''}
+        </div>
+      </div>`;
+    applyTeacherImageFallback(teacherHeader.querySelector('.materials-teacher'));
+    generatePageContentContainer.appendChild(teacherHeader);
+
+    // ✓ Две переключаемые вкладки — тот же вид, что и в других разделах приложения
+    const teacherTabs = document.createElement('div');
+    teacherTabs.classList.add('flex-container', 'radio-container', 'teacher-subpage-tabs');
+
+    const teacherInfoTab = document.createElement('button');
+    teacherInfoTab.type = 'button';
+    teacherInfoTab.classList.add('radio-button', 'selected');
+    teacherInfoTab.textContent = 'Информация';
+
+    const teacherScheduleTab = document.createElement('button');
+    teacherScheduleTab.type = 'button';
+    teacherScheduleTab.classList.add('radio-button');
+    teacherScheduleTab.textContent = 'Расписание';
+
+    teacherTabs.appendChild(teacherInfoTab);
+    teacherTabs.appendChild(teacherScheduleTab);
+    generatePageContentContainer.appendChild(teacherTabs);
+
+    const teacherInfoPane = document.createElement('div');
+    teacherInfoPane.classList.add('teacher-subpage-pane');
+    teacherInfoPane.innerHTML = generateTeacherInfoContainer(teacherData);
+
+    const teacherSchedulePane = document.createElement('div');
+    teacherSchedulePane.classList.add('teacher-subpage-pane');
+    teacherSchedulePane.hidden = true;
+
+    generatePageContentContainer.appendChild(teacherInfoPane);
+    generatePageContentContainer.appendChild(teacherSchedulePane);
+
+    // ✓ Расписание подгружается один раз — при первом открытии вкладки
+    // Ключ кэша привязан к коду расписания: у одного преподавателя может быть
+    // несколько карточек (разные кафедры), и расписание у них общее.
+    let teacherScheduleRequested = false;
+    const teacherScheduleKey = `teacher:${teacherData.sheduleCode || teacherData.fullName || ''}`;
+    async function ensureTeacherSchedule(force = false) {
+      if (teacherScheduleRequested && !force) return;
+      teacherScheduleRequested = true;
+      teacherSchedulePane.innerHTML = `<p class="teacher-subpage-loading">Загружаем расписание преподавателя…</p>`;
+
+      if (!teacherData.sheduleCode) {
+        teacherSchedulePane.innerHTML = `
+          <div class="teacher-subpage-note">
+            <p><b>Код расписания не указан</b></p>
+            <p style="font-size: 13px;">Для этого преподавателя в базе ЭЙОС пока нет кода расписания, поэтому пары недоступны.</p>
+          </div>`;
+        return;
       }
+
+      const teacherEiosLink = `https://eios.kosgos.ru/api/Rasp?idTeacher=${encodeURIComponent(teacherData.sheduleCode)}&iCal=true`;
+      let teacherSchedule;
+      let teacherFetchError = '';
+      try {
+        if (force) delete groupData[teacherScheduleKey];
+        if (!groupData[teacherScheduleKey]) {
+          groupData[teacherScheduleKey] = await fetchShedule(teacherData.sheduleCode, 'teacher');
+        }
+        teacherSchedule = groupData[teacherScheduleKey];
+      } catch (error) {
+        teacherFetchError = (error && error.message) ? error.message : String(error);
+        console.warn('Не удалось получить расписание преподавателя:', error);
+      }
+
+      teacherSchedulePane.innerHTML = '';
+      if (!teacherSchedule || !Array.isArray(teacherSchedule) || teacherSchedule.length === 0) {
+        // Здесь важно не подменять причину: раньше на любую неудачу показывалась
+        // заглушка «нет подключения к интернету», поэтому реальная ошибка терялась.
+        const scheduleNote = document.createElement('div');
+        scheduleNote.classList.add('teacher-subpage-note');
+        scheduleNote.innerHTML = teacherFetchError
+          ? `<p><b>Не удалось загрузить расписание</b></p>
+             <p style="font-size: 13px;">${teacherFetchError}</p>
+             <p style="font-size: 12px; color: #9aa0a6;">Код расписания: ${teacherData.sheduleCode}</p>`
+          : `<p><b>ЭЙОС не вернул пары для этого кода</b></p>
+             <p style="font-size: 13px;">Код расписания: <b>${teacherData.sheduleCode}</b>. У преподавателя может не быть пар в текущей выгрузке ЭЙОС либо код устарел.</p>
+             <p style="font-size: 13px;">Проверить напрямую: <a href="${teacherEiosLink}" target="_blank" rel="noopener">${teacherEiosLink}</a></p>`;
+        const retryButton = document.createElement('button');
+        retryButton.type = 'button';
+        retryButton.classList.add('account-standartButton');
+        retryButton.textContent = 'Повторить';
+        retryButton.addEventListener('click', () => { ensureTeacherSchedule(true); });
+        scheduleNote.appendChild(retryButton);
+        teacherSchedulePane.appendChild(scheduleNote);
+        return;
+      }
+
+      const teacherScheduleRenderer = new ScheduleRenderer(teacherSchedule);
+      teacherSchedulePane.appendChild(teacherScheduleRenderer.render('week', true));
     }
-    const renderer = new ScheduleRenderer(groupData[teacherData.fullName]);
-    sheduleFiller = renderer.render('week', true);
-    }
-    generatePageContentContainer.innerHTML = `
-    <div class="flex-container">  
-      <img class="materials-teacher" src="${teacherData.image}"/>
-      <div class="info-container" style="padding: 0 15px !important; text-align: center;">
-        <p>${teacherData.fullName}</p>
-      <div>
-    </div>
-    `;
-    generatePageContentContainer.appendChild(sheduleFiller);
+
+    const setTeacherTab = (mode) => {
+      const infoActive = mode === 'info';
+      teacherInfoTab.classList.toggle('selected', infoActive);
+      teacherScheduleTab.classList.toggle('selected', !infoActive);
+      teacherInfoPane.hidden = !infoActive;
+      teacherSchedulePane.hidden = infoActive;
+      if (!infoActive) ensureTeacherSchedule();
+    };
+
+    teacherInfoTab.addEventListener('click', () => setTeacherTab('info'));
+    teacherScheduleTab.addEventListener('click', () => setTeacherTab('schedule'));
   } else if (id === 'profile') { // Перекрывающее окно настроек и информациии профиля пользвоателя
     const authed = window.auth.isAuthenticated();
     if (authed) { // Добавляем красивое отображение профиля аккаунта
@@ -909,10 +1149,19 @@ async function generateSubpageContent(id, data) {
       try { userData = JSON.parse(localStorage.getItem('userData') || '{}'); } catch (_) {}
 
       const start = justifyDate(lessonEvent.startTime);
+      // ✓ Преподаватель пары: по нему публикация привязывается к своей группе.
+      // Без этого задания разных групп с одинаковым предметом и временем смешивались.
+      let lessonTeacher = '';
+      try {
+        const extractedForTeacher = ScheduleRenderer.extractElementData(lessonEvent);
+        lessonTeacher = (extractedForTeacher && extractedForTeacher.teacher) ? extractedForTeacher.teacher : '';
+      } catch (error) { lessonTeacher = ''; }
+
       const result = await window.database.saveMaterialPost({
         textContent,
         images,
         subject: lessonEvent.summary,
+        teacher: lessonTeacher,
         subjectTimestamp: Math.floor(start.getTime() / 1000),
         textType,
         userGroup: CurrentGroup || userData.userGroup || 'Группа не выбрана',
@@ -921,7 +1170,15 @@ async function generateSubpageContent(id, data) {
       });
 
       if (!result || result.success !== true) {
-        showNotification(result && result.message ? result.message : 'Не удалось сохранить публикацию', 'error');
+        const rawMessage = (result && result.message) ? String(result.message) : '';
+        const permissionDenied = (result && result.error === 'permission-denied')
+          || /insufficient permissions|permission denied/i.test(rawMessage);
+        showNotification(
+          permissionDenied
+            ? 'Firestore отклонил публикацию: похоже, в консоли Firebase опубликованы старые правила. Опубликуйте firestore.rules из проекта.'
+            : (rawMessage || 'Не удалось сохранить публикацию'),
+          'error'
+        );
         restoreButton();
         return;
       }

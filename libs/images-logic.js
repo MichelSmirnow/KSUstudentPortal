@@ -242,7 +242,7 @@
       const allowed = [
         'textId', 'userId', 'author', 'authorEmail', 'subject',
         'subjectTimestamp', 'textContent', 'textType', 'timestamp',
-        'userGroup', 'userSubgroup', 'targetSubgroup', 'postId',
+        'userGroup', 'userSubgroup', 'targetSubgroup', 'postId', 'teacher',
       ];
       if (!allowed.includes(field)) {
         return { success: false, texts: [], message: 'Неверный параметр запроса текстов' };
@@ -269,7 +269,7 @@
       const allowed = [
         'imageId', 'userId', 'author', 'authorEmail', 'subject',
         'subjectTimestamp', 'imageUrl', 'imageType', 'timestamp',
-        'userGroup', 'targetSubgroup', 'postId', 'textId',
+        'userGroup', 'targetSubgroup', 'postId', 'textId', 'teacher',
       ];
       if (!allowed.includes(field)) {
         return { success: false, images: [], message: 'Неверный параметр запроса изображений' };
@@ -312,6 +312,10 @@
         const targetSubgroup = input.targetSubgroup === 1 || input.targetSubgroup === 2
           ? input.targetSubgroup
           : null;
+        // ✓ Преподаватель пары: две разные группы могут слушать один предмет
+        // в одно и то же время у разных преподавателей — по этому полю ДЗ и материалы
+        // показываются только той группе, к которой относятся.
+        const teacher = String(input.teacher || '').trim();
         const batch = this.db.batch();
         const textRef = this.db.collection('texts').doc(textId);
 
@@ -325,6 +329,7 @@
           userSubgroup: input.userSubgroup || null,
           targetSubgroup,
           subject: String(input.subject || ''),
+          teacher,
           subjectTimestamp: Number(input.subjectTimestamp),
           textContent: String(input.textContent || '').trim(),
           textType,
@@ -352,6 +357,7 @@
             userSubgroup: input.userSubgroup || null,
             targetSubgroup,
             subject: String(input.subject || ''),
+            teacher,
             subjectTimestamp: Number(input.subjectTimestamp),
             imageUrl,
             imageType: textType,
@@ -373,6 +379,34 @@
         };
       }
     };
+  }
+
+  /* ---------------------------------------------------------------------------------------
+   * Сверка публикации с преподавателем пары.
+   * Публикации, созданные до появления поля teacher, отсекать нельзя — для них
+   * (как и раньше) сверяются только предмет и подгруппа.
+   * ------------------------------------------------------------------------------------- */
+  function teacherNameKey(value) {
+    const parts = String(value || '')
+      .replace(/[.]+/g, ' ')
+      .replace(/[ёЁ]/g, (letter) => (letter === 'ё' ? 'е' : 'Е'))
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+      .split(' ');
+    if (!parts[0]) return '';
+    const surname = parts[0];
+    const initials = parts.slice(1).filter(Boolean).map((part) => part[0]).join('');
+    return initials ? `${surname} ${initials}` : surname;
+  }
+
+  function isPostForTeacher(record, teacherQuery) {
+    if (!record) return false;
+    const recordKey = teacherNameKey(record.teacher);
+    if (!recordKey) return true;            // старые публикации без поля teacher
+    const queryKey = teacherNameKey(teacherQuery);
+    if (!queryKey) return true;             // преподавателя пары не удалось определить
+    return recordKey === queryKey;
   }
 
   function extractImageUrls(content) {
@@ -1221,6 +1255,8 @@
   global.imageViewer = imageViewer;
   global.openImageViewer = (url) => imageViewer.open(url);
   global.extractPostimagesUrls = extractImageUrls;
+  global.teacherNameKey = teacherNameKey;
+  global.isPostForTeacher = isPostForTeacher;
 
   registerImageServiceWorker();
 })(window);

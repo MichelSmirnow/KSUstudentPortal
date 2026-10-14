@@ -135,3 +135,16 @@
 .materials-info-container h1, .materials-info-container h2, .materials-info-container h3 {
   text-align: center; box-shadow: 0 0 0 rgba(0,0,0,0) !important;
 }
+
+
+
+/* ✓ Кликабельные фото/имя преподавателя в окне пары */
+
+.materials-teacher-clickable { cursor: pointer; }
+
+.materials-teacher-clickable:hover { box-shadow: 0 0 14px rgba(0, 0, 0, 0.25); }
+
+.materials-teacher-info .materials-teacher-name { cursor: pointer; }
+
+
+

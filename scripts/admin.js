@@ -959,80 +959,176 @@
 
     /* ------------------------------- Вкладка «Пользователи» ------------------------------- */
 
+    /* ------------------------------- Вкладка «Пользователи» ------------------------------- */
+
+    // Состояние вкладки живёт между обновлениями: поиск, раскрытые карточки и позиция скролла
+    usersTabState: { query: '', expanded: new Set() },
+
     async renderUsersTab(container) {
-      const cache = await loadBadgeData(true);
-      const loading = element('p', 'admin-panel-loading', 'Загружаю пользователей…');
-      container.appendChild(loading);
+      const state = this.usersTabState;
+      const currentUser = (global.auth && typeof global.auth.getCurrentUser === 'function')
+        ? global.auth.getCurrentUser()
+        : null;
+      const myUid = String((currentUser && currentUser.uid) || '');
 
-      const accountsResult = global.database && typeof global.database.getAllAccounts === 'function'
-        ? await global.database.getAllAccounts()
-        : { accounts: [] };
-      const accounts = Array.isArray(accountsResult.accounts) ? accountsResult.accounts : [];
-      clear(container);
-
-      const users = new Map();
-      const addUser = (source) => {
-        if (!source) return;
-        const uid = String(source.userId || source.uid || source.id || '');
-        if (!uid) return;
-        users.set(uid, { ...(users.get(uid) || {}), ...source, uid });
-      };
-      accounts.forEach(addUser);
-      cache.byUid.forEach((profile, uid) => addUser({ uid, ...profile }));
-      cache.adminIds.forEach((value) => {
-        if (value && String(value).length > 20) addUser({ uid: String(value) });
-      });
-
-      if (users.size === 0) {
-        container.appendChild(element('p', 'admin-panel-empty', 'Пользователи пока не найдены.'));
-        return;
-      }
+      const shell = element('div', 'admin-users-tab');
+      container.appendChild(shell);
 
       const search = element('input', 'admin-panel-search');
       search.type = 'search';
-      search.placeholder = 'Поиск по имени, почте или группе';
-      container.appendChild(search);
+      search.placeholder = 'Поиск по имени, почте, группе, тегу, роли или ID';
+      search.value = state.query || '';
 
-      const summary = element('p', 'admin-panel-summary');
-      container.appendChild(summary);
+      const toolbar = element('div', 'admin-users-toolbar');
+      const expandAllButton = element('button', 'admin-user-button', 'Развернуть все');
+      const collapseAllButton = element('button', 'admin-user-button', 'Свернуть все');
+      const refreshButton = element('button', 'admin-user-button', 'Обновить список');
+      [expandAllButton, collapseAllButton, refreshButton].forEach((button) => {
+        button.type = 'button';
+        toolbar.appendChild(button);
+      });
 
+      const summary = element('p', 'admin-panel-summary', 'Загружаю пользователей…');
       const list = element('div', 'admin-user-list');
-      container.appendChild(list);
+
+      shell.appendChild(search);
+      shell.appendChild(toolbar);
+      shell.appendChild(summary);
+      shell.appendChild(list);
+
+      // Позиция скролла: запоминаем её у окна и у всех прокручиваемых предков панели,
+      // чтобы мягкое обновление не выбрасывало администратора в начало страницы.
+      const scrollHosts = (() => {
+        const hosts = [document.scrollingElement || document.documentElement];
+        let node = container.parentElement;
+        while (node && node !== document.body) {
+          if (node.scrollHeight > node.clientHeight) hosts.push(node);
+          node = node.parentElement;
+        }
+        return hosts;
+      })();
+      const captureScroll = () => ({
+        window: global.scrollY || 0,
+        hosts: scrollHosts.map((node) => node.scrollTop),
+      });
+      const restoreScroll = (saved) => {
+        if (!saved) return;
+        global.scrollTo(0, saved.window || 0);
+        scrollHosts.forEach((node, index) => {
+          if (saved.hosts[index] !== undefined) node.scrollTop = saved.hosts[index];
+        });
+      };
 
       const rows = [];
 
-      Array.from(users.values())
-        .sort((a, b) => String(a.userName || a.userEmail || a.uid).localeCompare(String(b.userName || b.userEmail || b.uid), 'ru'))
-        .forEach((user) => {
-          const row = this.createUserRow(user, cache);
-          rows.push({ user, row });
-          list.appendChild(row);
-        });
-
-      summary.textContent = `Всего пользователей: ${rows.length}`;
-
-      search.addEventListener('input', () => {
+      const applyFilter = () => {
         const query = search.value.trim().toLowerCase();
+        state.query = search.value;
         let visible = 0;
         rows.forEach(({ user, row }) => {
-          const haystack = [user.userName, user.userEmail, user.userGroup, user.customTag, user.uid]
-            .filter(Boolean).join(' ').toLowerCase();
+          const haystack = [
+            user.userName, user.userEmail, user.userGroup, user.customTag, user.uid,
+            user.userLanguage, user.role, ROLE_LABELS[user.role],
+            user.blocked ? 'заблокирован мут' : '',
+          ].filter(Boolean).join(' ').toLowerCase();
+          // .admin-user — flex-контейнер, атрибут hidden его не скрывает,
+          // поэтому карточка прячется классом (см. admin.css)
           const matches = !query || haystack.includes(query);
-          row.hidden = !matches;
+          row.classList.toggle('admin-user--hidden', !matches);
           if (matches) visible += 1;
         });
-        summary.textContent = `Показано: ${visible} из ${rows.length}`;
+        summary.textContent = query
+          ? `Найдено: ${visible} из ${rows.length}`
+          : `Всего пользователей: ${rows.length}`;
+      };
+
+      const context = {
+        myUid,
+        isExpanded: (uid) => state.expanded.has(uid),
+        setExpanded: (uid, expanded) => {
+          if (expanded) state.expanded.add(uid);
+          else state.expanded.delete(uid);
+        },
+        // Мягкое обновление: перечитываем данные и список, но не всю страницу,
+        // поэтому вкладка, поиск, раскрытые карточки и скролл сохраняются.
+        refresh: async () => { await draw(); },
+      };
+
+      const draw = async () => {
+        const savedScroll = captureScroll();
+        const cache = await loadBadgeData(true);
+
+        const accountsResult = global.database && typeof global.database.getAllAccounts === 'function'
+          ? await global.database.getAllAccounts()
+          : { accounts: [] };
+        const accounts = Array.isArray(accountsResult.accounts) ? accountsResult.accounts : [];
+
+        const users = new Map();
+        const addUser = (source) => {
+          if (!source) return;
+          const uid = String(source.userId || source.uid || source.id || '');
+          if (!uid) return;
+          users.set(uid, { ...(users.get(uid) || {}), ...source, uid });
+        };
+        accounts.forEach(addUser);
+        if (cache.byUid && typeof cache.byUid.forEach === 'function') {
+          cache.byUid.forEach((profile, uid) => addUser({ uid, ...profile }));
+        }
+        cache.adminIds.forEach((value) => {
+          if (value && String(value).length > 20) addUser({ uid: String(value) });
+        });
+
+        rows.length = 0;
+        clear(list);
+
+        if (users.size === 0) {
+          summary.textContent = 'Пользователи пока не найдены.';
+          return;
+        }
+
+        Array.from(users.values())
+          .sort((a, b) => String(a.userName || a.userEmail || a.uid).localeCompare(String(b.userName || b.userEmail || b.uid), 'ru'))
+          .forEach((user) => {
+            const row = this.createUserRow(user, cache, context);
+            rows.push({ user, row });
+            list.appendChild(row);
+          });
+
+        applyFilter();
+        restoreScroll(savedScroll);
+      };
+
+      search.addEventListener('input', applyFilter);
+      expandAllButton.addEventListener('click', () => {
+        rows.forEach(({ row }) => { if (typeof row.adminSetExpanded === 'function') row.adminSetExpanded(true); });
       });
+      collapseAllButton.addEventListener('click', () => {
+        rows.forEach(({ row }) => { if (typeof row.adminSetExpanded === 'function') row.adminSetExpanded(false); });
+      });
+      refreshButton.addEventListener('click', async () => {
+        refreshButton.disabled = true;
+        await draw();
+        refreshButton.disabled = false;
+      });
+
+      await draw();
     },
 
-    createUserRow(user, cache) {
+    createUserRow(user, cache, context = {}) {
       const row = element('article', 'admin-user');
       row.dataset.uid = user.uid;
 
       const uid = String(user.uid);
+      const myUid = String(context.myUid || '');
+      const isSelf = uid === myUid;
       const isAdmin = cache.adminIds.has(uid) || (user.userEmail && cache.adminIds.has(String(user.userEmail).toLowerCase()));
+      // Другой администратор защищён: его нельзя заблокировать, а тег он меняет сам.
+      const isAnotherAdmin = isAdmin && !isSelf;
       const role = user.role === ROLE_STAROSTA || user.role === ROLE_TEACHER ? user.role : '';
       if (user.blocked) row.classList.add('admin-user--blocked');
+
+      const expanded = typeof context.isExpanded === 'function' ? context.isExpanded(uid) : false;
+      row.classList.toggle('admin-user--expanded', expanded);
 
       const head = element('div', 'admin-user-head');
       const nameBox = element('div', 'admin-user-name-box');
@@ -1046,16 +1142,42 @@
       ].filter(Boolean).join(' · '));
       nameBox.appendChild(meta);
 
+      const headRight = element('div', 'admin-user-head-right');
       const badges = element('span', 'admin-user-badges');
       if (isAdmin) badges.appendChild(createBadge({ kind: 'admin', text: ADMIN_BADGE_TEXT }));
       if (role) badges.appendChild(createBadge({ kind: role, text: ROLE_LABELS[role] }));
       if (user.customTag) badges.appendChild(createBadge({ kind: 'custom', text: user.customTag }));
       if (user.blocked) badges.appendChild(element('span', 'homework-role-badge homework-role-badge--blocked', 'Заблокирован'));
+
+      const toggleButton = element('button', 'admin-user-button admin-user-toggle', expanded ? 'Свернуть' : 'Подробнее');
+      toggleButton.type = 'button';
+      toggleButton.setAttribute('aria-expanded', String(expanded));
+      headRight.appendChild(badges);
+      headRight.appendChild(toggleButton);
+
       head.appendChild(nameBox);
-      head.appendChild(badges);
+      head.appendChild(headRight);
       row.appendChild(head);
 
+      const body = element('div', 'admin-user-body');
+      body.hidden = !expanded;
+
+      // Карточка запоминает своё состояние — при обновлении списка оно не теряется
+      row.adminSetExpanded = (next) => {
+        body.hidden = !next;
+        row.classList.toggle('admin-user--expanded', next);
+        toggleButton.textContent = next ? 'Свернуть' : 'Подробнее';
+        toggleButton.setAttribute('aria-expanded', String(next));
+        if (typeof context.setExpanded === 'function') context.setExpanded(uid, next);
+      };
+      toggleButton.addEventListener('click', () => row.adminSetExpanded(body.hidden));
+
       const controls = element('div', 'admin-user-controls');
+
+      // Мягкое обновление вместо перерисовки всей страницы
+      const softRefresh = async () => {
+        if (typeof context.refresh === 'function') await context.refresh();
+      };
 
       /* Роль */
       const roleLabel = element('label', 'admin-user-field');
@@ -1073,12 +1195,12 @@
         const result = await global.database.setUserRole(uid, roleSelect.value);
         roleSelect.disabled = false;
         notify((result && result.message) || 'Статус обновлён', result && result.success ? 'success' : 'error');
-        if (typeof global.refreshCurrentPage === 'function') global.refreshCurrentPage();
+        await softRefresh();
       });
       roleLabel.appendChild(roleSelect);
       controls.appendChild(roleLabel);
 
-      /* Свой тег */
+      /* Свой тег: себе — можно, другому администратору — нет */
       const tagLabel = element('label', 'admin-user-field');
       tagLabel.appendChild(element('span', null, 'Свой тег'));
       const tagInput = element('input', 'admin-user-input');
@@ -1093,10 +1215,16 @@
         const result = await global.database.setUserTag(uid, tagInput.value);
         tagButton.disabled = false;
         notify((result && result.message) || 'Тег сохранён', result && result.success ? 'success' : 'error');
-        if (typeof global.refreshCurrentPage === 'function') global.refreshCurrentPage();
+        await softRefresh();
       });
       tagLabel.appendChild(tagInput);
       tagLabel.appendChild(tagButton);
+      if (isAnotherAdmin) {
+        tagInput.disabled = true;
+        tagButton.disabled = true;
+        tagInput.title = 'Тег администратора меняет только он сам';
+        tagLabel.appendChild(element('span', 'admin-user-hint', 'Тег администратора меняет только он сам со своего аккаунта'));
+      }
       controls.appendChild(tagLabel);
 
       /* Блокировка */
@@ -1117,14 +1245,19 @@
       reasonBox.hidden = true;
 
       const applyBlock = async (blocked, reason) => {
+        if (isAnotherAdmin) {
+          notify('Другого администратора заблокировать нельзя', 'error');
+          return;
+        }
         blockButton.disabled = true;
         const result = await global.database.setUserBlocked(uid, blocked, reason);
         blockButton.disabled = false;
         notify((result && result.message) || 'Готово', result && result.success ? 'success' : 'error');
-        if (typeof global.refreshCurrentPage === 'function') global.refreshCurrentPage();
+        await softRefresh();
       };
 
       blockButton.addEventListener('click', async () => {
+        if (isAnotherAdmin) { notify('Другого администратора заблокировать нельзя', 'error'); return; }
         if (user.blocked) { await applyBlock(false, ''); return; }
         reasonBox.hidden = false;
         reasonInput.focus();
@@ -1137,6 +1270,11 @@
 
       blockBox.appendChild(blockButton);
       blockBox.appendChild(reasonBox);
+      if (isAnotherAdmin) {
+        blockButton.disabled = true;
+        blockButton.title = 'Другого администратора заблокировать нельзя';
+        blockBox.appendChild(element('span', 'admin-user-hint', 'Администратор защищён от блокировки'));
+      }
       controls.appendChild(blockBox);
 
       /* Публикации пользователя */
@@ -1167,8 +1305,9 @@
       });
       controls.appendChild(postsButton);
 
-      row.appendChild(controls);
-      row.appendChild(postsBox);
+      body.appendChild(controls);
+      body.appendChild(postsBox);
+      row.appendChild(body);
       return row;
     },
 

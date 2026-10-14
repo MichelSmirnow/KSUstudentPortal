@@ -73,6 +73,19 @@
 
 /* Пользователи */
 .admin-user-list { display: flex; flex-direction: column; gap: 9px; }
+
+/* ✓ Скрытие элементов панели: .admin-user, .admin-user-posts и другие — flex-контейнеры,
+   поэтому атрибут hidden их не прячет. Прячем классом внутри панели администратора. */
+.admin-panel [hidden] { display: none !important; }
+.admin-user--hidden { display: none !important; }
+
+/* ✓ Вкладка «Пользователи»: панель управления списком и сворачиваемые карточки */
+.admin-users-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 8px; }
+.admin-user-head-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-user-toggle { white-space: nowrap; }
+.admin-user-body { display: flex; flex-direction: column; gap: 9px; }
+.admin-user--expanded { border-color: rgba(102, 126, 234, 0.45); }
+.admin-user-hint { color: #9aa0a6; font-size: 11px; }
 .admin-user {
   display: flex; flex-direction: column; gap: 9px; padding: 12px;
   border: 1px solid rgba(53, 69, 99, 0.12); border-radius: 13px; background: #fff;

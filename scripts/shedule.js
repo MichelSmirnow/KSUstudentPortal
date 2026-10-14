@@ -150,8 +150,6 @@ async function fetchShedule(sheduleID, sheduleType) {
 
   // ✓ Функция слияния двух массивов расписаний
   function mergeSchedules(oldSchedule = [], newSchedule = []) {
-    const merged = [];
-
     // Нормализация текста для корректного сравнения
     const normalize = value => {
       return String(value ?? '')
@@ -159,22 +157,39 @@ async function fetchShedule(sheduleID, sheduleType) {
         .replace(/\s+/g, ' ')
         .toLowerCase();
     };
-    
+
+    // ВАЖНО: из локального хранилища время приходит строкой, а с сервера — объектом Date.
+    // Из-за этого сравнение «старое / новое» всегда давало false, и при каждом обновлении
+    // в дне появлялась ещё одна копия той же пары. Приводим оба варианта к ISO-строке.
+    const timeKey = value => {
+      if (value === null || value === undefined || value === '') return '';
+      const date = value instanceof Date ? value : new Date(value);
+      return Number.isNaN(date.getTime()) ? normalize(value) : date.toISOString();
+    };
+
+    const getStartTime = item => { return timeKey(item.startTime); };
+    const getDay = item => { return timeKey(item.startTime).slice(0, 10); };
+
+    // Название предмета без хвоста «, 1 п/г» — подгруппа проверяется отдельно
+    const getSummary = item => {
+      const full = normalize(item.summary);
+      const withoutSubgroup = full.replace(/,[^,]*$/, '').trim();
+      return withoutSubgroup || full;
+    };
+
     const getSubgroup = item => { // Извлекаем признак подгруппы. Поддерживаются варианты: "п/г 1", "п/г 2", "подгруппа 1", "подгруппа 2"
       const text = `${item.summary ?? ''} ${item.description ?? ''}`;
       const match = text.match(/(?:п\/г|подгруппа|подгр\.?)\s*№?\s*(\d+)/i);
       return match ? `subgroup:${match[1]}` : 'subgroup:none';
     };
-    const getAdditionalKey = item => {
-      return [
-        getSubgroup(item),
-        normalize(item.description),
-        normalize(item.location)
-      ].join('|');
+
+    const getRoom = item => { return normalize(item.location).replace(/[^0-9a-zа-я]+/g, ''); };
+
+    const getTeacher = item => { // В описании ФИО стоит перед «группа: …»
+      const text = String(item.description ?? '').split(/группа\s*:/i)[0];
+      const fio = text.match(/[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ]\.\s*[А-ЯЁ]\./);
+      return normalize(fio ? fio[0] : text);
     };
-    const getStartTime = item => { return normalize(item.startTime); };
-    const getSummary = item => { return normalize(item.summary); };
-    const getDay = item => { return String(item.startTime ?? '').slice(0, 10); };
 
     const isSameItem = (oldItem, newItem) => {
       // 1. Основная проверка — UID
@@ -186,18 +201,23 @@ async function fetchShedule(sheduleID, sheduleType) {
         return true;
       }
 
-      // 2. Запасная проверка — startTime + подгруппа + описание + аудитория
-      const sameStartTime = (getStartTime(oldItem) === getStartTime(newItem));
-      const sameAdditionalData = (getAdditionalKey(oldItem) === getAdditionalKey(newItem));
-      if (sameStartTime && sameAdditionalData) return true;
+      const sameSummary = getSummary(oldItem) !== '' && getSummary(oldItem) === getSummary(newItem);
+      const sameSubgroup = getSubgroup(oldItem) === getSubgroup(newItem);
+      const sameRoom = getRoom(oldItem) !== '' && getRoom(oldItem) === getRoom(newItem);
+      const sameTeacher = getTeacher(oldItem) !== '' && getTeacher(oldItem) === getTeacher(newItem);
+      const sameStartTime = getStartTime(oldItem) !== '' && getStartTime(oldItem) === getStartTime(newItem);
+      const sameDay = getDay(oldItem) !== '' && getDay(oldItem) === getDay(newItem);
 
-      // 3. Если время занятия изменилось, пробуем найти его по дню + summary + подгруппе.
-      const sameDay = (getDay(oldItem) !== '') && (getDay(oldItem) === getDay(newItem));
-      const sameSummary = (getSummary(oldItem) !== '') && (getSummary(oldItem) === getSummary(newItem));
-      const sameSubgroup = (getSubgroup(oldItem) === getSubgroup(newItem));
-      if (sameDay && sameSummary && sameSubgroup) return true;
+      // 2. Совпало время начала — сверяем предмет, подгруппу и (аудиторию либо преподавателя)
+      if (sameStartTime && sameSummary && sameSubgroup && (sameRoom || sameTeacher)) return true;
+
+      // 3. Если время занятия изменилось, ищем его по дню + предмету + подгруппе + аудитории/преподавателю
+      if (sameDay && sameSummary && sameSubgroup && (sameRoom || sameTeacher)) return true;
+
       return false;
     };
+
+    let merged = [];
 
     const addOrUpdate = item => {
       const existingIndex = merged.findIndex(existingItem => isSameItem(existingItem, item));
@@ -214,6 +234,22 @@ async function fetchShedule(sheduleID, sheduleType) {
     // Очистка старого расписания от дубликатов
     for (const item of oldSchedule) { addOrUpdate(item); }
     for (const item of newSchedule) { addOrUpdate(item); }
+
+    // Дополнительная проверка (как просили в задаче): прогоняем слияние по кругу,
+    // пока список не перестанет уменьшаться. Так дочищаются копии, которые
+    // «догнали» друг друга по полям только после первого прохода.
+    for (let pass = 0; pass < 5; pass += 1) {
+      const before = merged.length;
+      const cleaned = [];
+      for (const item of merged) {
+        const duplicateIndex = cleaned.findIndex(existingItem => isSameItem(existingItem, item));
+        if (duplicateIndex === -1) cleaned.push(item);
+        else cleaned[duplicateIndex] = { ...cleaned[duplicateIndex], ...item };
+      }
+      merged = cleaned;
+      if (merged.length === before) break;
+    }
+
     return merged;
   }
 
@@ -357,16 +393,27 @@ class ScheduleRenderer {
     }
 
     // ✓ Определить преподавателя занятия
+    // В описании пары рядом с ФИО идёт хвост «группа: 26-ИСбо-4», поэтому раньше
+    // в имя преподавателя попадало слово «группа» и карточка преподавателя не находилась.
+    // Ищем именно ФИО с инициалами, а не первый попавшийся русский текст.
     function extractTeacher(description) {
-      const match = description.match(/([А-Яа-яЁё\s\.]+)/);
-      const extractedTeacher = match ? match[0].trim() : '';
-      return extractedTeacher;
+      const text = String(description || '');
+      if (!text) return '';
+      const fio = text.match(/[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ]\.\s*[А-ЯЁ]\./);
+      if (fio) return fio[0].replace(/\s+/g, ' ').trim();
+      // Запасной вариант: убираем строку со списком групп и берём оставшийся русский текст
+      const withoutGroups = text.replace(/группа\s*:[^\n]*/gi, ' ').trim();
+      const fallback = withoutGroups.match(/([А-Яа-яЁё][А-Яа-яЁё\s\.]*)/);
+      return fallback ? fallback[0].replace(/\s+/g, ' ').trim() : '';
     }
 
     // Определить список групп, для которых актуально данное занятие
+    // Список заканчивается либо концом строки, либо следующим ФИО преподавателя.
     function extractGroups(description) {
-      const match = description.match(/группа:\s*(.*)$/i);
-      return match ? match[1].trim() : '';
+      const match = String(description || '').match(
+        /группа\s*:\s*([\s\S]*?)(?=\s*[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ]\.|$)/i
+      );
+      return match ? match[1].replace(/[\s,]+$/, '').trim() : '';
     }
 
     // ✓ Получаем основную информацию по занятию
@@ -408,7 +455,7 @@ class ScheduleRenderer {
     // ✓ Определить день недели по дате
     function getDayName(date) {
       const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
-      return days[date.getDay() - 1];
+      return days[(date.getDay() + 6) % 7];
     }
 
     // ✓ Определить цвет дня недели

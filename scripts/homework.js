@@ -353,6 +353,22 @@ class HomeworkRenderer {
     return null;
   }
 
+  /** Преподаватель пары (из расписания либо из описания занятия) */
+  static getEventTeacher(event) {
+    if (!event) return '';
+    if (event.teacher) return String(event.teacher).trim();
+    if (typeof ScheduleRenderer !== 'undefined' && ScheduleRenderer
+      && typeof ScheduleRenderer.extractElementData === 'function') {
+      try {
+        const extracted = ScheduleRenderer.extractElementData(event) || {};
+        if (extracted.teacher) return String(extracted.teacher).trim();
+      } catch (_) { /* описание разобрать не удалось — ниже пробуем вручную */ }
+    }
+    const description = String(event.description || '');
+    const fio = description.match(/[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\s+[А-ЯЁ]\.\s*[А-ЯЁ]\./);
+    return fio ? fio[0].replace(/\s+/g, ' ').trim() : '';
+  }
+
   static isEventForSubgroup(event, subgroup) {
     const eventSubgroup = HomeworkRenderer.getEventSubgroup(event);
     return eventSubgroup === null || Number(eventSubgroup) === Number(subgroup);
@@ -1556,6 +1572,7 @@ class HomeworkRenderer {
           userSubgroup: record.userSubgroup || null,
           targetSubgroup: record.targetSubgroup ?? null,
           subject: String(record.subject || ''),
+          teacher: String(record.teacher || ''),
           subjectTimestamp: Number(record.subjectTimestamp) || 0,
           moderation: '',
           reportCount: Number(record.reportCount) || 0,
@@ -1579,6 +1596,7 @@ class HomeworkRenderer {
       post.userGroup = text.userGroup || post.userGroup;
       post.textType = text.textType === 'homework' ? 'homework' : (post.textType || 'material');
       post.subject = text.subject || post.subject;
+      post.teacher = text.teacher || post.teacher;
       post.subjectTimestamp = Number(text.subjectTimestamp) || post.subjectTimestamp;
       post.reportCount = Math.max(post.reportCount, Number(text.reportCount) || 0);
       if (Array.isArray(text.reportedBy)) post.reportedBy = text.reportedBy.slice();
@@ -1601,6 +1619,7 @@ class HomeworkRenderer {
       if (image.moderation === 'pending') post.moderation = 'pending';
       else if (!post.moderation) post.moderation = String(image.moderation || '');
       if (image.imageId) post.imageIds.push(String(image.imageId));
+      if (!post.teacher && image.teacher) post.teacher = String(image.teacher).trim();
       post.timestamp = Number(image.timestamp) || post.timestamp;
     });
 
@@ -1629,11 +1648,21 @@ class HomeworkRenderer {
       return true;
     };
 
+    // ✓ Разные группы могут слушать один предмет в одно и то же время у разных
+    // преподавателей. Сверяем преподавателя, иначе чужие ДЗ видны всем группам.
+    const eventTeacher = HomeworkRenderer.getEventTeacher(event);
+    const forTeacher = (record) => {
+      if (typeof window.isPostForTeacher === 'function') return window.isPostForTeacher(record, eventTeacher);
+      const recordTeacher = String((record && record.teacher) || '').trim();
+      if (!recordTeacher || !eventTeacher) return true; // старые публикации не отсекаем
+      return recordTeacher.toLowerCase() === eventTeacher.toLowerCase();
+    };
+
     const texts = HomeworkRenderer.getResultArray(textResult, 'texts').filter((text) =>
-      String(text.subject || '').trim() === summary && forTargetSubgroup(text)
+      String(text.subject || '').trim() === summary && forTargetSubgroup(text) && forTeacher(text)
     );
     const images = HomeworkRenderer.getResultArray(imageResult, 'images').filter((image) =>
-      String(image.subject || '').trim() === summary && forTargetSubgroup(image)
+      String(image.subject || '').trim() === summary && forTargetSubgroup(image) && forTeacher(image)
     );
 
     return { texts, images };

@@ -140,6 +140,12 @@ class Database {
         textContent, // Содержимое текста
         textType: textType || 'material', // 'material' или 'homework'
         timestamp: Date.now(), // Дата публикации
+        // ✓ Поля ниже обязательны для правил Firestore: без moderation: 'pending'
+        // запись отклоняется («Missing or insufficient permissions»), а без
+        // reportCount/reportedBy не работает жалоба на публикацию.
+        moderation: 'pending',
+        reportCount: 0,
+        reportedBy: [],
       };
 
       // ✓ Запись документа в базу данных (коллекцию) "texts" под уникальным ID
@@ -187,6 +193,10 @@ class Database {
         imageUrl, // Ссылка на изображение на хостинге postimages
         imageType: imageType || 'material', // 'material' или 'homework'
         timestamp: Date.now(), // Дата публикации
+        // ✓ То же, что и для текста: публикация уходит на проверку администрации.
+        moderation: 'pending',
+        reportCount: 0,
+        reportedBy: [],
       };
 
       // ✓ Запись документа в базу данных (коллекцию) "texts" под уникальным ID
