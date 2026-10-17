@@ -168,6 +168,31 @@
                     <button type="submit" class="auth-submit-button">Завершить</button>
                     <button id="auth-button-backOnTrack" class="auth-supbutton">Вернуться к регистрации</button>
                 </form>
+
+                <form id="verify-form" class="form-hidden"> <!-- Экран подтверждения почты после регистрации -->
+                    <h2>Подтвердите почту</h2>
+                    <p>Мы отправили ссылку для подтверждения почты на адрес <b id="auth-verify-email">указанную вами почту</b></p>
+                    <p style="font-size: 14px;">Откройте письмо и перейдите по ссылке — после этого вернитесь сюда и нажмите «Я подтвердил(а) почту», чтобы продолжить регистрацию.</p>
+                    <button type="submit" class="auth-submit-button">Я подтвердил(а) почту</button>
+                    <button type="button" id="auth-button-verifyAgain" class="auth-supbutton">Отправить письмо ещё раз</button>
+                    <button type="button" id="auth-button-cancelRegistration" class="guest-button">Отменить регистрацию</button>
+                </form>
+
+                <form id="reset-sent-form" class="form-hidden"> <!-- Восстановление пароля: письмо отправлено -->
+                    <h2>Ссылка отправлена</h2>
+                    <p>Письмо для восстановления пароля отправлено на <b id="auth-reset-email">указанную вами почту</b></p>
+                    <p style="font-size: 14px;">Перейдите по ссылке из письма и задайте новый пароль. После этого можно вернуться и войти в аккаунт.</p>
+                    <button type="button" id="auth-button-backToLogin" class="auth-submit-button">Вернуться к входу</button>
+                </form>
+
+                <form id="unverified-form" class="form-hidden"> <!-- Почта не подтверждена: вход в приложение закрыт -->
+                    <h2>Почта не подтверждена</h2>
+                    <p>Вход в приложение закрыт, пока почта <b id="auth-unverified-email">аккаунта</b> не подтверждена.</p>
+                    <p style="font-size: 14px;">Мы повторно отправили письмо со ссылкой. Перейдите по ней, вернитесь сюда и нажмите «Я подтвердил(а) почту».</p>
+                    <button type="submit" class="auth-submit-button">Я подтвердил(а) почту</button>
+                    <button type="button" id="auth-button-unverifiedAgain" class="auth-supbutton">Отправить письмо ещё раз</button>
+                    <button type="button" id="auth-button-unverifiedLogout" class="guest-button">Выйти из аккаунта</button>
+                </form>
             
             </div>
         </div></div>

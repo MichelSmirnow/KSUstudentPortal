@@ -176,13 +176,17 @@ class groupSelector {
   selectGroup(groupName, groupID) {
     this.input.value = groupName;
 
-    // Обновляем визуальное выделение
+    // ✓ Обновляем визуальное выделение.
+    // Селектор может быть ещё не подключён к странице (например, при сборке окна настроек),
+    // поэтому ищем элемент и в своём списке, и по документу — и проверяем результат.
     document.querySelectorAll('.group-item').forEach(item => {
       item.classList.remove('selected');
     });
-    document.querySelector(`[data-group-name="${groupName}"]`).classList.add('selected');
+    const target = (this.dropdownContent && this.dropdownContent.querySelector(`[data-group-name="${groupName}"]`))
+      || document.querySelector(`[data-group-name="${groupName}"]`);
+    if (target) target.classList.add('selected');
 
-    this.dropdown.classList.remove('dropdown-open');
+    if (this.dropdown) this.dropdown.classList.remove('dropdown-open');
   }
 
   // Рендер элемента выбора группы
@@ -250,9 +254,14 @@ class subgroupSelector {
   // ✓ Обновляем визуальный выбор подгруппы
   selectGroup(subgroupName) {
     this.input.value = subgroupName;
+    // ✓ Обновляем визуальный выбор подгруппы.
+    // Элемент может быть ещё не подключён к странице — тогда просто запоминаем значение в поле
+    // (раньше здесь падала ошибка «Cannot read properties of null (reading 'classList')»).
     document.querySelectorAll('.subgroup-item').forEach(item => { item.classList.remove('selected'); });
-    document.querySelector(`[data-group-name="${subgroupName}"]`).classList.add('selected');
-    this.dropdown.classList.remove('dropdown-open'); 
+    const target = (this.dropdownContent && this.dropdownContent.querySelector(`[data-group-name="${subgroupName}"]`))
+      || document.querySelector(`[data-group-name="${subgroupName}"]`);
+    if (target) target.classList.add('selected');
+    if (this.dropdown) this.dropdown.classList.remove('dropdown-open');
   }
 
   // ✓ Создать кнопку выбора подгруппы
@@ -317,7 +326,9 @@ class languageSelector {
   selectGroup(languageName) {
     this.input.value = languageName;
     document.querySelectorAll('.language-item').forEach(item => { item.classList.remove('selected'); });
-    const target = document.querySelector(`.language-item[data-language-name="${languageName}"]`);
+    // ✓ Ищем и в своём списке, и по документу: при сборке окна настроек список может быть ещё не подключён
+    const target = (this.dropdownContent && this.dropdownContent.querySelector(`.language-item[data-language-name="${languageName}"]`))
+      || document.querySelector(`.language-item[data-language-name="${languageName}"]`);
     if (target) target.classList.add('selected');
     this.input.classList.add('input-preselected');
     this.dropdown.classList.remove('dropdown-open');

@@ -395,6 +395,9 @@ class HomeworkRenderer {
   }
 
   static getUserSubgroup() {
+    // ✓ Своя группа — своя подгруппа, чужая группа — всегда первая подгруппа
+    const active = Number(window.CurrentSubgroup);
+    if (active === 1 || active === 2) return active;
     const data = HomeworkRenderer.getUserData();
     const value = data.userSubgroup ?? (data.snapshot && data.snapshot.userSubgroup);
     return Number(value) === 2 ? 2 : 1;
@@ -792,6 +795,20 @@ class HomeworkRenderer {
     const author = document.createElement('span');
     author.classList.add('homework-post-author');
     author.textContent = post.author || 'Автор не указан';
+    // ✓ Клик по имени автора открывает предосмотр его аккаунта (почты там не видно)
+    const authorUid = String(post.userId || post.authorId || '');
+    if (authorUid) {
+      author.classList.add('homework-post-author--link');
+      author.title = 'Открыть предосмотр аккаунта автора';
+      author.addEventListener('click', (clickEvent) => {
+        clickEvent.preventDefault();
+        clickEvent.stopPropagation();
+        const navigate = window.navigateTo || (typeof navigateTo === 'function' ? navigateTo : null);
+        if (typeof navigate === 'function') {
+          navigate('userprofile', { userId: authorUid, userName: post.author || '' });
+        }
+      });
+    }
     metaRow.appendChild(author);
 
     /* Группа обучения автора публикации */
@@ -988,8 +1005,15 @@ class HomeworkRenderer {
     };
 
     for (const event of this.scheduleData) addEvent(event);
-    for (const record of texts) addEvent(HomeworkRenderer.eventFromRecord(record), record);
-    for (const record of images) addEvent(HomeworkRenderer.eventFromRecord(record), record);
+    // ✓ Обращения в поддержку и ответы на них — не материалы: отфильтровываем их до сборки
+    for (const record of texts) {
+      if (HomeworkRenderer.isServiceRecord(record)) continue;
+      addEvent(HomeworkRenderer.eventFromRecord(record), record);
+    }
+    for (const record of images) {
+      if (HomeworkRenderer.isServiceRecord(record)) continue;
+      addEvent(HomeworkRenderer.eventFromRecord(record), record);
+    }
 
     if (disciplines.size === 0) {
       this._listContainer.appendChild(this._createEmptyMessage('В расписании и материалах пока нет занятий.'));
@@ -1185,8 +1209,14 @@ class HomeworkRenderer {
     };
 
     renderer.scheduleData.forEach(addEvent);
-    serverTexts.forEach((record) => addEvent(HomeworkRenderer.eventFromRecord(record)));
-    serverImages.forEach((record) => addEvent(HomeworkRenderer.eventFromRecord(record)));
+    serverTexts.forEach((record) => {
+      if (HomeworkRenderer.isServiceRecord(record)) return;
+      addEvent(HomeworkRenderer.eventFromRecord(record));
+    });
+    serverImages.forEach((record) => {
+      if (HomeworkRenderer.isServiceRecord(record)) return;
+      addEvent(HomeworkRenderer.eventFromRecord(record));
+    });
 
     const occurrences = Array.from(allEvents.values()).sort((a, b) =>
       (HomeworkRenderer.getEventTimestamp(b) || 0) - (HomeworkRenderer.getEventTimestamp(a) || 0)
@@ -1394,7 +1424,11 @@ class HomeworkRenderer {
     section.appendChild(actions);
 
     const source = options.source || 'materials';
-    let currentTarget = source === 'homework' ? 'this' : (nextOccurrence ? 'next' : 'this');
+    // ✓ Из расписания открывается ДЗ ИМЕННО НА ЭТУ пару: раньше первой показывалась
+    //   вкладка «на следующую пару», из-за чего задание выглядело «сдвинутым».
+    let currentTarget = (source === 'homework' || source === 'schedule')
+      ? 'this'
+      : (nextOccurrence ? 'next' : 'this');
 
     const draw = async () => {
       const occurrence = currentTarget === 'next' ? nextOccurrence : thisOccurrence;
@@ -1659,7 +1693,8 @@ class HomeworkRenderer {
     };
 
     const texts = HomeworkRenderer.getResultArray(textResult, 'texts').filter((text) =>
-      String(text.subject || '').trim() === summary && forTargetSubgroup(text) && forTeacher(text)
+      !HomeworkRenderer.isServiceRecord(text)
+      && String(text.subject || '').trim() === summary && forTargetSubgroup(text) && forTeacher(text)
     );
     const images = HomeworkRenderer.getResultArray(imageResult, 'images').filter((image) =>
       String(image.subject || '').trim() === summary && forTargetSubgroup(image) && forTeacher(image)
@@ -1723,7 +1758,20 @@ class HomeworkRenderer {
     return null;
   }
 
+  /**
+   * Служебная запись: обращение в поддержку или ответ администрации.
+   * Такие записи живут только в разделе «Обратная связь» и не должны превращаться
+   * в предмет «Обратная связь» в материалах.
+   */
+  static isServiceRecord(record) {
+    if (!record) return false;
+    const type = String(record.textType || record.imageType || '').toLowerCase();
+    if (type === 'feedback' || type === 'feedbackanswer') return true;
+    return String(record.subject || '').trim().toLowerCase() === 'обратная связь';
+  }
+
   static eventFromRecord(record) {
+    if (HomeworkRenderer.isServiceRecord(record)) return null;
     if (!record || !record.subject || !record.subjectTimestamp) return null;
     let timestamp = Number(record.subjectTimestamp);
     if (timestamp > 100_000_000_000) timestamp = Math.floor(timestamp / 1000);

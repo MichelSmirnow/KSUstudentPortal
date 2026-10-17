@@ -149,3 +149,34 @@
   .admin-moderation-actions { flex-wrap: wrap; }
   .admin-moderation-button { flex: 1 1 100%; }
 }
+
+
+/* ============================================================================================
+ * Обновление 16.10.2026: статичное меню разделов, счётчики админа, подтверждение почты, фидбек
+ * ========================================================================================== */
+
+/* ✓ Меню действий вверху панели остаётся на месте при переключении разделов */
+.admin-panel-tabs {
+    position: sticky; top: -10px; z-index: 20;
+    flex-wrap: wrap; gap: 8px; padding: 8px 0;
+    background-color: rgba(245, 245, 245, 0.92); backdrop-filter: blur(5px);
+}
+.admin-panel-tabs .admin-panel-tab { min-width: 0; flex: 1 1 130px; }
+
+/* ✓ Счётчики администратора в списке пользователей */
+.admin-user-counters {
+    margin: 4px 0 0; font-size: 12px; font-weight: 700; color: #1c4f7a; letter-spacing: 0.2px;
+}
+
+/* ✓ Ручное подтверждение почты администратором */
+.admin-user-verify { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+
+/* ✓ Разделы «Фидбек» и «Ответы» */
+.admin-feedback-tab { display: flex; flex-direction: column; gap: 10px; }
+.admin-feedback-list { display: flex; flex-direction: column; gap: 12px; }
+
+/* ✓ Заголовки разделов внутри вкладки «Фидбек»: в обработке и отвеченные */
+.admin-feedback-section-title {
+    margin: 14px 0 6px; font-size: 16px; font-weight: 700; color: #22314a; line-height: 1.25;
+}
+.admin-feedback-section-title + .admin-feedback-list { margin-top: 0; }

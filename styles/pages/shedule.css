@@ -113,8 +113,35 @@
   background: linear-gradient(135deg, #a0a0a0 0%, #757575 100%); box-shadow: 0 0px 15px rgba(0, 0, 0, 0.25); border-radius: 10px;
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.25);
 }
-.no-classes-block img { height: 50px; }
-.no-classes-block img { filter: invert(95%) drop-shadow(0 0 10px rgba(0,0,0,0.25));}
+/* ✓ Спящий кот: картинка тёмная, поэтому на серой плашке только мягкая тень */
+.no-classes-block img {
+  height: 50px; width: auto; margin-right: 10px;
+  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.35));
+}
+.no-classes-block p { margin: 0; }
+/* ✓ Плашка «завтра пар нет» вместо расписания следующего учебного дня */
+.no-classes-block--tomorrow { width: 92%; margin-bottom: 12px; }
+
+/* ✓ Расписание не загрузилось: причина и ручная загрузка файла */
+.shedule-fallback {
+  width: calc(100% - 20px); margin: 0 auto 20px; padding: 16px 18px; box-sizing: border-box;
+  border: 1px dashed rgba(75, 98, 132, 0.4); border-radius: 16px;
+  background: #f7f9fc; color: #253148; font-size: 14px;
+}
+.shedule-fallback-title { font-size: 17px; margin: 0 0 6px; }
+.shedule-fallback-reason { margin: 0 0 8px; font-size: 13px; color: #a01212; }
+.shedule-fallback-explain { margin: 0 0 8px; font-size: 13px; color: #4a5568; }
+.shedule-fallback-meta { margin: 0 0 8px; font-size: 12px; color: #8a8f98; }
+.shedule-fallback-hint { margin: 0 0 12px; font-size: 13px; color: #4a5568; }
+.shedule-fallback-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.shedule-fallback-file { display: inline-flex; align-items: center; cursor: pointer; }
+.shedule-fallback-paste { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.shedule-fallback-paste textarea {
+  width: 100%; min-height: 140px; padding: 10px 12px; box-sizing: border-box; resize: vertical;
+  border: 1px solid rgba(75, 98, 132, 0.28); border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #253148;
+}
+.shedule-fallback--drop { border-color: #667eea; background: #eef2ff; }
 
 
 /* ======== Перекрывающее окно информации о занятии ======== */
@@ -148,3 +175,135 @@
 
 
 
+
+
+/* ============================================================================================
+ * Обновление 17.10.2026: события, уведомления и заметки в расписании
+ * ========================================================================================== */
+
+/* ======== Событие, не пересекающееся с парами: карточка как у занятия, но с синей меткой ======== */
+.event--notice-event {
+    cursor: pointer;
+    border-radius: 12px;
+    background: linear-gradient(to right, rgba(27, 111, 214, 0.10), rgba(27, 111, 214, 0.03));
+    box-shadow: 0 0 12px rgba(27, 111, 214, 0.22);
+}
+.event--notice-event .event-kind-label { color: #1b6fd6; font-size: 12px; margin-top: 5px; }
+
+/* ======== Полоски событий, пересекающихся с парами ======== */
+.schedule-event-strips { display: flex; flex-direction: column; gap: 4px; margin: 6px 8px 0; }
+.schedule-event-strip {
+    display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box;
+    padding: 4px 10px; border: 0; border-left: 4px solid #1b6fd6; border-radius: 8px;
+    background: rgba(27, 111, 214, 0.12); color: #123a6b; font-size: 12px; text-align: left;
+    cursor: pointer; font-family: inherit;
+    transition: background-color 0.2s ease;
+}
+.schedule-event-strip:hover { background: rgba(27, 111, 214, 0.22); }
+.schedule-event-strip-time { font-weight: 700; white-space: nowrap; }
+.schedule-event-strip-title { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-event-strip-role { color: #3f6ea8; white-space: nowrap; }
+
+/* ======== Пользовательские заметки дня ======== */
+.schedule-day { position: relative; }
+.day-notes { margin-top: 8px; padding: 0 8px 10px; position: relative; }
+
+/* пусто: только «+» в правом нижнем углу дня */
+.day-notes--empty { padding: 0; }
+.day-notes--empty .day-notes-add {
+    position: absolute; right: 10px; bottom: 10px;
+    width: 34px; height: 34px; border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
+/* есть заметки: аккуратный контейнер и «выемка» с плюсиком по центру */
+.day-notes-box {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 10px 12px; border-radius: 14px 14px 0 0;
+    background: rgba(84, 104, 138, 0.10);
+}
+.day-note { display: flex; gap: 8px; align-items: flex-start; padding: 3px 0; }
+.day-note-check {
+    flex: 0 0 auto; width: 20px; height: 20px; margin-top: 1px;
+    border: 1px solid rgba(60, 84, 120, 0.45); border-radius: 6px; background: transparent;
+    color: #2c6b3c; font-size: 13px; line-height: 1; cursor: pointer; padding: 0;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.day-note-check:hover { background: rgba(44, 107, 60, 0.12); border-color: rgba(44, 107, 60, 0.6); }
+.day-note-input {
+    flex: 1 1 auto; min-height: 20px; font-size: 13.5px; line-height: 1.35; color: #22314a;
+    outline: none; border: 0; background: transparent; overflow-wrap: anywhere; cursor: text;
+}
+.day-note-input:empty::before { content: attr(data-placeholder); color: #8a97a8; }
+.day-note--done .day-note-input { text-decoration: line-through; color: #7b8798; }
+
+.day-note-remove {
+    flex: 0 0 auto; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
+    background: transparent; color: #8a97a8; font-size: 16px; line-height: 1; cursor: pointer;
+    opacity: 0; visibility: hidden; transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+.day-note--editing .day-note-remove, .day-note:hover .day-note-remove { opacity: 1; visibility: visible; }
+.day-note-remove:hover { background: rgba(180, 52, 52, 0.12); color: #b43434; }
+
+/* «выемка» с плюсиком, плавно входящая в контейнер */
+.day-notes-add {
+    display: block; width: 100%; height: 30px; margin-top: 0; padding: 0;
+    border: 0; border-radius: 0 0 14px 14px;
+    background: rgba(84, 104, 138, 0.16); color: #3c5478;
+    font-size: 18px; line-height: 1; cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.day-notes-add:hover { background: rgba(84, 104, 138, 0.28); }
+.day-notes--empty .day-notes-add {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(84, 104, 138, 0.22); font-size: 20px;
+}
+
+/* ======== Кнопка «Создать событие»: закреплена, полупрозрачная, с размытием фона ======== */
+.schedule-create-button {
+    position: fixed; right: 16px; bottom: 112px; z-index: 40;
+    display: flex; align-items: center; justify-content: center;
+    width: 56px; height: 56px; padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.65); border-radius: 50%;
+    background: rgba(255, 255, 255, 0.42);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    backdrop-filter: blur(14px) saturate(150%);
+    color: rgba(24, 58, 104, 0.55);
+    cursor: pointer;
+    box-shadow: 0 6px 22px rgba(24, 58, 104, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transition: background-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease;
+}
+.schedule-create-button:hover {
+    background: rgba(255, 255, 255, 0.62);
+    color: rgba(24, 58, 104, 0.85);
+    box-shadow: 0 8px 26px rgba(24, 58, 104, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+.schedule-create-button:active { transform: scale(0.94); }
+/* ✓ Надписи на кнопке нет и не будет — только полупрозрачный плюс */
+.schedule-create-button-plus {
+    font-size: 30px; font-weight: 300; line-height: 1;
+    color: rgba(24, 58, 104, 0.5);
+    transition: color 0.25s ease;
+}
+.schedule-create-button:hover .schedule-create-button-plus { color: rgba(24, 58, 104, 0.8); }
+
+/* ======== Полоска пересекающегося события на карточке пары ======== */
+.event { position: relative; }
+.event-overlap-strip {
+    position: absolute; right: 6px; width: 5px; padding: 0;
+    border: 0; border-radius: 5px; cursor: pointer;
+    background: linear-gradient(to bottom, rgba(27, 111, 214, 0.95), rgba(13, 63, 134, 0.95));
+    box-shadow: 0 0 8px rgba(27, 111, 214, 0.45);
+    opacity: 0.85;
+    transition: opacity 0.2s ease, width 0.2s ease;
+}
+.event-overlap-strip:hover { opacity: 1; width: 7px; }
+.event-overlap-strip-label {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%) scale(0.96);
+    max-width: 46vw; padding: 3px 8px; border-radius: 8px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+    background: #1b6fd6; color: #fff; font-size: 11px; font-weight: 600;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.event-overlap-strip:hover .event-overlap-strip-label { opacity: 1; transform: translateY(-50%) scale(1); }

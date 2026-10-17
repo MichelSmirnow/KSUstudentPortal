@@ -21,7 +21,12 @@
     overflow: hidden; overflow-y: scroll; text-align: center;
     transition: all 0.5s ease;
 }
-#auth-container h1, h2, h3 { filter: drop-shadow(0 0 10px rgba(57, 114, 238, 0.5)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.35)); }
+/* ✓ Тёмно-синее свечение — только для заголовков ВНУТРИ окна авторизации.
+   Раньше правило «#auth-container h1, h2, h3» цепляло все h2/h3 приложения,
+   из-за чего тень появлялась и в сессии — теперь каждый селектор с областью. */
+#auth-container h1,
+#auth-container h2,
+#auth-container h3 { filter: drop-shadow(0 0 10px rgba(31, 61, 140, 0.5)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.35)); }
 #auth-container:hover { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15); }
 
 /* ✓ Настройка переключения форм */

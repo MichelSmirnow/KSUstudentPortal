@@ -11,11 +11,15 @@
  *
  * Коллекции Firestore:
  *   texts, images   — публикации; поля moderation ('pending'|'approved'), moderatedBy,
- *                     moderatedAt, reportCount, reportedBy;
+ *                     moderatedAt, reportCount, reportedBy. Обращения в поддержку хранятся
+ *                     в тех же коллекциях: textType 'feedback' (вопрос) и 'feedbackAnswer' (ответ),
+ *                     поле feedbackOwner — владелец обращения, feedbackQuestion — id вопроса;
  *   reports         — жалобы пользователей; id документа: <postId>__<uid>, повторно пожаловаться нельзя;
- *   userdata/{uid}  — роли и ограничения: role ('starosta'|'teacher'), customTag, blocked,
- *                     blockedReason, blockedBy, blockedAt;
- *   accounts, admindata — как и раньше.
+ *   userdata/{uid}  — роли и ограничения: role ('starosta'|'teacher'|'proforg'|'kultorg'), customTag,
+ *                     blocked, blockedReason, blockedBy, blockedAt, emailVerifiedByAdmin;
+ *   accounts/{uid}  — профиль: группа, язык, registeredAt, achievements (массив ключей латиницей),
+ *                     achievementsMeta (когда получено), favoriteGroups, hiddenFeedback;
+ *   admindata/{uid} — админы (назначает владелец) + счётчики: moderationsCount, feedbackAnsweredCount;
  * ========================================================================================== */
 (function (global) {
   'use strict';
@@ -27,7 +31,21 @@
   const MODERATION_APPROVED = 'approved';    // «проверено»
   const ROLE_STAROSTA = 'starosta';
   const ROLE_TEACHER = 'teacher';
-  const ROLE_LABELS = { [ROLE_STAROSTA]: 'Староста', [ROLE_TEACHER]: 'Преподаватель' };
+  const ROLE_PROFORG = 'proforg';
+  const ROLE_KULTORG = 'kultorg';
+  // Порядок важен: он же порядок пунктов в списке статусов
+  const ROLE_LABELS = {
+    [ROLE_STAROSTA]: 'Староста',
+    [ROLE_PROFORG]: 'Профорг',
+    [ROLE_KULTORG]: 'Культорг',
+    [ROLE_TEACHER]: 'Преподаватель',
+  };
+  const ROLES = [ROLE_STAROSTA, ROLE_PROFORG, ROLE_KULTORG, ROLE_TEACHER];
+
+  // Обращения в службу поддержки («Обратная связь»)
+  const FEEDBACK_SUBJECT = 'Обратная связь';
+  const FEEDBACK_QUESTION = 'feedback';
+  const FEEDBACK_ANSWER = 'feedbackAnswer';
   const ADMIN_BADGE_TEXT = 'Админ';
   const MODERATION_TAB_REFRESH = 30000;      // автообновление очереди модерации, мс
 
@@ -160,7 +178,7 @@
     };
 
     prototype.setUserRole = async function setUserRole(userId, role) {
-      const value = role === ROLE_STAROSTA || role === ROLE_TEACHER ? role : '';
+      const value = ROLES.includes(role) ? role : '';
       return this.updateUserdata(userId, { role: value });
     };
 
@@ -177,6 +195,181 @@
         blockedBy: blocked ? (admin ? admin.uid : '') : '',
         blockedAt: blocked ? Date.now() : null,
       });
+    };
+
+    /* ------------------------------ Счётчики администратора ------------------------------ */
+
+    /**
+     * Счётчики админа живут в его собственной записи admindata: модерации и ответы
+     * в службе поддержки. Правила Firestore проверяют, что счётчик не уменьшается,
+     * поэтому накрутить его «в минус» и обнулить свои достижения нельзя.
+     */
+    prototype.incrementAdminCounter = async function incrementAdminCounter(fieldName) {
+      const field = fieldName === 'feedbackAnsweredCount' ? 'feedbackAnsweredCount' : 'moderationsCount';
+      try {
+        const user = this.auth.getCurrentUser();
+        if (!user) return { success: false, message: 'Пользователь не авторизован' };
+        if (!global.firebase || !global.firebase.firestore || !global.firebase.firestore.FieldValue) {
+          return { success: false, message: 'Firebase недоступен' };
+        }
+        await this.db.collection('admindata').doc(String(user.uid)).set({
+          [field]: global.firebase.firestore.FieldValue.increment(1),
+          countersUpdatedAt: Date.now(),
+        }, { merge: true });
+        if (badgeCache.admins instanceof Map) {
+          const current = badgeCache.admins.get(String(user.uid)) || {};
+          badgeCache.admins.set(String(user.uid), { ...current, [field]: (Number(current[field]) || 0) + 1 });
+        }
+        return { success: true };
+      } catch (error) {
+        // Счётчик — вспомогательная величина: публикацию или ответ из-за него не отменяем
+        console.warn('Счётчик администратора не обновлён:', error && error.message ? error.message : error);
+        return { success: false, message: 'Не удалось обновить счётчик администратора' };
+      }
+    };
+
+    prototype.getAllAdmindata = async function getAllAdmindata() {
+      try {
+        const snapshot = await this.db.collection('admindata').get();
+        return { success: true, admins: snapshotToArray(snapshot) };
+      } catch (error) {
+        return { success: false, admins: [], message: `Не удалось получить данные администраторов: ${error && error.message ? error.message : error}` };
+      }
+    };
+
+    /* ---------------------- Подтверждение почты администратором ---------------------- */
+
+    /**
+     * Подтвердить почту пользователя «вручную» из панели администратора.
+     * Клиентский Firebase не умеет менять флаг emailVerified другого аккаунта
+     * (для этого нужен Admin SDK на сервере), поэтому подтверждение хранится
+     * в userdata/{uid}.emailVerifiedByAdmin и учитывается приложением наравне
+     * с настоящим подтверждением. Писать в userdata может только администратор —
+     * это проверяет Firestore, а не клиент.
+     */
+    prototype.confirmUserEmail = async function confirmUserEmail(userId, confirmed) {
+      const value = confirmed !== false;
+      const user = this.auth.getCurrentUser();
+      return this.updateUserdata(String(userId), {
+        emailVerifiedByAdmin: value,
+        emailVerifiedBy: value && user ? user.uid : '',
+        emailVerifiedAt: value ? Date.now() : null,
+      });
+    };
+
+    /* ------------------------------ Обращения в поддержку ------------------------------ */
+
+    prototype.getFeedbackThreads = async function getFeedbackThreads() {
+      try {
+        const [questionsSnapshot, imagesSnapshot, answersSnapshot] = await Promise.all([
+          this.db.collection('texts').where('textType', '==', FEEDBACK_QUESTION).get(),
+          this.db.collection('images').where('imageType', '==', FEEDBACK_QUESTION).get(),
+          this.db.collection('texts').where('textType', '==', FEEDBACK_ANSWER).get(),
+        ]);
+        const questions = snapshotToArray(questionsSnapshot);
+        const images = snapshotToArray(imagesSnapshot);
+        const answers = snapshotToArray(answersSnapshot);
+
+        const threads = questions.map((question) => {
+          const postId = String(question.postId || question.textId || '');
+          const threadAnswers = answers
+            .filter((answer) => String(answer.feedbackQuestion || '') === postId)
+            .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          return {
+            postId,
+            question,
+            images: images.filter((image) => String(image.postId || '') === postId),
+            answers: threadAnswers,
+            answered: threadAnswers.length > 0,
+            answeredBy: threadAnswers.length > 0 ? String(threadAnswers[threadAnswers.length - 1].userId || '') : '',
+            answeredByName: threadAnswers.length > 0 ? String(threadAnswers[threadAnswers.length - 1].author || '') : '',
+            answeredAt: threadAnswers.length > 0 ? (threadAnswers[threadAnswers.length - 1].timestamp || 0) : 0,
+          };
+        });
+
+        threads.sort((a, b) => (b.question.timestamp || 0) - (a.question.timestamp || 0));
+        return { success: true, threads };
+      } catch (error) {
+        return {
+          success: false,
+          threads: [],
+          error: error && error.code,
+          message: `Не удалось загрузить обращения: ${error && error.message ? error.message : error}`,
+        };
+      }
+    };
+
+    // ✓ Ответ администратора на обращение. Ответ — такая же публикация (texts/images),
+    //   поэтому он попадает в общие правила безопасности: создавать ответы может
+    //   только администратор (проверяется в firestore.rules).
+    prototype.saveFeedbackAnswer = async function saveFeedbackAnswer(input) {
+      try {
+        const user = this.auth.getCurrentUser();
+        if (!user) return { success: false, message: 'Пользователь не авторизован' };
+        const data = input || {};
+        const answerText = String(data.answerText || '').trim();
+        if (!answerText) return { success: false, message: 'Введите текст ответа' };
+
+        const questionPostId = String(data.questionPostId || '');
+        const ownerUid = String(data.ownerUid || '');
+        if (!questionPostId || !ownerUid) return { success: false, message: 'Обращение не найдено' };
+
+        const timestamp = Date.now();
+        const postId = `answer_${timestamp}_${Math.floor(Math.random() * 10000)}`;
+        const textId = `text_${timestamp}_${Math.floor(Math.random() * 10000)}`;
+        await this.db.collection('texts').doc(textId).set({
+          textId,
+          postId,
+          userId: user.uid,
+          author: user.displayName || 'Администратор',
+          authorEmail: user.email || '',
+          userGroup: '',
+          subject: FEEDBACK_SUBJECT,
+          teacher: '',
+          subjectTimestamp: 0,
+          textContent: answerText,
+          textType: FEEDBACK_ANSWER,
+          feedbackOwner: ownerUid,
+          feedbackQuestion: questionPostId,
+          imageCount: 0,
+          timestamp,
+          moderation: 'approved',
+          reportCount: 0,
+          reportedBy: [],
+        }, { merge: true });
+
+        await this.incrementAdminCounter('feedbackAnsweredCount');
+        return { success: true, postId, textId, message: 'Ответ отправлен пользователю' };
+      } catch (error) {
+        return {
+          success: false,
+          error: error && error.code,
+          message: `Не удалось сохранить ответ: ${error && error.message ? error.message : error}`,
+        };
+      }
+    };
+
+    // ✓ Скрыть обращение у пользователя (троеточие → «Удалить запрос»).
+    //   У администраторов обращение остаётся навсегда: удаляем только у себя.
+    prototype.hideFeedbackThread = async function hideFeedbackThread(postId) {
+      try {
+        const user = this.auth.getCurrentUser();
+        if (!user) return { success: false, message: 'Пользователь не авторизован' };
+        if (!global.firebase || !global.firebase.firestore || !global.firebase.firestore.FieldValue) {
+          return { success: false, message: 'Firebase недоступен' };
+        }
+        await this.db.collection('accounts').doc(String(user.uid)).set({
+          hiddenFeedback: global.firebase.firestore.FieldValue.arrayUnion(String(postId)),
+          timestamp: Date.now(),
+        }, { merge: true });
+        return { success: true, message: 'Обращение удалено у вас (у администрации оно сохраняется)' };
+      } catch (error) {
+        return {
+          success: false,
+          error: error && error.code,
+          message: `Не удалось удалить обращение: ${error && error.message ? error.message : error}`,
+        };
+      }
     };
 
     /* ------------------------------ Пользователи и посты ------------------------------ */
@@ -294,6 +487,14 @@
         if (alreadyModerated) {
           return { success: false, alreadyModerated: true, message: 'Контент уже был отмодерирован' };
         }
+
+        // ✓ Счётчик модераций конкретного администратора — основа достижения
+        //   «Квалифицированный админ». Хранится в его записи admindata.
+        await this.incrementAdminCounter('moderationsCount');
+        if (global.Achievements && typeof global.Achievements.evaluate === 'function') {
+          global.Achievements.evaluate().catch(() => { /* достижения не критичны для модерации */ });
+        }
+
         return {
           success: true,
           moderated: moderatedCount,
@@ -439,6 +640,7 @@
     byUid: new Map(),
     byEmail: new Map(),
     adminIds: new Set(),
+    admins: new Map(), // uid → запись admindata (счётчики модераций и ответов)
   };
 
   async function loadBadgeData(force) {
@@ -489,9 +691,22 @@
         if (email) byEmail.set(email, profile);
       });
 
+      const admins = new Map();
+      try {
+        if (global.database && typeof global.database.getAllAdmindata === 'function') {
+          const result = await global.database.getAllAdmindata();
+          (result && Array.isArray(result.admins) ? result.admins : []).forEach((record) => {
+            if (!record) return;
+            const uid = String(record.userId || record.id || '');
+            if (uid) admins.set(uid, { ...(admins.get(uid) || {}), ...record });
+          });
+        }
+      } catch (error) { console.warn('Счётчики администраторов недоступны:', error); }
+
       badgeCache.adminIds = adminIds;
       badgeCache.byUid = byUid;
       badgeCache.byEmail = byEmail;
+      badgeCache.admins = admins;
       badgeCache.loaded = true;
       badgeCache.loading = null;
       return badgeCache;
@@ -909,16 +1124,339 @@
 
   /* =========================== 4. Панель администратора =========================== */
 
+  /* =========================== 4. Достижения =========================== */
+
+  // Даты регистрации для «тестерских» достижений (по местному времени устройства)
+  const TESTER_DEADLINES = {
+    premium: new Date(2026, 9, 1).getTime(),   // до 01.10.2026
+    alpha: new Date(2026, 9, 30).getTime(),    // до 30.10.2026
+    beta: new Date(2027, 0, 1).getTime(),      // до 01.01.2027
+  };
+
+  /**
+   * Список достижений. Ключи — строго латиницей: они хранятся массивом в
+   * accounts/{uid}.achievements, дата получения — в accounts/{uid}.achievementsMeta.
+   * Тот же список продублирован в firestore.rules: записать ключ, которого там нет,
+   * или снять уже полученное достижение невозможно (проверяется сервером).
+   * Картинки: images/achievements/<ключ>.png
+   */
+  const ACHIEVEMENTS = [
+    { key: 'first_post', title: 'Первый пост', condition: '1 публикация', hint: 'Опубликуйте первый материал или домашнее задание', check: (stats) => stats.posts >= 1 },
+    { key: 'posts_10', title: 'Начинающий', condition: '10 публикаций', hint: 'Опубликуйте 10 записей', check: (stats) => stats.posts >= 10 },
+    { key: 'posts_25', title: 'Продвинутый', condition: '25 публикаций', hint: 'Опубликуйте 25 записей', check: (stats) => stats.posts >= 25 },
+    { key: 'posts_100', title: 'Профи', condition: '100 публикаций', hint: 'Опубликуйте 100 записей', check: (stats) => stats.posts >= 100 },
+    { key: 'posts_1000', title: 'Без личной жизни', condition: '1000 публикаций', hint: 'Опубликуйте 1000 записей', check: (stats) => stats.posts >= 1000 },
+    { key: 'first_photo', title: 'Первый снимок', condition: '1 изображение', hint: 'Прикрепите изображение к публикации', check: (stats) => stats.photos >= 1 },
+    { key: 'photos_25', title: 'Любитель картинок', condition: '25 изображений', hint: 'Прикрепите 25 изображений', check: (stats) => stats.photos >= 25 },
+    { key: 'photos_100', title: 'Фотограф', condition: '100 изображений', hint: 'Прикрепите 100 изображений', check: (stats) => stats.photos >= 100 },
+    { key: 'photos_250', title: 'Мастер', condition: '250 изображений', hint: 'Прикрепите 250 изображений', check: (stats) => stats.photos >= 250 },
+    { key: 'moderator_100', title: 'Квалифицированный админ', condition: '100 модераций', hint: 'Проверьте 100 публикаций в панели администратора', check: (stats) => stats.moderations >= 100 },
+    { key: 'callcenter_10', title: 'Сотрудник call-центра', condition: '10 ответов', hint: 'Ответьте на 10 обращений в разделе «Фидбек»', check: (stats) => stats.answers >= 10 },
+    { key: 'sirok', title: 'Сырок', condition: '1 000 000 сырков', hint: 'Заготовка будущего достижения: механика сырков ещё не добавлена', check: () => false },
+    { key: 'premium_tester', title: 'Премиальный тестировщик', condition: 'регистрация до 01.10.2026', hint: 'Зарегистрируйтесь до 1 октября 2026 года', check: (stats) => stats.registeredAt > 0 && stats.registeredAt < TESTER_DEADLINES.premium },
+    { key: 'alpha_tester', title: 'Альфа-тестировщик', condition: 'регистрация до 30.10.2026', hint: 'Зарегистрируйтесь до 30 октября 2026 года', check: (stats) => stats.registeredAt > 0 && stats.registeredAt < TESTER_DEADLINES.alpha },
+    { key: 'beta_tester', title: 'Бета-тестировщик', condition: 'регистрация до 01.01.2027', hint: 'Зарегистрируйтесь до 1 января 2027 года', check: (stats) => stats.registeredAt > 0 && stats.registeredAt < TESTER_DEADLINES.beta },
+  ];
+
+  const ACHIEVEMENT_KEYS = ACHIEVEMENTS.map((item) => item.key);
+
+  /** Собрать статистику пользователя для проверки условий достижений */
+  async function collectAchievementStats(uid, account) {
+    const stats = { posts: 0, photos: 0, moderations: 0, answers: 0, registeredAt: 0 };
+
+    try {
+      if (global.database && typeof global.database.getPostsByUser === 'function') {
+        const result = await global.database.getPostsByUser(String(uid));
+        const texts = Array.isArray(result && result.texts) ? result.texts : [];
+        const images = Array.isArray(result && result.images) ? result.images : [];
+        // Обращения в поддержку и ответы на них — не «посты» пользователя
+        stats.posts = texts.filter((text) => text && text.textType !== FEEDBACK_QUESTION && text.textType !== FEEDBACK_ANSWER).length;
+        stats.photos = images.length;
+      }
+    } catch (error) { console.warn('Не удалось посчитать публикации для достижений:', error); }
+
+    try {
+      const doc = await global.database.db.collection('admindata').doc(String(uid)).get();
+      const data = typeof doc.data === 'function' ? doc.data() : null;
+      if (data) {
+        stats.moderations = Number(data.moderationsCount) || 0;
+        stats.answers = Number(data.feedbackAnsweredCount) || 0;
+      }
+    } catch (error) { /* не администратор — счётчиков нет */ }
+
+    // Если счётчик ответов ещё не заведён, считаем ответы по самим публикациям
+    if (!stats.answers) {
+      try {
+        const result = await global.database.getTexts('userId', String(uid));
+        const texts = Array.isArray(result && result.texts) ? result.texts : [];
+        stats.answers = texts.filter((text) => text && text.textType === FEEDBACK_ANSWER).length;
+      } catch (error) { /* не критично */ }
+    }
+
+    stats.registeredAt = Number(account && account.registeredAt) || 0;
+    if (!stats.registeredAt && global.auth && typeof global.auth.getRegistrationTime === 'function') {
+      const current = global.auth.getCurrentUser();
+      if (current && String(current.uid) === String(uid)) stats.registeredAt = global.auth.getRegistrationTime();
+    }
+    return stats;
+  }
+
+  const Achievements = {
+    LIST: ACHIEVEMENTS,
+    KEYS: ACHIEVEMENT_KEYS,
+    DEADLINES: TESTER_DEADLINES,
+
+    find(key) {
+      return ACHIEVEMENTS.find((item) => item.key === key) || null;
+    },
+
+    /** Только полученные достижения в порядке списка (у каждого — дата получения) */
+    unpack(achievements, meta) {
+      const keys = Array.isArray(achievements) ? achievements.map(String) : [];
+      const dates = (meta && typeof meta === 'object') ? meta : {};
+      return ACHIEVEMENTS
+        .filter((item) => keys.includes(item.key))
+        .map((item) => ({
+          ...item,
+          unlockedAt: Number(dates[item.key]) || 0,
+          icon: `images/achievements/${item.key}.png`,
+        }));
+    },
+
+    /**
+     * Проверить условия достижений текущего пользователя и дописать новые в его аккаунт.
+     * Firestore принимает только расширение списка и только известные ключи — откатить
+     * достижения назад нельзя.
+     */
+    async evaluate() {
+      try {
+        const user = global.auth && typeof global.auth.getCurrentUser === 'function' ? global.auth.getCurrentUser() : null;
+        if (!user) return { success: false, added: [], achievements: [] };
+
+        const accountResult = await global.database.getAccount(user.uid);
+        const account = (accountResult && accountResult.account) ? accountResult.account : {};
+        const stats = await collectAchievementStats(user.uid, account);
+
+        const unlocked = ACHIEVEMENTS
+          .filter((item) => {
+            try { return item.check(stats) === true; } catch (_) { return false; }
+          })
+          .map((item) => item.key);
+
+        const current = (Array.isArray(account.achievements) ? account.achievements : [])
+          .map(String)
+          .filter((key) => ACHIEVEMENT_KEYS.includes(key));
+        const dates = (account.achievementsMeta && typeof account.achievementsMeta === 'object')
+          ? { ...account.achievementsMeta }
+          : {};
+
+        const added = unlocked.filter((key) => !current.includes(key));
+        if (added.length === 0) {
+          return { success: true, added: [], achievements: current, meta: dates, stats };
+        }
+
+        const now = Date.now();
+        added.forEach((key) => { dates[key] = now; });
+        const next = current.concat(added);
+        const saved = await global.database.updateAccount({ achievements: next, achievementsMeta: dates });
+
+        if (saved && saved.success === true && typeof global.showNotification === 'function') {
+          const titles = added.map((key) => {
+            const item = Achievements.find(key);
+            return item ? item.title : key;
+          }).join(', ');
+          global.showNotification(`Новое достижение: ${titles}`, 'success');
+        }
+
+        return { success: Boolean(saved && saved.success), added, achievements: next, meta: dates, stats };
+      } catch (error) {
+        console.warn('Достижения не обновлены:', error && error.message ? error.message : error);
+        return { success: false, added: [], achievements: [] };
+      }
+    },
+
+    /** Доска достижений: иконка, название, дата получения и подсказка «как получить» */
+    render(container, options) {
+      if (!container) return container;
+      const data = options || {};
+      const unlocked = Achievements.unpack(data.achievements, data.meta);
+      const board = element('div', 'achievements-board');
+      board.appendChild(element('p', 'achievements-title', 'Достижения'));
+
+      if (unlocked.length === 0) {
+        board.appendChild(element('p', 'achievements-empty', 'Пока нет ни одного достижения. Публикуйте материалы, изображения и отвечайте на обращения — они появятся здесь.'));
+        container.appendChild(board);
+        return container;
+      }
+
+      const list = element('ul', 'achievements-list');
+      unlocked.forEach((achievement) => {
+        const item = element('li', 'achievement');
+        const icon = element('img', 'achievement-icon');
+        icon.src = achievement.icon;
+        icon.alt = achievement.title;
+        icon.loading = 'lazy';
+        // Запасной вариант, если картинки нет: цветной кружок с первой буквой
+        icon.addEventListener('error', () => {
+          const fallback = element('span', 'achievement-icon achievement-icon--fallback', achievement.title.slice(0, 1));
+          if (icon.parentNode) icon.parentNode.replaceChild(fallback, icon);
+        });
+        item.appendChild(icon);
+
+        const body = element('div', 'achievement-body');
+        body.appendChild(element('p', 'achievement-title', achievement.title));
+        const dateText = achievement.unlockedAt ? formatDate(achievement.unlockedAt) : '';
+        body.appendChild(element('p', 'achievement-date', dateText ? `Получено ${dateText}` : 'Получено'));
+        body.appendChild(element('p', 'achievement-hint', `Как получить: ${achievement.hint} (${achievement.condition})`));
+        item.appendChild(body);
+        list.appendChild(item);
+      });
+      board.appendChild(list);
+      container.appendChild(board);
+      return container;
+    },
+  };
+
+  /* ===================== 5. Обращения в поддержку (вид для пользователя и админа) ===================== */
+
+  const FeedbackView = {
+    /**
+     * Карточка обращения: вопрос (с изображениями) и ответы администрации.
+     * handlers.canReply     — показать поле ответа (панель администратора)
+     * handlers.canDelete    — показать троеточие «Удалить запрос» (личный кабинет пользователя)
+     * handlers.showOwner    — показать автора вопроса и ссылку на его аккаунт
+     */
+    buildThread(thread, handlers) {
+      const options = handlers || {};
+      const card = element('article', 'feedback-card');
+      card.dataset.postId = thread.postId;
+      if (thread.answered) card.classList.add('feedback-card--answered');
+
+      const question = thread.question || {};
+      const head = element('div', 'feedback-card-head');
+      const titleBox = element('div', 'feedback-card-title-box');
+
+      const author = element('p', 'feedback-card-title', options.showOwner
+        ? (question.author || 'Пользователь')
+        : 'Ваш вопрос');
+      if (options.showOwner && question.userId && typeof global.navigateTo === 'function') {
+        // Переход в предосмотр аккаунта автора вопроса (без почты)
+        author.classList.add('feedback-author-link');
+        author.addEventListener('click', () => global.navigateTo('userprofile', {
+          userId: String(question.userId),
+          userName: question.author || '',
+        }));
+      }
+      titleBox.appendChild(author);
+
+      const meta = [
+        question.userGroup ? `группа ${question.userGroup}` : '',
+        formatDateTime(question.timestamp),
+      ].filter(Boolean).join(' · ');
+      titleBox.appendChild(element('p', 'feedback-card-meta', meta));
+      head.appendChild(titleBox);
+
+      const badge = element('span', `feedback-status ${thread.answered ? 'feedback-status--answered' : 'feedback-status--pending'}`,
+        thread.answered ? 'Отвечено' : 'В обработке');
+      head.appendChild(badge);
+
+      if (options.canDelete) {
+        const menu = element('button', 'feedback-menu-button', '⋮');
+        menu.type = 'button';
+        menu.title = 'Удалить запрос';
+        menu.addEventListener('click', () => {
+          if (typeof options.onDelete === 'function') options.onDelete(thread);
+        });
+        head.appendChild(menu);
+      }
+      card.appendChild(head);
+
+      const questionBox = element('div', 'feedback-message feedback-message--question');
+      questionBox.appendChild(element('p', 'feedback-message-text', question.textContent || ''));
+      card.appendChild(questionBox);
+
+      if (Array.isArray(thread.images) && thread.images.length > 0) {
+        const grid = element('div', 'feedback-image-grid');
+        thread.images.forEach((image) => {
+          const url = String(image.imageUrl || '').trim();
+          if (!url) return;
+          const node = element('img', 'feedback-image');
+          node.src = url;
+          node.alt = 'Изображение к обращению';
+          node.loading = 'lazy';
+          node.addEventListener('click', () => {
+            if (global.imageViewer) global.imageViewer.open(url);
+            else if (typeof global.openImageViewer === 'function') global.openImageViewer(url);
+          });
+          grid.appendChild(node);
+        });
+        card.appendChild(grid);
+      }
+
+      (Array.isArray(thread.answers) ? thread.answers : []).forEach((answer) => {
+        const answerBox = element('div', 'feedback-message feedback-message--answer');
+        const answerAuthor = element('p', 'feedback-message-author', answer.author || 'Администрация');
+        if (options.showOwner && answer.userId && typeof global.navigateTo === 'function') {
+          answerAuthor.classList.add('feedback-author-link');
+          answerAuthor.addEventListener('click', () => global.navigateTo('userprofile', {
+            userId: String(answer.userId),
+            userName: answer.author || '',
+          }));
+        }
+        answerBox.appendChild(answerAuthor);
+        answerBox.appendChild(element('p', 'feedback-message-text', answer.textContent || ''));
+        answerBox.appendChild(element('p', 'feedback-message-date', formatDateTime(answer.timestamp)));
+        card.appendChild(answerBox);
+      });
+
+      if (options.canReply && !thread.answered) {
+        const form = element('div', 'feedback-reply');
+        const textarea = element('textarea', 'feedback-reply-input');
+        textarea.placeholder = 'Ответ пользователю: что сделано или что нужно уточнить';
+        const submit = element('button', 'admin-user-button admin-user-button--success', 'Ответить');
+        submit.type = 'button';
+        submit.addEventListener('click', async () => {
+          const text = textarea.value.trim();
+          if (!text) { notify('Введите текст ответа', 'error'); return; }
+          submit.disabled = true;
+          const result = typeof options.onReply === 'function' ? await options.onReply(thread, text) : null;
+          submit.disabled = false;
+          if (result && result.success) {
+            textarea.value = '';
+            notify(result.message || 'Ответ отправлен', 'success');
+          } else {
+            notify((result && result.message) || 'Не удалось отправить ответ', 'error');
+          }
+        });
+        form.appendChild(textarea);
+        form.appendChild(submit);
+        card.appendChild(form);
+      }
+
+      if (options.canReply && thread.answered) {
+        const note = element('p', 'feedback-card-note', [
+          'Обращение закрыто',
+          thread.answeredByName ? `ответил(а) ${thread.answeredByName}` : '',
+          thread.answeredAt ? formatDateTime(thread.answeredAt) : '',
+        ].filter(Boolean).join(' · '));
+        card.appendChild(note);
+      }
+
+      return card;
+    },
+  };
+
   const AdminPanel = {
     refreshInterval: MODERATION_TAB_REFRESH,
 
-    async render() {
+    async render(options) {
+      const settings = (options && typeof options === 'object') ? options : {};
       const root = element('div', 'admin-panel');
       root.id = 'admin-panel';
 
       const header = element('div', 'admin-panel-header');
       header.appendChild(element('h2', null, 'Панель администратора'));
-      header.appendChild(element('p', 'admin-panel-subtitle', 'Пользователи, роли и модерация публикаций'));
+      header.appendChild(element('p', 'admin-panel-subtitle', 'Модерация, пользователи, ответы и фидбек'));
       root.appendChild(header);
 
       const cache = await loadBadgeData(true);
@@ -935,6 +1473,7 @@
         return root;
       }
 
+      // Статичное меню действий: оно остаётся на месте при переключении разделов
       const tabs = element('div', 'admin-panel-tabs');
       const content = element('div', 'admin-panel-content');
       const buttons = {};
@@ -942,19 +1481,106 @@
         Object.entries(buttons).forEach(([key, button]) => button.classList.toggle('selected', key === name));
         clear(content);
         if (name === 'moderation') await this.renderModerationTab(content);
+        else if (name === 'feedback') await this.renderFeedbackTab(content);
         else await this.renderUsersTab(content);
       };
-      [['users', 'Пользователи'], ['moderation', 'Модерация']].forEach(([name, label]) => {
-        const button = element('button', 'radio-button admin-panel-tab', label);
-        button.type = 'button';
-        button.addEventListener('click', () => selectTab(name));
-        buttons[name] = button;
-        tabs.appendChild(button);
-      });
+      // ✓ Обращения пользователей — одна вкладка «Фидбек»: в ней и ответы на новые вопросы,
+      // и история уже отвеченных. Отдельной вкладки «Ответы» больше нет.
+      [['moderation', 'Модерация'], ['users', 'Список пользователей'], ['feedback', 'Фидбек']]
+        .forEach(([name, label]) => {
+          const button = element('button', 'radio-button admin-panel-tab', label);
+          button.type = 'button';
+          button.addEventListener('click', () => selectTab(name));
+          buttons[name] = button;
+          tabs.appendChild(button);
+        });
       root.appendChild(tabs);
       root.appendChild(content);
-      await selectTab('users');
+
+      // Панель можно открыть сразу на нужном разделе (например, кнопкой «Фидбек»)
+      const requested = String(settings.tab || '');
+      await selectTab(buttons[requested] ? requested : 'moderation');
       return root;
+    },
+
+    /* --------------------------- Раздел «Фидбек» и «Ответы» --------------------------- */
+
+    /**
+     * Вкладка «Фидбек»: обращения пользователей и ответы на них в одном месте.
+     * Сверху — вопросы в обработке (на них можно ответить), ниже — история отвеченных.
+     */
+    async renderFeedbackTab(container) {
+      const shell = element('div', 'admin-feedback-tab');
+      const status = element('p', 'admin-panel-summary', 'Загружаю обращения…');
+      const toolbar = element('div', 'admin-users-toolbar');
+      const refreshButton = element('button', 'admin-user-button', 'Обновить список');
+      refreshButton.type = 'button';
+      toolbar.appendChild(refreshButton);
+      shell.appendChild(status);
+      shell.appendChild(toolbar);
+
+      const pendingTitle = element('p', 'admin-feedback-section-title', 'Обращения в обработке');
+      const pendingList = element('div', 'admin-feedback-list');
+      const answeredTitle = element('p', 'admin-feedback-section-title', 'Отвеченные обращения');
+      const answeredList = element('div', 'admin-feedback-list');
+      shell.appendChild(pendingTitle);
+      shell.appendChild(pendingList);
+      shell.appendChild(answeredTitle);
+      shell.appendChild(answeredList);
+      container.appendChild(shell);
+
+      const makeCard = (thread, canReply) => FeedbackView.buildThread(thread, {
+        showOwner: true,
+        canReply,
+        onReply: async (target, text) => {
+          const saved = await global.database.saveFeedbackAnswer({
+            questionPostId: target.postId,
+            ownerUid: String(target.question.userId || ''),
+            answerText: text,
+          });
+          if (saved && saved.success === true) {
+            if (global.Achievements && typeof global.Achievements.evaluate === 'function') {
+              global.Achievements.evaluate().catch(() => {});
+            }
+            await draw();
+          }
+          return saved;
+        },
+      });
+
+      const draw = async () => {
+        status.textContent = 'Загружаю обращения…';
+        clear(pendingList);
+        clear(answeredList);
+        const result = await global.database.getFeedbackThreads();
+        if (!result || result.success !== true) {
+          status.textContent = (result && result.message) || 'Не удалось загрузить обращения';
+          return;
+        }
+        const threads = result.threads || [];
+        const pending = threads.filter((thread) => !thread.answered);
+        const answered = threads.filter((thread) => thread.answered);
+        status.textContent = `Обращений в обработке: ${pending.length} · отвечено: ${answered.length}`;
+
+        if (pending.length === 0) {
+          pendingList.appendChild(element('p', 'admin-panel-empty', 'Новых обращений нет — все вопросы обработаны.'));
+        } else {
+          pending.forEach((thread) => pendingList.appendChild(makeCard(thread, true)));
+        }
+
+        if (answered.length === 0) {
+          answeredList.appendChild(element('p', 'admin-panel-empty', 'Пока нет ни одного отвеченного обращения.'));
+        } else {
+          answered.forEach((thread) => answeredList.appendChild(makeCard(thread, false)));
+        }
+      };
+
+      refreshButton.addEventListener('click', async () => {
+        refreshButton.disabled = true;
+        await draw();
+        refreshButton.disabled = false;
+      });
+      await draw();
     },
 
     /* ------------------------------- Вкладка «Пользователи» ------------------------------- */
@@ -1124,7 +1750,10 @@
       const isAdmin = cache.adminIds.has(uid) || (user.userEmail && cache.adminIds.has(String(user.userEmail).toLowerCase()));
       // Другой администратор защищён: его нельзя заблокировать, а тег он меняет сам.
       const isAnotherAdmin = isAdmin && !isSelf;
-      const role = user.role === ROLE_STAROSTA || user.role === ROLE_TEACHER ? user.role : '';
+      const role = ROLES.includes(user.role) ? user.role : '';
+      const adminRecord = (cache.admins && typeof cache.admins.get === 'function') ? (cache.admins.get(uid) || null) : null;
+      const moderationsCount = Number(adminRecord && adminRecord.moderationsCount) || 0;
+      const answeredCount = Number(adminRecord && adminRecord.feedbackAnsweredCount) || 0;
       if (user.blocked) row.classList.add('admin-user--blocked');
 
       const expanded = typeof context.isExpanded === 'function' ? context.isExpanded(uid) : false;
@@ -1139,8 +1768,14 @@
         user.userGroup ? `группа ${user.userGroup}` : 'группа не выбрана',
         user.userSubgroup ? `${user.userSubgroup}-я подгруппа` : null,
         user.userLanguage || null,
+        user.emailVerifiedByAdmin === true ? 'почта подтверждена администратором' : null,
       ].filter(Boolean).join(' · '));
       nameBox.appendChild(meta);
+
+      // Счётчики админа: модерации и ответы в службе поддержки
+      if (isAdmin) {
+        nameBox.appendChild(element('p', 'admin-user-counters', `Модераций: ${moderationsCount} · Ответов: ${answeredCount}`));
+      }
 
       const headRight = element('div', 'admin-user-head-right');
       const badges = element('span', 'admin-user-badges');
@@ -1149,10 +1784,20 @@
       if (user.customTag) badges.appendChild(createBadge({ kind: 'custom', text: user.customTag }));
       if (user.blocked) badges.appendChild(element('span', 'homework-role-badge homework-role-badge--blocked', 'Заблокирован'));
 
+      const previewButton = element('button', 'admin-user-button', 'Предосмотр');
+      previewButton.type = 'button';
+      previewButton.title = 'Открыть аккаунт так, как его видят другие пользователи (без почты)';
+      previewButton.addEventListener('click', () => {
+        if (typeof global.navigateTo === 'function') {
+          global.navigateTo('userprofile', { userId: uid, userName: user.userName || '' });
+        }
+      });
+
       const toggleButton = element('button', 'admin-user-button admin-user-toggle', expanded ? 'Свернуть' : 'Подробнее');
       toggleButton.type = 'button';
       toggleButton.setAttribute('aria-expanded', String(expanded));
       headRight.appendChild(badges);
+      headRight.appendChild(previewButton);
       headRight.appendChild(toggleButton);
 
       head.appendChild(nameBox);
@@ -1183,7 +1828,7 @@
       const roleLabel = element('label', 'admin-user-field');
       roleLabel.appendChild(element('span', null, 'Статус'));
       const roleSelect = element('select', 'admin-user-select');
-      [['', 'Без статуса'], [ROLE_STAROSTA, ROLE_LABELS[ROLE_STAROSTA]], [ROLE_TEACHER, ROLE_LABELS[ROLE_TEACHER]]]
+      [['', 'Без статуса']].concat(ROLES.map((value) => [value, ROLE_LABELS[value]]))
         .forEach(([value, label]) => {
           const option = element('option', null, label);
           option.value = value;
@@ -1276,6 +1921,26 @@
         blockBox.appendChild(element('span', 'admin-user-hint', 'Администратор защищён от блокировки'));
       }
       controls.appendChild(blockBox);
+
+      /* Подтверждение почты вручную (флаг Firebase Email не меняется — см. пояснение на кнопке) */
+      const verifyBox = element('div', 'admin-user-verify');
+      const verifiedByAdmin = user.emailVerifiedByAdmin === true;
+      const verifyButton = element('button', `admin-user-button ${verifiedByAdmin ? '' : 'admin-user-button--success'}`,
+        verifiedByAdmin ? 'Снять подтверждение почты' : 'Подтвердить почту');
+      verifyButton.type = 'button';
+      verifyButton.title = 'Firebase не позволяет менять подтверждение чужой почты из приложения, поэтому отметка хранится в базе и учитывается входом в приложение';
+      verifyButton.addEventListener('click', async () => {
+        verifyButton.disabled = true;
+        const result = await global.database.confirmUserEmail(uid, !verifiedByAdmin);
+        verifyButton.disabled = false;
+        notify((result && result.message) || 'Готово', result && result.success ? 'success' : 'error');
+        await softRefresh();
+      });
+      verifyBox.appendChild(verifyButton);
+      verifyBox.appendChild(element('span', 'admin-user-hint', verifiedByAdmin
+        ? 'Почта отмечена подтверждённой администратором'
+        : 'Отметка позволит пользователю войти, если письмо не приходит'));
+      controls.appendChild(verifyBox);
 
       /* Публикации пользователя */
       const postsButton = element('button', 'admin-user-button', 'Публикации');
@@ -1582,11 +2247,20 @@
   global.UserBadges = UserBadges;
   global.PostMenu = PostMenu;
   global.AdminPanel = AdminPanel;
+  global.Achievements = Achievements;
+  global.FeedbackView = FeedbackView;
   global.GovernanceStore = {
     REPORT_LIMIT,
     MODERATION_PENDING,
     MODERATION_APPROVED,
     ROLE_STAROSTA,
     ROLE_TEACHER,
+    ROLE_PROFORG,
+    ROLE_KULTORG,
+    ROLES,
+    ROLE_LABELS,
+    FEEDBACK_SUBJECT,
+    FEEDBACK_QUESTION,
+    FEEDBACK_ANSWER,
   };
 })(window);

@@ -79,6 +79,44 @@
 #header-left { justify-content: start; left: calc(50% + 20px); transform: translateX(-50%); }
 #header-right { justify-content: end; right: calc(50% + 20px); transform: translateX(50%); }
 
+/* ✓ Кликабельное имя в шапке: только тень и подсветка — без «коробки» и box-shadow */
+.header-name-link {
+    cursor: pointer; border-radius: 10px;
+    text-shadow: 0 0 10px rgba(10, 83, 143, 0.35);
+    filter: brightness(100%);
+    transition: filter 0.25s ease, text-shadow 0.25s ease;
+}
+.header-name-link:hover { filter: brightness(112%); text-shadow: 0 0 16px rgba(10, 83, 143, 0.55); }
+.header-name-link:active { filter: brightness(92%); text-shadow: 0 0 10px rgba(10, 83, 143, 0.6); }
+
+/* ✓ Название группы: тоже кликабельно, но только фильтром — без прыжков и новых теней */
+#header-group-p { cursor: pointer; filter: brightness(100%); transition: filter 0.25s ease; }
+#header-group-p:hover { filter: brightness(110%); }
+#header-group-p:active { filter: brightness(92%); }
+
+/* ✓ Выпадающее меню выбранных групп в шапке */
+.header-group-menu {
+    position: fixed; top: 58px; right: calc(50% + 20px); transform: translateX(50%);
+    z-index: 30; display: flex; flex-direction: column; gap: 6px;
+    width: min(300px, 82vw); max-height: 55vh; padding: 10px; overflow-y: auto;
+    background-color: rgba(255, 255, 255, 0.96); border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+.header-group-item {
+    padding: 8px 10px; border: 0; border-radius: 10px; text-align: left; cursor: pointer;
+    background-color: rgb(238, 238, 238); color: #1b2430; font-size: 14px;
+    transition: filter 0.2s ease;
+}
+.header-group-item:hover { filter: brightness(108%); }
+.header-group-item:active { filter: brightness(92%); }
+.header-group-item.selected {
+    color: #FFF; background-color: rgb(114, 178, 231); text-shadow: 0 0 10px rgba(10, 83, 143, 0.35);
+}
+.header-group-hint { margin: 2px 2px 0; font-size: 11px; line-height: 1.25; color: #5a6b80; }
+
+/* ✓ Мягкое переключение перекрывающего окна subpage → subpage */
+#container-upwards.subpage-fading { opacity: 0.3 !important; transition: opacity 0.15s ease !important; }
+
 /* ✓ Название группы пользователя и иконка администратора */
 #header-group-p, #admin-mark {
     padding: 5px 10px; font-size: 15px; 
@@ -114,3 +152,82 @@
     filter: drop-shadow(0 0 10px rgba(0,0,0,0.35));
     border: 0; opacity: 0.8;
 }
+
+
+/* ============================================================================================
+ * Обновление 17.10.2026: баннер уведомлений, страница уведомлений, форма события
+ * ========================================================================================== */
+
+/* ======== Баннер уведомления внизу экрана ======== */
+.notice-banner-host {
+    position: fixed; left: 0; right: 0; bottom: 104px; z-index: 60;
+    display: flex; justify-content: center; pointer-events: none;
+    padding: 0 10px 14px;
+}
+.notice-banner {
+    pointer-events: auto; width: min(620px, 100%); box-sizing: border-box;
+    padding: 20px 22px; border-radius: 20px;
+    background: #fdf7ea; border-left: 6px solid #e08a1e;
+    box-shadow: 0 14px 38px rgba(60, 40, 0, 0.3);
+    opacity: 0; transform: translateY(30px) scale(0.97);
+    transition: opacity 0.32s ease, transform 0.32s ease;
+}
+.notice-banner--visible { opacity: 1; transform: translateY(0) scale(1); }
+.notice-banner-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+.notice-banner-role { font-size: 12px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: #a4630c; }
+.notice-banner-date { font-size: 12px; color: #8a6a3a; }
+.notice-banner-title { margin: 8px 0 6px; font-size: 22px; font-weight: 700; color: #3a2a10; line-height: 1.22; }
+.notice-banner-text { margin: 0; font-size: 16px; line-height: 1.45; color: #4a3a20; max-height: 34vh; overflow-y: auto; overflow-wrap: anywhere; }
+.notice-banner-author {
+    display: inline-block; margin-top: 10px; padding: 0; border: 0; background: none; cursor: pointer;
+    font-family: inherit; font-size: 13.5px; font-weight: 700; color: #2f6fd0;
+    text-decoration: underline; text-underline-offset: 2px;
+}
+.notice-banner-author:hover { color: #1b4f9c; }
+.notice-banner-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.notice-banner-buttons .account-standartButton { padding: 10px 18px; font-size: 15px; }
+.notice-banner-ok { background-image: linear-gradient(to right, rgb(24, 122, 74) 0%, rgb(12, 84, 48) 100%); }
+
+/* ======== Страница «Уведомления» ======== */
+.notifications-day { width: calc(100% - 20px); margin: 0 auto 14px; }
+.notifications-day-title { margin: 0 0 6px; font-size: 14px; font-weight: 800; color: #4a5b70; letter-spacing: 0.3px; }
+.notification-row {
+    display: flex; flex-direction: column; gap: 3px; width: 100%; box-sizing: border-box;
+    margin-bottom: 8px; padding: 10px 12px; border: 0; border-radius: 12px;
+    background: #fff; text-align: left; cursor: pointer; font-family: inherit;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.10);
+    transition: filter 0.2s ease;
+}
+.notification-row:hover { filter: brightness(97%); }
+.notification-row--event { border-left: 6px solid #1b6fd6; }
+.notification-row--notice { border-left: 6px solid #e08a1e; }
+.notification-row-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.notification-row-role { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: #3c5478; }
+.notification-row-time { font-size: 12px; font-weight: 700; color: #1b6fd6; }
+.notification-row-title { font-size: 15px; font-weight: 700; color: #16233a; line-height: 1.3; }
+.notification-row-place { font-size: 12.5px; color: #64748b; }
+
+/* ======== Форма события и просмотр записи ======== */
+.event-kind-switch { margin: 0 auto 10px; width: calc(100% - 20px); }
+.event-form { display: flex; flex-direction: column; gap: 6px; }
+.event-form-label { margin-top: 8px; font-size: 13px; font-weight: 700; color: #4a5b70; }
+.event-form-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.event-form-row input { flex: 1 1 110px; min-width: 0; }
+.event-view { border-left: 6px solid #1b6fd6; }
+.event-view--notice { border-left-color: #e08a1e; }
+.event-view-title { margin: 0 0 6px; font-size: 21px; font-weight: 800; color: #16233a; line-height: 1.2; }
+.event-view-meta { margin: 0 0 6px; font-size: 13px; color: #4a5b70; }
+.event-view-author {
+    display: inline-block; margin: 2px 0 8px; font-size: 14px; font-weight: 700; color: #2f6fd0; cursor: pointer;
+}
+.event-view-description { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: #22314a; white-space: pre-wrap; overflow-wrap: anywhere; }
+.event-view-author-link {
+    display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: baseline;
+    margin-top: 12px; padding: 8px 12px; border: 0; border-radius: 12px;
+    background: #EFF5FC; color: #2b4258; font-family: inherit; font-size: 13.5px;
+    cursor: pointer; text-align: left;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+.event-view-author-link:hover { background: #E1EDFA; color: #12406b; }
+.event-view-author-link b { color: #1b4f9c; }
+.event-view-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }

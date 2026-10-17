@@ -169,6 +169,35 @@ class indexedStorage {
     }
   }
 
+  // ✓ Объём сохранённых данных хранилища в байтах (нужен разделу «Данные приложения»)
+  async size() {
+    try {
+      await this.ensureStore();
+      return await new Promise((resolve) => {
+        try {
+          const transaction = this.db.transaction(this.storeName, 'readonly');
+          const request = transaction.objectStore(this.storeName).openCursor();
+          let total = 0;
+          request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) { resolve(total); return; }
+            const value = cursor.value;
+            try {
+              total += typeof value === 'string'
+                ? value.length
+                : JSON.stringify(value === undefined ? '' : value).length;
+            } catch (_) { /* несериализуемое значение пропускаем */ }
+            cursor.continue();
+          };
+          request.onerror = () => resolve(total);
+        } catch (_) { resolve(0); }
+      });
+    } catch (error) {
+      console.log('[size] Ошибка оценки объёма:', error && error.message ? error.message : error);
+      return 0;
+    }
+  }
+
   closeDB() {
     if (this.db) {
       this.db.close();
@@ -176,6 +205,52 @@ class indexedStorage {
       console.log('[closeDB] БД закрыта');
     }
   }
+}
+
+// ✓ Оценка суммарного объёма локальных данных приложения (байты)
+//    Считаем то, чем реально пользуется приложение: сохранённые расписания,
+//    офлайн-кэш публикаций и настройки в localStorage.
+async function measureLocalDatabaseSize() {
+  let total = 0;
+  let measured = false;
+
+  for (const dbName of ['group', 'teacher']) {
+    try {
+      const storage = new indexedStorage(dbName, 'schedules');
+      const size = await storage.size();
+      if (typeof size === 'number' && size > 0) measured = true;
+      total += size || 0;
+      storage.closeDB();
+    } catch (error) {
+      // Хранилище ещё не создано — это нормально
+    }
+  }
+
+  if (window.contentCache && typeof window.contentCache.size === 'function') {
+    try {
+      const cacheSize = await window.contentCache.size();
+      if (typeof cacheSize === 'number') { total += cacheSize; measured = true; }
+    } catch (error) { /* кэш недоступен */ }
+  }
+
+  try {
+    let settings = 0;
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index) || '';
+      settings += key.length + String(localStorage.getItem(key) || '').length;
+    }
+    total += settings;
+    measured = true;
+  } catch (error) { /* localStorage недоступен */ }
+
+  if (!measured && navigator.storage && typeof navigator.storage.estimate === 'function') {
+    try {
+      const estimate = await navigator.storage.estimate();
+      if (estimate && typeof estimate.usage === 'number') total = estimate.usage;
+    } catch (error) { /* оценка недоступна */ }
+  }
+
+  return total;
 }
 
 // ✓ Полное удаление базы данных

@@ -25,7 +25,20 @@ class Authentication {
       const user = userCredential.user;
       await user.updateProfile({ displayName: username });
       this.currentUser = user;
-      return { success: true, user: user, message: "Регистрация завершена успешно" };
+
+      // ✓ Сразу отправляем письмо для подтверждения почты: без него вход в приложение закрыт
+      let verificationSent = false;
+      try { await user.sendEmailVerification(); verificationSent = true; }
+      catch (error) { console.warn('Не удалось отправить письмо для подтверждения:', error && error.code); }
+
+      return {
+        success: true,
+        user: user,
+        verificationSent,
+        message: verificationSent
+          ? "Регистрация завершена. Письмо для подтверждения почты отправлено"
+          : "Регистрация завершена, но письмо отправить не удалось — попробуйте кнопку «Отправить письмо ещё раз»",
+      };
     } catch (error) {
       return { success: false, error: error.code, message: this._getErrorMessage(error.code) };
     }
@@ -37,6 +50,21 @@ class Authentication {
       const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
       const user = userCredential.user;
       this.currentUser = user;
+
+      // ✓ Почта не подтверждена: письмо отправляем заново при каждом входе
+      if (!user.emailVerified) {
+        let verificationSent = false;
+        try { await user.sendEmailVerification(); verificationSent = true; }
+        catch (error) { console.warn('Не удалось повторно отправить письмо:', error && error.code); }
+        return {
+          success: true,
+          user: user,
+          needsEmailVerification: true,
+          verificationSent,
+          message: "Почта не подтверждена: мы отправили новое письмо со ссылкой",
+        };
+      }
+
       return { success: true, user: user, message: "Вход выполнен успешно" };
     } catch (error) {
       return { success: false, error: error.code, message: this._getErrorMessage(error.code) };
@@ -86,6 +114,135 @@ class Authentication {
   // ✓ Проверка аккаунта на подтвержденную почту
   isEmailVerified() { return this.currentUser && this.currentUser.emailVerified; }
 
+  // ✓ Перечитать данные пользователя с сервера (например, после перехода по ссылке из письма)
+  async reloadUser() {
+    try {
+      const user = this.auth.currentUser;
+      if (!user) { return { success: false, verified: false, message: "Пользователь не авторизован" }; }
+      await user.reload();
+      this.currentUser = this.auth.currentUser || user;
+      return {
+        success: true,
+        verified: Boolean(this.currentUser && this.currentUser.emailVerified),
+        message: this.currentUser && this.currentUser.emailVerified ? "Почта подтверждена" : "Почта пока не подтверждена",
+      };
+    } catch (error) {
+      return { success: false, verified: false, error: error.code, message: "Не удалось проверить подтверждение почты" };
+    }
+  }
+
+  // ✓ Проверить подтверждение почты (перечитывает данные с сервера)
+  async checkEmailVerified() {
+    const result = await this.reloadUser();
+    return { success: result.success, verified: Boolean(result.verified), message: result.message };
+  }
+
+  // ✓ Отменить регистрацию: удалить только что созданный аккаунт без пароля.
+  //   Firebase разрешает удаление без повторного входа, если сессия свежая (аккаунт только создан).
+  async cancelRegistration() {
+    try {
+      const user = this.auth.currentUser;
+      if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
+      await user.delete();
+      this.currentUser = null;
+      return { success: true, message: "Регистрация отменена, аккаунт удалён" };
+    } catch (error) {
+      const requiresRecentLogin = error && error.code === 'auth/requires-recent-login';
+      return {
+        success: false,
+        error: error && error.code,
+        message: requiresRecentLogin
+          ? 'Firebase требует свежий вход: выйдите из аккаунта и войдите снова, а затем повторите удаление'
+          : this._getErrorMessage(error && error.code),
+      };
+    }
+  }
+
+  // ✓ Повторная аутентификация перед опасными действиями (смена пароля, удаление аккаунта)
+  async reauthenticate(password) {
+    try {
+      const user = this.auth.currentUser;
+      if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
+      if (!password) { return { success: false, message: "Введите пароль аккаунта" }; }
+      const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
+      await user.reauthenticateWithCredential(credential);
+      return { success: true, message: "Пароль подтверждён" };
+    } catch (error) {
+      return { success: false, error: error.code, message: this._getErrorMessage(error.code) };
+    }
+  }
+
+  // ✓ Сменить пароль (нужен текущий пароль для повторной аутентификации)
+  async changePassword(currentPassword, newPassword) {
+    try {
+      const user = this.auth.currentUser;
+      if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
+      if (!currentPassword) { return { success: false, message: "Введите текущий пароль" }; }
+      if (!newPassword || String(newPassword).length < 6) {
+        return { success: false, message: "Новый пароль слишком короткий (минимум 6 символов)" };
+      }
+      const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+      return { success: true, message: "Пароль обновлён" };
+    } catch (error) {
+      return { success: false, error: error.code, message: this._getErrorMessage(error.code) };
+    }
+  }
+
+  // ✓ Поддерживает ли текущая сборка Firebase смену почты с подтверждением ссылкой
+  canChangeEmail() {
+    const user = this.auth.currentUser;
+    return Boolean(user && typeof user.verifyBeforeUpdateEmail === 'function');
+  }
+
+  // ✓ Сменить почту: новая почта подтверждается ссылкой из письма (verifyBeforeUpdateEmail)
+  async requestEmailChange(newEmail, currentPassword) {
+    try {
+      const user = this.auth.currentUser;
+      if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
+      if (typeof user.verifyBeforeUpdateEmail !== 'function') {
+        return { success: false, unsupported: true, message: "Эта сборка Firebase не поддерживает смену почты из приложения" };
+      }
+      const email = String(newEmail || '').trim();
+      if (!email) { return { success: false, message: "Введите новую почту" }; }
+      if (currentPassword) {
+        const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
+        await user.reauthenticateWithCredential(credential);
+      }
+      await user.verifyBeforeUpdateEmail(email);
+      return {
+        success: true,
+        message: `Ссылка для подтверждения новой почты отправлена на ${email}. Почта изменится после перехода по ссылке`,
+      };
+    } catch (error) {
+      return { success: false, error: error.code, message: this._getErrorMessage(error.code) };
+    }
+  }
+
+  // ✓ Сменить публичное имя (логин) пользователя
+  async updateDisplayName(username) {
+    try {
+      const user = this.auth.currentUser;
+      if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
+      const name = String(username || '').trim();
+      if (!name) { return { success: false, message: "Логин не может быть пустым" }; }
+      await user.updateProfile({ displayName: name });
+      this.currentUser = this.auth.currentUser || user;
+      return { success: true, name, message: "Логин обновлён" };
+    } catch (error) {
+      return { success: false, error: error.code, message: error && error.message ? error.message : 'Не удалось изменить логин' };
+    }
+  }
+
+  // ✓ Дата регистрации аккаунта (по данным Firebase Auth)
+  getRegistrationTime() {
+    const user = this.auth.currentUser;
+    const created = user && user.metadata && user.metadata.creationTime;
+    const parsed = created ? Date.parse(created) : NaN;
+    return Number.isNaN(parsed) ? Date.now() : parsed;
+  }
+
   // ✓ Отправить письмо на почту пользователя для восстановления пароля
   async sendPasswordResetEmail(email) {
     try {
@@ -106,7 +263,13 @@ class Authentication {
       "auth/wrong-password": "Неверный пароль",
       "auth/invalid-credential": "Неверные учетные данные",
       "auth/operation-not-allowed": "Операция недоступна",
-      "auth/too-many-requests": "Слишком много попыток. Попробуйте позже"
+      "auth/too-many-requests": "Слишком много попыток. Попробуйте позже",
+      "auth/requires-recent-login": "Нужен свежий вход: выйдите из аккаунта и войдите снова",
+      "auth/network-request-failed": "Нет соединения с сервером. Проверьте интернет",
+      "auth/user-disabled": "Аккаунт отключён администрацией",
+      "auth/missing-password": "Введите пароль",
+      "auth/email-change-needs-verification": "Сначала подтвердите новую почту по ссылке из письма",
+      "auth/missing-email": "Введите почту"
     };
     return errorMessages[errorCode] || "Произошла ошибка. Попробуйте позже";
   }
@@ -238,10 +401,14 @@ class Database {
         : { userGroup, userSubgroup, userLanguage };
 
       const subgroup = Number(payload.userSubgroup);
+      const registeredAt = this.auth && typeof this.auth.getRegistrationTime === 'function'
+        ? this.auth.getRegistrationTime()
+        : Date.now();
       const accountData = {
         userId: user.uid, // Уникальный идентификатор пользователя
         userName: user.displayName || "Анонимный пользователь", // Публичное имя пользователя
         userEmail: user.email,
+        registeredAt, // Дата регистрации: нужна для достижений и «стажа» в профиле
         timestamp: Date.now(), // Время последнего обновления данных
       };
 
@@ -279,6 +446,26 @@ class Database {
     }
   }
 
+  // ✓ Обновить отдельные поля аккаунта (группа, язык, достижения, избранные группы и т.п.)
+  async updateAccount(fields) {
+    try {
+      const user = this.auth.getCurrentUser();
+      if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
+      const payload = (fields && typeof fields === 'object') ? { ...fields } : {};
+      if (Object.keys(payload).length === 0) {
+        return { success: false, message: "Нет данных для обновления" };
+      }
+      payload.userId = user.uid;
+      payload.userName = user.displayName || "Анонимный пользователь";
+      payload.userEmail = user.email;
+      payload.timestamp = Date.now();
+      await this.db.collection("accounts").doc(user.uid).set(payload, { merge: true });
+      return { success: true, account: payload, message: "Данные аккаунта обновлены" };
+    } catch (error) {
+      return { success: false, error: error.code, message: `Ошибка обновления данных аккаунта: ${error.message}` };
+    }
+  }
+
   // ✓ Получить статус администратора пользователя
   async getAdmin(userUID) {
     try {
@@ -290,9 +477,44 @@ class Database {
     }
   }
 
-  // Удалить дополнительные данные аккаунта
-  async deleteAccount() {
-    
+  /**
+   * Удалить все публикации пользователя (тексты и изображения).
+   * Вызывается перед удалением аккаунта, пока сессия ещё жива: иначе материалы
+   * останутся в базе и будут видны другим пользователям.
+   */
+  async deleteUserContent() {
+    try {
+      const user = this.auth.getCurrentUser();
+      if (!user) { return { success: false, deleted: 0, message: "Пользователь не авторизован" }; }
+      const uid = String(user.uid);
+      let deleted = 0;
+      for (const collectionName of ['texts', 'images']) {
+        const snapshot = await this.db.collection(collectionName).where('userId', '==', uid).get();
+        const docs = [];
+        snapshot.forEach((doc) => docs.push(doc.ref));
+        for (let index = 0; index < docs.length; index += 400) {
+          const batch = this.db.batch();
+          docs.slice(index, index + 400).forEach((ref) => batch.delete(ref));
+          await batch.commit();
+          deleted += Math.min(400, docs.length - index);
+        }
+      }
+      return { success: true, deleted, message: `Удалено публикаций: ${deleted}` };
+    } catch (error) {
+      return { success: false, deleted: 0, error: error.code, message: `Не удалось удалить публикации: ${error.message}` };
+    }
+  }
+
+  // ✓ Удалить дополнительные данные аккаунта (вызывается сразу после удаления аккаунта в Firebase Auth)
+  async deleteAccountData() {
+    try {
+      const user = this.auth.getCurrentUser();
+      if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
+      await this.db.collection("accounts").doc(user.uid).delete();
+      return { success: true, message: "Данные аккаунта удалены" };
+    } catch (error) {
+      return { success: false, error: error.code, message: `Ошибка удаления данных аккаунта: ${error.message}` };
+    }
   }
 }
 

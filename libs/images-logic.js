@@ -89,6 +89,109 @@
       });
     }
 
+    // ✓ Сбросить сохранённый результат одного запроса: после публикации показываем свежие данные
+    async invalidate(collection, parameter, value) {
+      const key = this._queryKey(collection, parameter, value);
+      this._memoryQueries.delete(key);
+      const db = await this._openDB();
+      if (!db) return true;
+      return new Promise((resolve) => {
+        try {
+          const transaction = db.transaction(QUERY_STORE, 'readwrite');
+          transaction.objectStore(QUERY_STORE).delete(key);
+          transaction.oncomplete = () => resolve(true);
+          transaction.onerror = () => resolve(false);
+          transaction.onabort = () => resolve(false);
+        } catch (_) {
+          resolve(false);
+        }
+      });
+    }
+
+    // ✓ Сбросить все сохранённые тексты и изображения запрошенного вида (например, все запросы по группе)
+    async invalidateCollection(collection) {
+      const prefix = `${collection}:`;
+      Array.from(this._memoryQueries.keys()).forEach((key) => {
+        if (key.indexOf(prefix) === 0) this._memoryQueries.delete(key);
+      });
+      const db = await this._openDB();
+      if (!db) return true;
+      return new Promise((resolve) => {
+        try {
+          const transaction = db.transaction(QUERY_STORE, 'readwrite');
+          const store = transaction.objectStore(QUERY_STORE);
+          const request = store.openCursor();
+          request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) return;
+            const key = String((cursor.value && cursor.value.key) || '');
+            if (key.indexOf(prefix) === 0) store.delete(key);
+            cursor.continue();
+          };
+          transaction.oncomplete = () => resolve(true);
+          transaction.onerror = () => resolve(false);
+          transaction.onabort = () => resolve(false);
+        } catch (_) {
+          resolve(false);
+        }
+      });
+    }
+
+    /* -------------------------------------------------------------------------------------
+     * Управление локальным кэшем (раздел «Данные приложения» в настройках)
+     * ----------------------------------------------------------------------------------- */
+
+    // ✓ Объём кэша в байтах (запросы + изображения)
+    async size() {
+      const db = await this._openDB();
+      if (!db) return 0;
+      const storeSize = (storeName) => new Promise((resolve) => {
+        try {
+          const transaction = db.transaction(storeName, 'readonly');
+          const request = transaction.objectStore(storeName).openCursor();
+          let total = 0;
+          request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) { resolve(total); return; }
+            const value = cursor.value;
+            try {
+              if (value && value.blob && typeof value.blob.size === 'number') total += value.blob.size;
+              else total += JSON.stringify(value === undefined ? '' : value).length;
+            } catch (_) { /* пропускаем несериализуемое значение */ }
+            cursor.continue();
+          };
+          request.onerror = () => resolve(total);
+        } catch (_) { resolve(0); }
+      });
+      const [queries, images] = await Promise.all([storeSize(QUERY_STORE), storeSize(IMAGE_STORE)]);
+      return (queries || 0) + (images || 0);
+    }
+
+    // ✓ Очистить оперативную память кэша (данные на диске остаются)
+    clearMemory() {
+      this._memoryQueries.clear();
+      this._memoryImages.clear();
+      return true;
+    }
+
+    // ✓ Очистить кэш полностью: и оперативную память, и локальную базу
+    async clearAll() {
+      this.clearMemory();
+      if (this._dbPromise) {
+        try { const db = await this._dbPromise; if (db) db.close(); } catch (_) { /* уже закрыта */ }
+        this._dbPromise = null;
+      }
+      if (typeof indexedDB === 'undefined' || typeof indexedDB.deleteDatabase !== 'function') return false;
+      return new Promise((resolve) => {
+        try {
+          const request = indexedDB.deleteDatabase(DB_NAME);
+          request.onsuccess = () => resolve(true);
+          request.onerror = () => resolve(false);
+          request.onblocked = () => resolve(false);
+        } catch (_) { resolve(false); }
+      });
+    }
+
     async _readThrough(collection, parameter, value, resultProperty, fetcher) {
       const key = this._queryKey(collection, parameter, value);
       const memoryValue = this._memoryQueries.get(key);
@@ -243,6 +346,7 @@
         'textId', 'userId', 'author', 'authorEmail', 'subject',
         'subjectTimestamp', 'textContent', 'textType', 'timestamp',
         'userGroup', 'userSubgroup', 'targetSubgroup', 'postId', 'teacher',
+        'feedbackOwner', 'feedbackQuestion', 'moderation',
       ];
       if (!allowed.includes(field)) {
         return { success: false, texts: [], message: 'Неверный параметр запроса текстов' };
@@ -270,6 +374,7 @@
         'imageId', 'userId', 'author', 'authorEmail', 'subject',
         'subjectTimestamp', 'imageUrl', 'imageType', 'timestamp',
         'userGroup', 'targetSubgroup', 'postId', 'textId', 'teacher',
+        'feedbackOwner', 'moderation',
       ];
       if (!allowed.includes(field)) {
         return { success: false, images: [], message: 'Неверный параметр запроса изображений' };
@@ -308,10 +413,15 @@
         const postId = `post_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
         const textId = `text_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
         const timestamp = Date.now();
-        const textType = input.textType === 'homework' ? 'homework' : 'material';
+        const textType = input.textType === 'homework'
+          ? 'homework'
+          : (input.textType === 'feedback' ? 'feedback' : 'material');
         const targetSubgroup = input.targetSubgroup === 1 || input.targetSubgroup === 2
           ? input.targetSubgroup
           : null;
+        // ✓ Обращения в поддержку не проходят модерацию: их видят только администраторы,
+        // и попадают они сразу во вкладку «Фидбек», а не в очередь проверки контента.
+        const moderationState = textType === 'feedback' ? 'approved' : 'pending';
         // ✓ Преподаватель пары: две разные группы могут слушать один предмет
         // в одно и то же время у разных преподавателей — по этому полю ДЗ и материалы
         // показываются только той группе, к которой относятся.
@@ -335,8 +445,9 @@
           textType,
           imageCount: imageUrls.length,
           timestamp,
-          // Публикация появляется в приложении только после проверки администратором
-          moderation: 'pending',
+          // Обычная публикация появляется в приложении только после проверки администратором,
+          // обращение в поддержку — сразу (модерация ему не нужна)
+          moderation: moderationState,
           reportCount: 0,
           reportedBy: [],
         });
@@ -363,7 +474,7 @@
             imageType: textType,
             timestamp,
             order: index,
-            moderation: 'pending',
+            moderation: moderationState,
             reportCount: 0,
             reportedBy: [],
           });
