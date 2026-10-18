@@ -490,7 +490,8 @@ function buildSheduleLink(type, id) {
   if (type === 'group') {
     const groupIDtoExtract = typeof getGroupID === 'function' ? getGroupID(id) : null;
     if (!groupIDtoExtract) return undefined;
-    return `https://eios.kosgos.ru/api/Rasp?idGroup=${groupIDtoExtract}&iCal=true`;
+    return `http://data.kgustud.ru/%D0%98%D0%92%D0%98%D0%A2%D0%A8/%D0%A0%D0%B0%D1%81%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5%20%D0%B3%D1%80%D1%83%D0%BF%D0%BF/${groupIDtoExtract}.ics`;
+    // return `https://eios.kosgos.ru/api/Rasp?idGroup=${groupIDtoExtract}&iCal=true`;
   }
   if (type === 'teacher') return `https://eios.kosgos.ru/api/Rasp?idTeacher=${id}&iCal=true`;
   if (type === 'room') return `https://eios.kosgos.ru/api/Rasp?idAudLine=${id}&iCal=true`;
