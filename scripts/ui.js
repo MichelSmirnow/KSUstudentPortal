@@ -567,7 +567,7 @@ const navPosition = {          // Расположение кнопок слев
   'nav-kafeder': 1,
   'nav-homework': 2,
   'nav-shedule': 3,
-  'nav-messager': 4,
+  'nav-sdo': 4,
   'nav-account': 5,
   'lesson': 6,
   'notifications': 7,
@@ -713,64 +713,36 @@ async function generatePageContent(id) {
     generatePageContentContainer.appendChild(sheduleContainer);
     return generatePageContentContainer;
 
-  } else if (id === 'nav-messager') {  // Окно чатов
+  } else if (id === 'nav-sdo') {       // ✓ Окно СДО КГУ (Moodle)
 
     generatePageContentContainer.innerHTML = `
     <div class="relative-container" id="subcontainer">
       <div class="flex-container info-container">
         <div class="banner-half">
-          <h3>Связь</h3>
-          <p>Все ссылки на чаты и каналы КГУ на разных площадках - в одном месте</p>
+          <h3>СДО КГУ</h3>
+          <p>Курсы, задания, материалы и сроки сдачи из системы дистанционного обучения</p>
         </div>
-        <img class="banner-half" src="images/supbanners/messager.png"/>
+        <img class="banner-half" src="images/supbanners/sdo.png"/>
       </div>
-    </div>
-    `;
-    /*
-      <div id="messager-container">
-        <button class="messager-button vk-button" onclick="openLink('https://vk.me/join/8DfcHJRFXddLyLELoai/JNfBYD0bD2WME3s=')">
-          <div class="messager-button-inset"><div class="relative-container flex-container" style="justify-content: start !important;">
-            <img class="messager-button-avatar" src="images/ui/vk.png"/>
-            <div>
-              <p class="messager-button-header"><b>(ВКонтакте) ИВИТШ КГУ 2026</b></p>
-              <p>Официальный чат первого курса института</p>
-            </div>
-          </div></div>
-        </button>
+      <div id="sdo-container"></div>
+    </div>`;
 
-        <!-- Более менее готовый рабочий дизайн под шаблон -->
-        <button class="messager-button tg-button" onclick="openLink('tg://join?invite=3ucdy90chfg5MDky')">
-          <div class="messager-button-inset"><div class="relative-container flex-container" style="justify-content: start !important;">
-            <img class="messager-button-avatar" src="images/ui/tg.png"/>
-            <div>
-              <p class="messager-button-header"><b>(Telegram) 26-ИСбо-4 без куратора</b></p>
-              <p>Чат для неофициального общения</p>
-            </div>
-          </div></div>
-        </button>
+    const sdoContainer = generatePageContentContainer.querySelector('#sdo-container');
 
-        <button class="messager-button vk-button" onclick="openLink('https://vk.me/join/LofPzydYEehzayfIU3v6YvVeS5/2va3Wvow=')">
-          <div class="messager-button-inset"><div class="relative-container flex-container" style="justify-content: start !important;">
-            <img class="messager-button-avatar" src="images/ui/vk.png"/>
-            <div>
-              <p class="messager-button-header"><b>(ВКонтакте) 26-ИСбо-4 с куратором</b></p>
-              <p>Для объявлений и решения вопросов</p>
-            </div>
-          </div></div>
-        </button>
+    // ✓ Гость не получает доступ вообще
+    if (!window.auth.isAuthenticated()) {
+      sdoContainer.appendChild(generateNoAuthContainer());
+      return generatePageContentContainer;
+    }
+    // ✓ Без интернета вкладка не работает
+    if (navigator.onLine === false) {
+      sdoContainer.appendChild(generateNoEthernetContainer());
+      return generatePageContentContainer;
+    }
 
-        <button class="messager-button max-button" onclick="openLink('https://www.youtube.com/watch?v=PkT0PJwy8mI')">
-          <div class="messager-button-inset"><div class="relative-container flex-container" style="justify-content: start !important;">
-            <img class="messager-button-avatar" src="images/ui/max.png"/>
-            <div>
-              <p class="messager-button-header"><b>(Макс) Официальный чат мусор дроп</b></p>
-              <p>Твой шанс на большой дроп</p>
-            </div>
-          </div></div>
-        </button>
-      </div>
-    */
+    await renderSdoPage(sdoContainer);
     return generatePageContentContainer;
+
   } else if (id === 'nav-account') {   // Окно аккаунта
 
     generatePageContentContainer.innerHTML = `
@@ -916,6 +888,206 @@ async function generatePage(id, skip) {
 /* ======== Генерация перекрывающего контента страницы ======== */
 
 // Генерация перекрывающего контента на перекрывающем окне
+/* ============================================================================================
+ * Вкладка «СДО КГУ»: вход, список курсов, ближайшие дедлайны
+ * ========================================================================================== */
+
+/**
+ * Точка входа вкладки СДО.
+ * Первый вход — форма логина и пароля; дальше — автоматический вход сохранёнными данными.
+ */
+async function renderSdoPage(container) {
+  if (!container) return;
+  container.innerHTML = '';
+  if (typeof window.SDOClient === 'undefined') {
+    container.appendChild(window.SDOUI.buildNotice('Модуль СДО не загружен', 'error'));
+    return;
+  }
+  if (!window.SDOClient.hasCredentials()) {
+    container.appendChild(window.SDOPages.buildLoginForm({
+      onSuccess: async () => { await renderSdoCourses(container, { force: true }); },
+    }));
+    return;
+  }
+  await renderSdoCourses(container);
+}
+
+/** Список курсов СДО и ближайшие сроки сдачи. */
+async function renderSdoCourses(container, options = {}) {
+  const settings = options || {};
+  container.innerHTML = '';
+  const spinner = window.SDOUI.buildSpinner('Подключаюсь к СДО…');
+  container.appendChild(spinner);
+
+  const session = await window.SDOClient.ensureSession();
+  if (!session.success) {
+    container.innerHTML = '';
+    if (session.needLogin) {
+      container.appendChild(window.SDOPages.buildLoginForm({
+        onSuccess: async () => { await renderSdoCourses(container, { force: true }); },
+      }));
+      return;
+    }
+    container.appendChild(window.SDOUI.buildNotice(session.message || 'СДО недоступно', 'error', {
+      actionLabel: 'Повторить',
+      onAction: async () => { await renderSdoCourses(container, { force: true }); },
+      hint: 'Если ошибка повторяется — сервер СДО запрещает прямые запросы из приложения (CORS). В этом случае открывайте курсы кнопками «Открыть в СДО».',
+    }));
+    return;
+  }
+
+  const sortMode = settings.sort === 'recent' ? 'recent' : 'name';
+  let courses = await window.SDOClient.getCourses({
+    force: settings.force === true,
+    classification: settings.classification || 'all',
+  });
+  container.innerHTML = '';
+  container.appendChild(window.SDOUI.buildHeader({ onExit: async () => { await renderSdoPage(container); } }));
+
+  // ✓ Такие же подборки, как на странице «Мои курсы» в СДО
+  const tabs = document.createElement('div');
+  tabs.className = 'flex-container radio-container sdo-tabs';
+  const activeTab = String(settings.classification || 'all');
+  const drawTabs = () => {
+    tabs.innerHTML = '';
+    (window.SDOClient.CLASSIFICATIONS || []).forEach((item) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'radio-button' + (item.id === activeTab ? ' selected' : '');
+      button.textContent = item.label;
+      button.addEventListener('click', async () => {
+        if (item.id === activeTab) return;
+        await renderSdoCourses(container, { classification: item.id, sort: sortMode });
+      });
+      tabs.appendChild(button);
+    });
+  };
+  drawTabs();
+  container.appendChild(tabs);
+
+  if (!courses.success) {
+    container.appendChild(window.SDOUI.buildNotice(courses.message || 'Курсы СДО не загрузились', 'error', {
+      actionLabel: 'Повторить',
+      onAction: async () => { await renderSdoCourses(container, { force: true, classification: 'all', sort: sortMode }); },
+    }));
+    return;
+  }
+
+  // ✓ Сортировка: по названию (как в СДО) или по последнему посещению
+  const sortTabs = document.createElement('div');
+  sortTabs.className = 'flex-container radio-container sdo-tabs sdo-tabs--sort';
+  [['name', 'По названию'], ['recent', 'Недавние']].forEach(([id, label]) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'radio-button' + (id === sortMode ? ' selected' : '');
+    button.textContent = label;
+    button.addEventListener('click', async () => {
+      if (id === sortMode) return;
+      await renderSdoCourses(container, { classification: activeTab, sort: id });
+    });
+    sortTabs.appendChild(button);
+  });
+  container.appendChild(sortTabs);
+
+  if (sortMode === 'recent' && courses.courses) {
+    courses = { success: true, courses: [...courses.courses].sort((a, b) => (b.lastAccess || 0) - (a.lastAccess || 0)) };
+  }
+
+  // ✓ Поиск по курсам — сверху, чтобы не прокручивать длинный список
+  const search = document.createElement('input');
+  search.type = 'search';
+  search.className = 'sdo-search';
+  search.placeholder = 'Поиск по курсам';
+  container.appendChild(search);
+
+  // ✓ Ближайшие сроки сдачи: догружаются следом, одним запросом по всем курсам
+  const deadlinesHost = document.createElement('div');
+  deadlinesHost.className = 'sdo-deadlines';
+  container.appendChild(deadlinesHost);
+  const deadlineSpinner = window.SDOUI.buildSpinner('Загружаю сроки сдачи…');
+  deadlinesHost.appendChild(deadlineSpinner);
+
+  const listHost = document.createElement('div');
+  listHost.className = 'sdo-course-list';
+  container.appendChild(listHost);
+
+  const drawCourses = (filter) => {
+    const query = window.SDOClient.normalizeName(filter || '');
+    const filtered = courses.courses.filter((course) => {
+      if (!query) return true;
+      return course.key.includes(query) || String(course.shortName || '').toLowerCase().includes(query);
+    });
+    listHost.innerHTML = '';
+    if (filtered.length === 0) {
+      listHost.appendChild(window.SDOUI.buildNotice('Курсов по такому запросу нет', 'info'));
+      return;
+    }
+    const title = document.createElement('p');
+    title.className = 'sdo-block-title';
+    title.textContent = `Мои курсы (${filtered.length})`;
+    listHost.appendChild(title);
+    filtered.forEach((course) => {
+      listHost.appendChild(window.SDOUI.buildCourseCard(course, async (selected) => {
+        if (typeof navigateTo === 'function') await navigateTo('sdocourse', { courseId: selected.id });
+      }));
+    });
+  };
+
+  search.addEventListener('input', () => drawCourses(search.value));
+  drawCourses('');
+
+  // ✓ Обновить список курсов по кнопке
+  const refresh = document.createElement('button');
+  refresh.type = 'button';
+  refresh.className = 'sdo-secondary-button';
+  refresh.textContent = 'Обновить курсы';
+  refresh.addEventListener('click', async () => {
+    await renderSdoCourses(container, { force: true, classification: activeTab, sort: sortMode });
+  });
+  container.appendChild(refresh);
+
+  // ✓ Дедлайны тянем в фоне, чтобы список курсов появился сразу
+  (async () => {
+    const result = await window.SDOClient.getDeadlines({ force: settings.force === true });
+    deadlinesHost.innerHTML = '';
+    if (!result.success) {
+      deadlinesHost.appendChild(window.SDOUI.buildNotice(result.message || 'Сроки сдачи не загрузились', 'warn', {
+        actionLabel: 'Повторить',
+        onAction: async () => { await renderSdoCourses(container, { force: true }); },
+      }));
+      return;
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const upcoming = (result.deadlines || [])
+      .filter((item) => item.dueDate && item.dueDate >= now - 86400)
+      .sort((a, b) => a.dueDate - b.dueDate)
+      .slice(0, 8);
+    const title = document.createElement('p');
+    title.className = 'sdo-block-title';
+    title.textContent = 'Ближайшие сроки сдачи';
+    deadlinesHost.appendChild(title);
+    if (upcoming.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'sdo-lesson-empty';
+      empty.textContent = 'Ближайших дедлайнов нет — можно выдохнуть';
+      deadlinesHost.appendChild(empty);
+      return;
+    }
+    upcoming.forEach((item) => {
+      deadlinesHost.appendChild(window.SDOUI.buildDeadlineRow(item, async (selected) => {
+        if (typeof navigateTo === 'function') {
+          await navigateTo('sdoassign', {
+            courseId: selected.courseId,
+            courseName: selected.courseName,
+            cmid: selected.cmid,
+            moduleName: selected.name,
+          });
+        }
+      }));
+    });
+  })();
+}
+
 async function generateSubpageContent(id, data) {
   if (!data) { }
 
@@ -1020,6 +1192,19 @@ async function generateSubpageContent(id, data) {
       generatePageContentContainer.appendChild(
         await window.HomeworkRenderer.renderLessonContents(lessonData, { source: lessonSource })
       );
+
+      // ✓ СДО КГУ: задания и сроки сдачи по этой дисциплине подгружаются следом
+      if (typeof window.buildSdoLessonBlock === 'function') {
+        const sdoBlockHost = document.createElement('div');
+        generatePageContentContainer.appendChild(sdoBlockHost);
+        window.buildSdoLessonBlock(extractedData.subject || extractedSubject)
+          .then((sdoBlock) => {
+            if (!sdoBlockHost.isConnected) return;
+            if (sdoBlock) { sdoBlockHost.innerHTML = ''; sdoBlockHost.appendChild(sdoBlock); }
+            else sdoBlockHost.remove();
+          })
+          .catch(() => { if (sdoBlockHost.isConnected) sdoBlockHost.remove(); });
+      }
 
     } else { // ✓ Если пользовать не авторизован, намекаем ему зарегистрироваться
       generatePageContentContainer.innerHTML = `
@@ -1173,6 +1358,12 @@ async function generateSubpageContent(id, data) {
     await renderEventCreateSubpage(generatePageContentContainer, data);
   } else if (id === 'eventshow') {   // ✓ Полная информация о событии или уведомлении
     await renderEventShowSubpage(generatePageContentContainer, data);
+  } else if (id === 'sdocourse') {   // ✓ Курс СДО: разделы и элементы курса
+    await window.SDOPages.buildCoursePage(generatePageContentContainer, data);
+  } else if (id === 'sdomodule') {   // ✓ Элемент курса СДО: файл, ссылка, страница, тест
+    await window.SDOPages.buildModulePage(generatePageContentContainer, data);
+  } else if (id === 'sdoassign') {   // ✓ Задание СДО: дедлайн, статус сдачи и отправка ответа
+    await window.SDOPages.buildAssignPage(generatePageContentContainer, data);
   } else if (id === 'userprofile') { // ✓ Предосмотр чужого аккаунта (почты не видно)
     await renderUserProfileSubpage(generatePageContentContainer, data);
 

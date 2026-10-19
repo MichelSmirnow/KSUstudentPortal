@@ -46,8 +46,8 @@
 #nav-homework:hover { box-shadow: 0 0 15px rgba(211, 148, 11, 0.25); }
 #nav-shedule  { background-image: linear-gradient(to left, rgba(255, 0, 149, 0.25) 0%, rgba(17, 0, 255, 0.25) 150%); }
 #nav-shedule:hover  { box-shadow: 0 0 15x rgba(255, 0, 149, 0.25); }
-#nav-messager { background-image: linear-gradient(to left, rgba(0, 217, 255, 0.25) 0%, rgba(0, 140, 255, 0.25) 150%); }
-#nav-messager:hover { box-shadow: 0 0 15px rgba(0, 217, 255, 0.25); }
+#nav-sdo      { background-image: linear-gradient(to left, rgba(0, 217, 255, 0.25) 0%, rgba(0, 140, 255, 0.25) 150%); }
+#nav-sdo:hover     { box-shadow: 0 0 15px rgba(0, 217, 255, 0.25); }
 #nav-account { background-image: linear-gradient(to left, rgba(18, 212, 99, 0.25) 0%, rgba(16, 216, 216, 0.25) 150%); }
 #nav-account:hover { box-shadow: 0 0 15px rgba(0, 255, 106, 0.25); }
 

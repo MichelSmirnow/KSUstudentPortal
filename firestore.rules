@@ -1,0 +1,341 @@
+rules_version = '2';
+
+// ============================================================================================
+//  Правила безопасности Firestore для приложения «Студент КГУ»
+//  Коллекции: accounts, admindata, userdata, texts, images, reports
+//
+//  ВАЖНО:
+//   • admindata НЕ ужесточается — администраторов, как и раньше, назначает только владелец
+//     приложения вручную.
+//   • Должности (староста, преподаватель), свои теги и блокировка (мут) живут в новой
+//     отдельной коллекции userdata: userdata/{uid} = {
+//         userId, role: 'starosta' | 'teacher', customTag,
+//         blocked: true|false, blockedReason, blockedBy, blockedAt,
+//         updatedAt, updatedBy }
+//   • Жалобы живут в новой коллекции reports, идентификатор документа <postId>__<uid>
+//     (один документ на пару «публикация + пользователь»), поля:
+//         reportId, postId, textId, subject, subjectTimestamp, author, authorId,
+//         userId, userEmail, reason, timestamp
+//   • В texts и images добавлены поля: moderation: 'pending' | 'approved',
+//     moderatedBy, moderatedAt, reportCount, reportedBy.
+//   • accounts дополнена полями личного кабинета:
+//       registeredAt      — дата регистрации (для «стажа» и тестерских достижений);
+//       achievements      — массив ключей латиницей (только полученные достижения);
+//       achievementsMeta  — { ключ: время получения };
+//       favoriteGroups    — не больше 7 групп для быстрого переключения;
+//       hiddenFeedback    — обращения, удалённые пользователем у себя (у админов остаются).
+//     Условия достижений, которые вообще может проверить сервер, проверяются здесь:
+//     набор ключей ограничен списком allowedAchievements(), а уже полученные достижения
+//     снять нельзя (список только расширяется). Счётчики модераций и ответов лежат в
+//     admindata и тоже могут только расти.
+//   • userdata дополнена полем emailVerifiedByAdmin (ручное подтверждение почты админом)
+//     и ролями 'proforg' | 'kultorg'.
+//
+//  Как применить: Firebase Console → Firestore Database → «Правила» → вставить целиком →
+//  «Опубликовать». Коллекции создавать заранее не нужно: Firestore создаёт их при первой записи.
+// ============================================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------ служебные функции
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Администратор — тот, кого владелец внёс в admindata
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admindata/$(request.auth.uid));
+    }
+
+    // Заблокирован (мут): публиковать и редактировать нельзя, читать и жаловаться можно.
+    //
+    // ВАЖНО (частые «Missing or insufficient permissions» у новых аккаунтов):
+    // документ userdata создаётся только при блокировке/разблокировке или выдаче
+    // должности. Если вызвать get() по НЕСУЩЕСТВУЮЩЕМУ документу, правило падает
+    // с ошибкой и запрос отклоняется — поэтому проверка обязательно начинается
+    // с exists(). Без неё публиковать могли бы только те, кого уже разбанили.
+    function isBlocked() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/userdata/$(request.auth.uid))
+        && get(/databases/$(database)/documents/userdata/$(request.auth.uid)).data.blocked == true;
+    }
+
+    // Полный список достижений (ключи латиницей). Он же используется в scripts/admin.js.
+    function allowedAchievements() {
+      return [
+        'first_post', 'posts_10', 'posts_25', 'posts_100', 'posts_1000',
+        'first_photo', 'photos_25', 'photos_100', 'photos_250',
+        'moderator_100', 'callcenter_10', 'sirok',
+        'premium_tester', 'alpha_tester', 'beta_tester'
+      ];
+    }
+
+    function validRoles() {
+      return ['', 'starosta', 'proforg', 'kultorg', 'teacher'];
+    }
+
+    // Статус может быть только из списка (студент = поле пустое либо отсутствует)
+    function validRole() {
+      return !('role' in request.resource.data) || request.resource.data.role in validRoles();
+    }
+
+    // Кто может создавать события и уведомления: администратор либо должность
+    // старосты, профорга или культорга из своей записи userdata.
+    function canPublishEvents() {
+      return isAdmin()
+        || (
+          exists(/databases/$(database)/documents/userdata/$(request.auth.uid))
+          && get(/databases/$(database)/documents/userdata/$(request.auth.uid)).data.get('role', '') in ['starosta', 'proforg', 'kultorg']
+        );
+    }
+
+    // Числовое поле, если оно есть в запросе, не может стать меньше прежнего значения
+    function notDecreasing(field) {
+      return !(field in request.resource.data)
+        || request.resource.data.get(field, 0) >= resource.data.get(field, 0);
+    }
+
+    // ------------------------------------------------------------------ аккаунты
+    // Ничего не меняем: каждый ведёт свой профиль сам.
+    // (Чтение списка нужно для значков «Админ / Староста / Преподаватель» рядом с публикациями.)
+    match /accounts/{userId} {
+      allow read: if signedIn();
+
+      // Создание профиля: достижения допустимы, но только известными ключами
+      allow create: if signedIn() && request.auth.uid == userId
+        && (!('achievements' in request.resource.data)
+            || request.resource.data.achievements.hasOnly(allowedAchievements()))
+        && (!('achievementsMeta' in request.resource.data)
+            || request.resource.data.achievementsMeta.keys().hasOnly(allowedAchievements()));
+
+      // Обновление профиля: список достижений только расширяется и только разрешёнными ключами.
+      // Даты получения — тоже только для известных ключей. Списки групп и скрытых
+      // обращений ограничены по длине, чтобы аккаунт нельзя было раздуть.
+      allow update: if signedIn() && request.auth.uid == userId
+        && (!('achievements' in request.resource.data)
+            || (request.resource.data.achievements.hasOnly(allowedAchievements())
+                && request.resource.data.achievements.hasAll(resource.data.get('achievements', []))))
+        && (!('achievementsMeta' in request.resource.data)
+            || request.resource.data.achievementsMeta.keys().hasOnly(allowedAchievements()))
+        && (!('favoriteGroups' in request.resource.data) || request.resource.data.favoriteGroups.size() <= 7)
+        && (!('hiddenFeedback' in request.resource.data) || request.resource.data.hiddenFeedback.size() <= 100);
+
+      // Удалить профиль может сам владелец (кнопка «Удалить аккаунт») или администратор
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == userId);
+    }
+
+    // ------------------------------------------------------------------ администраторы
+    // Список админов ведёт ТОЛЬКО владелец приложения: новые записи он добавляет
+    // вручную в консоли Firebase (консоль обходит эти правила).
+    // Из приложения изменить админскую запись нельзя — иначе достаточно один раз
+    // подправить условие в клиенте, чтобы выдать себе полный доступ.
+    match /admindata/{adminId} {
+      allow read: if signedIn();
+      // Уже назначенный администратор может обновить только СВОЮ запись
+      // (например, поправить отображаемое имя). Создавать и удалять записи
+      // из приложения нельзя — это делает владелец в консоли.
+      // Счётчики модераций и ответов в поддержку могут только увеличиваться:
+      // «откатить» их, чтобы заново получить достижение, нельзя.
+      allow update: if isAdmin() && request.auth.uid == adminId
+        && notDecreasing('moderationsCount')
+        && notDecreasing('feedbackAnsweredCount');
+      allow create, delete: if false;
+    }
+
+    // ------------------------------------------------------------------ должности и блокировки
+    // Старосты, преподаватели, свои теги и мут.
+    // Проверки администратора дублируются на сервере: даже если кто-то подправит
+    // условия в клиенте и откроет себе панель, Firestore всё равно не даст
+    // заблокировать администратора или сменить чужой админский тег.
+    match /userdata/{userId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == userId);
+
+      // 1. Заблокировать администратора нельзя: цель блокировки — запись в admindata.
+      allow create: if isAdmin()
+        && validRole()
+        && !(
+          request.resource.data.blocked == true
+          && exists(/databases/$(database)/documents/admindata/$(userId))
+        );
+
+      // 2. Чужой тег администратора менять нельзя — только со своего аккаунта.
+      allow update: if isAdmin()
+        && validRole()
+        && !(
+          request.resource.data.blocked == true
+          && exists(/databases/$(database)/documents/admindata/$(userId))
+        )
+        && !(
+          request.auth.uid != userId
+          && exists(/databases/$(database)/documents/admindata/$(userId))
+          && request.resource.data.diff(resource.data).affectedKeys().hasAny(['customTag'])
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------ публикации: текст
+    // Дополнительное поле публикации: teacher — преподаватель пары, к которой
+    // относится материал. Публиковать может ЛЮБОЙ зарегистрированный аккаунт
+    // (старый или новый): важно лишь, чтобы он не был в муте и сам был автором.
+    match /texts/{textId} {
+      allow read: if true;
+
+      // Публикация: только авторизованный, не заблокированный автор, и сразу на проверку.
+      // Два исключения из очереди модерации (создаются сразу проверенными):
+      //   1) обращение в поддержку textType 'feedback' — его видит только администрация;
+      //   2) ответ администрации textType 'feedbackAnswer' — автор обязан быть администратором.
+      allow create: if (signedIn()
+          && !isBlocked()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.moderation == 'pending')
+        || (signedIn()
+          && !isBlocked()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.get('textType', '') == 'feedback'
+          && request.resource.data.moderation == 'approved')
+        || (isAdmin()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.get('textType', '') == 'feedbackAnswer'
+          && request.resource.data.moderation == 'approved');
+
+      // Редактирование: автор (после правки публикация снова уходит на проверку), админ — модерация.
+      // Отдельно разрешено ЕДИНСТВЕННОЕ исключение для жалоб: чужой пользователь может дописать
+      // только свои reportCount (+1) и reportedBy, и только один раз.
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && !isBlocked()
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == request.auth.uid
+        )
+        || (
+          signedIn()
+          && !isBlocked()
+          && resource.data.userId != request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount', 'reportedBy'])
+          && request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
+          && !(request.auth.uid in resource.data.get('reportedBy', []))
+          && request.auth.uid in request.resource.data.reportedBy
+          && request.resource.data.reportedBy.hasAll(resource.data.get('reportedBy', []))
+        );
+
+      // Удаление: автор, администратор, а также автоматическое удаление по 7-й жалобе.
+      allow delete: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid)
+        || (signedIn() && resource.data.get('reportCount', 0) >= 7);
+    }
+
+    // ------------------------------------------------------------------ публикации: изображения
+    // Правила полностью повторяют правила текста.
+    match /images/{imageId} {
+      allow read: if true;
+      // Изображение обращения в поддержку (imageType 'feedback') создаётся сразу проверенным:
+      // оно показывается только администрации во вкладке «Фидбек».
+      allow create: if (signedIn()
+          && !isBlocked()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.moderation == 'pending')
+        || (signedIn()
+          && !isBlocked()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.get('imageType', '') == 'feedback'
+          && request.resource.data.moderation == 'approved');
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && !isBlocked()
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == request.auth.uid
+        )
+        || (
+          signedIn()
+          && !isBlocked()
+          && resource.data.userId != request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount', 'reportedBy'])
+          && request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
+          && !(request.auth.uid in resource.data.get('reportedBy', []))
+          && request.auth.uid in request.resource.data.reportedBy
+          && request.resource.data.reportedBy.hasAll(resource.data.get('reportedBy', []))
+        );
+      allow delete: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid)
+        || (signedIn() && resource.data.get('reportCount', 0) >= 7);
+    }
+
+    // ------------------------------------------------------------------ жалобы
+    // Документ <postId>__<uid>: повторно пожаловаться на ту же публикацию нельзя.
+    // ------------------------------------------------------------------ события и уведомления
+    // Создавать могут только староста, профорг, культорг и администратор.
+    // Глобальные записи (scope == 'global') — только администратор; остальные пишут для своей группы.
+    match /events/{eventId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && !isBlocked()
+        && canPublishEvents()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.kind in ['event', 'notice']
+        && request.resource.data.scope in ['global', 'group']
+        && (request.resource.data.scope == 'group' || isAdmin())
+        // Писать своей группе можно только от имени своей группы (группа лежит в accounts).
+        // Если профиль ещё не заполнен, проверка не блокирует публикацию.
+        && (
+          isAdmin()
+          || !exists(/databases/$(database)/documents/accounts/$(request.auth.uid))
+          || !('userGroup' in get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data)
+          || request.resource.data.group == get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.get('userGroup', '')
+        )
+        && request.resource.data.get('reportCount', 0) == 0
+        && request.resource.data.get('reportedBy', []).size() == 0;
+
+      // Автор правит свою запись; чужой пользователь может только добавить свою жалобу.
+      allow update: if signedIn()
+        && !isBlocked()
+        && (
+          (
+            resource.data.ownerUid == request.auth.uid
+            && request.resource.data.ownerUid == request.auth.uid
+            && request.resource.data.group == resource.data.group
+            && (request.resource.data.scope == resource.data.scope || isAdmin())
+          )
+          || isAdmin()
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount', 'reportedBy'])
+            && request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
+            && !(request.auth.uid in resource.data.get('reportedBy', []))
+            && request.auth.uid in request.resource.data.reportedBy
+            && request.resource.data.reportedBy.hasAll(resource.data.get('reportedBy', []))
+          )
+        );
+
+      // Удаляет автор, администратор или седьмая жалоба (как у публикаций)
+      allow delete: if isAdmin()
+        || (signedIn() && resource.data.ownerUid == request.auth.uid)
+        || (signedIn() && resource.data.get('reportCount', 0) >= 6 && request.auth.uid in resource.data.get('reportedBy', []));
+    }
+
+    // ------------------------------------------------------------------ заметки пользователя
+    // Каждый видит и меняет только свои заметки.
+    match /notes/{noteId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.get('text', '').size() <= 2000;
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.get('text', '').size() <= 2000;
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAdmin()
+        || (signedIn() && reportId.matches('^.*__' + request.auth.uid + '$'));
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && reportId.matches('^.*__' + request.auth.uid + '$');
+      allow update, delete: if isAdmin();
+    }
+  }
+}

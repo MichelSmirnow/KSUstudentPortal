@@ -1,0 +1,273 @@
+/* ============================================================================================
+ * Вкладка «СДО КГУ» — курсы, задания, файлы и сроки сдачи
+ * Стилизация полностью в духе приложения: скруглённые карточки, мягкие тени, синий акцент.
+ * ========================================================================================== */
+
+.sdo-header {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    box-sizing: border-box; width: 90%; margin: 0 auto 12px; padding: 12px 16px;
+    background-image: linear-gradient(to right, rgba(26, 96, 214, 0.90) 0%, rgba(13, 63, 134, 0.90) 100%);
+    border-radius: 20px; box-shadow: 0 0 12px rgba(20, 40, 70, 0.25); color: #fff;
+}
+.sdo-header-title { margin: 0; font-size: 16px; font-weight: 700; }
+.sdo-header-subtitle { margin: 0; font-size: 12px; opacity: 0.85; }
+.sdo-exit-button {
+    align-self: flex-end; margin-top: -26px; padding: 5px 12px;
+    border: 1px solid rgba(255,255,255,0.55); border-radius: 14px;
+    background-color: transparent; color: #fff; font-family: inherit; font-size: 12px;
+}
+.sdo-exit-button:active { background-color: rgba(255,255,255,0.20); }
+
+/* ======== Плашки состояния ======== */
+.sdo-notice {
+    box-sizing: border-box; width: 90%; margin: 8px auto; padding: 12px 16px;
+    border-radius: 18px; border: 1px solid rgba(20, 40, 70, 0.12);
+    background-color: #fff; box-shadow: 0 0 10px rgba(20, 40, 70, 0.12); text-align: left;
+}
+.sdo-notice--error { border-left: 5px solid #d6453c; }
+.sdo-notice--warn { border-left: 5px solid #e2a03f; }
+.sdo-notice--info { border-left: 5px solid #1b6fd6; }
+.sdo-notice-text { margin: 0; font-size: 14px; line-height: 1.35; color: #22314a; }
+.sdo-notice-hint { margin: 8px 0 0; font-size: 12px; color: #6b7a8f; }
+.sdo-notice-button {
+    margin-top: 10px; padding: 8px 16px; border: 0; border-radius: 14px;
+    background-color: #1b6fd6; color: #fff; font-family: inherit; font-size: 13px;
+}
+
+/* ======== Загрузка ======== */
+.sdo-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 18px auto; }
+.sdo-loading p { margin: 0; font-size: 13px; color: #6b7a8f; }
+.sdo-spinner {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 3px solid rgba(27, 111, 214, 0.20); border-top-color: #1b6fd6;
+    animation: sdo-spin 0.9s linear infinite;
+}
+@keyframes sdo-spin { to { transform: rotate(360deg); } }
+
+/* ======== Поиск и заголовки блоков ======== */
+.sdo-search, .sdo-block-title { box-sizing: border-box; width: 90%; margin: 10px auto 6px; }
+.sdo-search {
+    height: 44px; padding: 0 16px; border: 1px solid rgba(20, 40, 70, 0.15); border-radius: 22px;
+    background-color: #fff; font-family: inherit; font-size: 14px; color: #22314a;
+    box-shadow: 0 0 10px rgba(20, 40, 70, 0.10);
+}
+.sdo-search:focus { outline: none; border-color: rgba(27, 111, 214, 0.55); }
+.sdo-block-title { margin-bottom: 6px; font-size: 13px; font-weight: 700; color: #4a5b70; text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* ======== Список курсов ======== */
+.sdo-course-list { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.sdo-course-card {
+    display: block; box-sizing: border-box; width: 90%; margin: 0 auto 10px; padding: 12px 16px;
+    text-align: left; border: 0; border-radius: 20px; background-color: #fff; color: #22314a;
+    box-shadow: 0 0 10px rgba(20, 40, 70, 0.15); font-family: inherit;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.sdo-course-card:active { transform: scale(0.985); box-shadow: 0 0 6px rgba(20, 40, 70, 0.20); }
+.sdo-course-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sdo-course-name { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.25; }
+.sdo-course-arrow { font-size: 20px; color: #9aa8ba; }
+.sdo-course-meta { margin: 4px 0 0; font-size: 12px; color: #6b7a8f; }
+.sdo-progress { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.sdo-progress-bar { flex: 1; height: 6px; border-radius: 6px; background-color: rgba(20, 40, 70, 0.10); overflow: hidden; }
+.sdo-progress-fill { height: 100%; border-radius: 6px; background-image: linear-gradient(to right, #1b6fd6 0%, #0d3f86 100%); }
+.sdo-progress-label { font-size: 11px; color: #6b7a8f; }
+
+/* ======== Дедлайны ======== */
+.sdo-deadlines { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.sdo-deadline-row {
+    display: flex; align-items: center; gap: 10px; box-sizing: border-box;
+    width: 90%; margin: 0 auto 8px; padding: 10px 14px;
+    border: 0; border-left: 5px solid #1b6fd6; border-radius: 16px;
+    background-color: #fff; color: #22314a; text-align: left; font-family: inherit;
+    box-shadow: 0 0 10px rgba(20, 40, 70, 0.12);
+}
+.sdo-deadline-row--overdue { border-left-color: #d6453c; }
+.sdo-deadline-icon { font-size: 18px; }
+.sdo-deadline-body { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.sdo-deadline-name { font-size: 14px; font-weight: 600; }
+.sdo-deadline-meta { font-size: 12px; color: #6b7a8f; }
+
+/* ======== Форма входа ======== */
+.sdo-login {
+    box-sizing: border-box; width: 90%; margin: 10px auto; padding: 18px;
+    border-radius: 24px; background-color: #fff; box-shadow: 0 0 14px rgba(20, 40, 70, 0.18);
+    text-align: center;
+}
+.sdo-login-icon { font-size: 42px; line-height: 1; margin-bottom: 6px; }
+.sdo-login-title { margin: 0 0 6px; font-size: 17px; font-weight: 700; color: #22314a; }
+.sdo-login-description { margin: 0 0 14px; font-size: 12.5px; line-height: 1.4; color: #6b7a8f; text-align: left; }
+.sdo-login-form { display: flex; flex-direction: column; gap: 12px; }
+.sdo-field { position: relative; text-align: left; }
+.sdo-field input {
+    box-sizing: border-box; width: 100%; height: 50px; padding: 20px 44px 8px 15px;
+    border: 1px solid rgba(20, 40, 70, 0.18); border-radius: 16px; background-color: #f7f9fc;
+    font-family: inherit; font-size: 15px; color: #22314a;
+}
+.sdo-field input:focus { outline: none; border-color: #1b6fd6; background-color: #fff; }
+.sdo-field label {
+    position: absolute; left: 16px; top: 8px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px; color: #7c8ba1; pointer-events: none;
+}
+.sdo-password-eye {
+    position: absolute; right: 10px; top: 12px; width: 30px; height: 30px;
+    border: 0; border-radius: 50%; background-color: transparent; font-size: 15px;
+}
+.sdo-login-submit {
+    height: 48px; border: 0; border-radius: 16px; font-family: inherit; font-size: 15px; font-weight: 700;
+    color: #fff; background-image: linear-gradient(to right, #1b6fd6 0%, #0d3f86 100%);
+    box-shadow: 0 0 12px rgba(27, 111, 214, 0.35);
+}
+.sdo-login-submit:disabled { opacity: 0.6; }
+.sdo-login-status { margin: 0; min-height: 16px; font-size: 12.5px; color: #6b7a8f; }
+.sdo-login-status--error { color: #c0392b; }
+.sdo-login-link {
+    margin-top: 4px; padding: 6px; border: 0; background: none; font-family: inherit;
+    font-size: 13px; color: #1b6fd6; text-decoration: underline;
+}
+
+/* ======== Заголовки и кнопки страниц СДО ======== */
+.sdo-page-title { width: 90%; margin: 6px auto; font-size: 19px; font-weight: 700; color: #22314a; text-align: left; }
+.sdo-page-actions { display: flex; gap: 8px; justify-content: center; width: 90%; margin: 0 auto 10px; }
+.sdo-page-action {
+    flex: 1; height: 40px; border: 0; border-radius: 14px; font-family: inherit; font-size: 12.5px;
+    color: #33475f; background-color: #e8eef6;
+}
+.sdo-primary-button {
+    display: block; box-sizing: border-box; width: 90%; height: 46px; margin: 12px auto;
+    border: 0; border-radius: 16px; font-family: inherit; font-size: 15px; font-weight: 700; color: #fff;
+    background-image: linear-gradient(to right, #1b6fd6 0%, #0d3f86 100%);
+    box-shadow: 0 0 12px rgba(27, 111, 214, 0.30);
+}
+.sdo-primary-button:disabled { opacity: 0.6; }
+.sdo-secondary-button {
+    display: block; box-sizing: border-box; width: 90%; height: 42px; margin: 8px auto;
+    border: 0; border-radius: 14px; font-family: inherit; font-size: 14px; color: #33475f;
+    background-color: #e8eef6;
+}
+
+/* ======== Разделы и элементы курса ======== */
+.sdo-course-content { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.sdo-section {
+    box-sizing: border-box; width: 90%; margin: 0 auto 10px; border-radius: 20px;
+    background-color: #fff; box-shadow: 0 0 10px rgba(20, 40, 70, 0.12); overflow: hidden;
+}
+.sdo-section-summary {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 14px 16px; cursor: pointer; list-style: none;
+}
+.sdo-section-summary::-webkit-details-marker { display: none; }
+.sdo-section-name { font-size: 14.5px; font-weight: 700; color: #22314a; }
+.sdo-section-count { font-size: 12px; color: #7c8ba1; }
+.sdo-section-body { padding: 0 10px 10px; }
+.sdo-section-label { margin: 4px 6px 10px; font-size: 13px; line-height: 1.4; color: #4a5b70; }
+.sdo-section-empty { margin: 4px 6px 10px; font-size: 13px; color: #7c8ba1; }
+.sdo-module-row {
+    display: flex; align-items: center; gap: 10px; box-sizing: border-box; width: 100%;
+    margin-bottom: 6px; padding: 10px 12px; border: 0; border-radius: 14px;
+    background-color: #f7f9fc; color: #22314a; text-align: left; font-family: inherit;
+}
+.sdo-module-row:active { background-color: #e8eef6; }
+.sdo-module-row--hidden { opacity: 0.55; }
+.sdo-module-icon { font-size: 18px; }
+.sdo-module-body { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.sdo-module-name { font-size: 14px; font-weight: 600; }
+.sdo-module-meta { font-size: 11.5px; color: #7c8ba1; }
+.sdo-module-arrow { font-size: 18px; color: #9aa8ba; }
+
+/* ======== Страница элемента курса ======== */
+.sdo-module-card {
+    box-sizing: border-box; width: 90%; margin: 8px auto; padding: 14px 16px;
+    border-radius: 20px; background-color: #fff; box-shadow: 0 0 10px rgba(20, 40, 70, 0.12);
+}
+.sdo-module-card-head { display: flex; align-items: flex-start; gap: 12px; }
+.sdo-module-card-icon { font-size: 26px; line-height: 1; }
+.sdo-module-card-subtitle { margin: 2px 0 0; font-size: 12px; color: #7c8ba1; }
+.sdo-module-description {
+    margin: 10px 0 0; font-size: 14px; line-height: 1.45; color: #33475f; white-space: pre-line;
+}
+.sdo-inline-link { color: #1b6fd6; text-decoration: underline; cursor: pointer; }
+
+/* ======== Файлы ======== */
+.sdo-file-list { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.sdo-file-row {
+    display: flex; align-items: center; gap: 10px; box-sizing: border-box;
+    width: 90%; margin: 0 auto 8px; padding: 10px 14px; border: 0; border-radius: 14px;
+    background-color: #fff; color: #22314a; text-align: left; font-family: inherit;
+    box-shadow: 0 0 8px rgba(20, 40, 70, 0.10);
+}
+.sdo-file-icon { font-size: 18px; }
+.sdo-file-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.sdo-file-name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sdo-file-meta { font-size: 11.5px; color: #7c8ba1; }
+
+/* ======== Задание ======== */
+.sdo-assign-body { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.sdo-assign-badges { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; width: 90%; margin: 4px auto 10px; }
+.sdo-badge { padding: 5px 12px; border-radius: 14px; font-size: 12px; color: #fff; }
+.sdo-badge--info { background-color: #1b6fd6; }
+.sdo-badge--success { background-color: #1f9d55; }
+.sdo-badge--warn { background-color: #e2a03f; color: #4a3410; }
+.sdo-badge--danger { background-color: #d6453c; }
+.sdo-badge--muted { background-color: #8b9bb0; }
+.sdo-assign-grade { width: 90%; margin: 6px auto; font-size: 14px; font-weight: 600; color: #1f9d55; }
+
+.sdo-submit {
+    box-sizing: border-box; width: 90%; margin: 10px auto; padding: 14px;
+    border-radius: 20px; background-color: #fff; box-shadow: 0 0 10px rgba(20, 40, 70, 0.12);
+    text-align: left;
+}
+.sdo-submit-text {
+    box-sizing: border-box; width: 100%; min-height: 140px; max-height: 46vh; padding: 12px;
+    border: 1px solid rgba(20, 40, 70, 0.18); border-radius: 14px; background-color: #f7f9fc;
+    font-family: inherit; font-size: 14px; color: #22314a; resize: none; line-height: 1.4;
+}
+.sdo-submit-text:focus { outline: none; border-color: #1b6fd6; background-color: #fff; }
+.sdo-draft-host { margin-top: 10px; }
+.sdo-draft-title { margin: 0 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #4a5b70; }
+.sdo-draft-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 8px 10px;
+    border-radius: 12px; background-color: #f2f6fb;
+}
+.sdo-draft-text { flex: 1; margin: 0; font-size: 12.5px; color: #4a5b70; }
+.sdo-draft-button {
+    padding: 6px 10px; border: 0; border-radius: 12px; font-family: inherit; font-size: 12px;
+    color: #fff; background-color: #1b6fd6; white-space: nowrap;
+}
+.sdo-file-input { display: none; }
+.sdo-file-chosen { margin: 8px 0 0; font-size: 12px; color: #7c8ba1; word-break: break-all; }
+.sdo-submit-actions { display: flex; justify-content: center; margin-top: 10px; }
+.sdo-submit-actions .sdo-primary-button { width: 100%; margin: 0; }
+.sdo-submit-hint { margin: 8px 0 0; font-size: 11.5px; line-height: 1.35; color: #7c8ba1; }
+
+/* ======== Блок СДО на странице пары ======== */
+.sdo-lesson-block {
+    box-sizing: border-box; width: 90%; margin: 14px auto; padding: 12px 14px;
+    border-radius: 20px; background-color: #fff; box-shadow: 0 0 10px rgba(20, 40, 70, 0.12);
+}
+.sdo-lesson-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sdo-lesson-icon { font-size: 18px; }
+.sdo-lesson-title { margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #4a5b70; }
+.sdo-lesson-body { display: flex; flex-direction: column; gap: 6px; }
+.sdo-lesson-body .sdo-deadline-row, .sdo-lesson-body .sdo-notice { width: 100%; margin: 0; }
+.sdo-lesson-body .sdo-loading { margin: 6px auto; }
+.sdo-lesson-course {
+    align-self: flex-start; margin: 0 0 4px; padding: 6px 10px; border: 0; border-radius: 12px;
+    background-color: #e8eef6; font-family: inherit; font-size: 13px; font-weight: 600; color: #1b6fd6;
+}
+.sdo-lesson-empty { margin: 4px 2px; font-size: 13px; color: #7c8ba1; }
+
+/* ======== Подборки курсов (Все / Текущие / …) и сортировка ======== */
+.sdo-tabs { flex-wrap: wrap; gap: 6px; width: 90%; margin: 8px auto 2px; }
+.sdo-tabs .radio-button { padding: 8px 12px; font-size: 12.5px; border-radius: 14px; }
+.sdo-tabs--sort { margin-top: 0; margin-bottom: 6px; }
+.sdo-tabs--sort .radio-button { padding: 6px 10px; font-size: 12px; background-color: #eef2f7; }
+
+/* ======== Отметки о выполнении элементов курса ======== */
+.sdo-module-done { font-size: 14px; color: #1f9d55; margin-left: 4px; }
+.sdo-module-todo { font-size: 13px; color: #9aa8ba; margin-left: 4px; }
+
+/* ======== Подсказка в форме ответа ======== */
+.sdo-submit-notice {
+    margin: 8px 0 0; padding: 8px 10px; border-radius: 12px;
+    background-color: #fff7e6; color: #8a6116; font-size: 12.5px; line-height: 1.35;
+}
