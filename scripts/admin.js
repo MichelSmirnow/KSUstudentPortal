@@ -1385,8 +1385,8 @@
           node.alt = 'Изображение к обращению';
           node.loading = 'lazy';
           node.addEventListener('click', () => {
-            if (global.imageViewer) global.imageViewer.open(url);
-            else if (typeof global.openImageViewer === 'function') global.openImageViewer(url);
+            if (global.imageViewer) global.imageViewer.open(url, { mode: 'view' });
+            else if (typeof global.openImageViewer === 'function') global.openImageViewer(url, { mode: 'view' });
           });
           grid.appendChild(node);
         });
@@ -2084,7 +2084,7 @@
           img.alt = 'Изображение публикации';
           img.loading = 'lazy';
           img.addEventListener('click', () => {
-            if (global.imageViewer) global.imageViewer.open(url);
+            if (global.imageViewer) global.imageViewer.open(url, { mode: 'view' });
           });
           grid.appendChild(img);
         });
@@ -2217,7 +2217,7 @@
           img.alt = 'Изображение публикации';
           img.loading = 'lazy';
           img.addEventListener('click', () => {
-            if (global.imageViewer) global.imageViewer.open(url);
+            if (global.imageViewer) global.imageViewer.open(url, { mode: 'view' });
           });
           grid.appendChild(img);
         });

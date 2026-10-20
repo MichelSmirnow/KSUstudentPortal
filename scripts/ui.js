@@ -1826,6 +1826,10 @@ window.refreshCurrentPage = refreshCurrentPage;
 
 // ✓ Обработка нажатия системной кнопки возврата по странице
 window.addEventListener("popstate", async function (event) {
+  // ✓ Модальные слои (галерея, просмотр и редактирование изображений) перехватывают
+  //   «Назад» первыми: страница публикации при этом не перерисовывается,
+  //   поэтому выбранные файлы и правки не сбрасываются.
+  if (window.ModalBack && typeof window.ModalBack.onPopstate === 'function' && window.ModalBack.onPopstate()) return;
   const state = event.state;
   if (state && state.page) { // ✓ Отрисовываем предыдущую виртуальную страницу
     appState.page = state.page;

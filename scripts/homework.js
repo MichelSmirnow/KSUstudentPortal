@@ -897,8 +897,10 @@ class HomeworkRenderer {
         image.addEventListener('click', (clickEvent) => {
           clickEvent.preventDefault();
           clickEvent.stopPropagation();
-          if (window.imageViewer) window.imageViewer.open(imageUrl);
-          else if (window.openImageViewer) window.openImageViewer(imageUrl);
+          // ✓ Просмотр чужой публикации: только просмотр, без редактирования
+          const saveFolder = post.textType === 'homework' ? 'Домашние задания' : 'Материалы';
+          if (window.imageViewer) window.imageViewer.open(imageUrl, { mode: 'view', saveFolder });
+          else if (window.openImageViewer) window.openImageViewer(imageUrl, { mode: 'view', saveFolder });
         });
         imageGrid.appendChild(image);
         if (window.contentCache) window.contentCache.cacheImage(imageUrl);
