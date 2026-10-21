@@ -325,12 +325,13 @@ class SDOClient {
 
     let response;
     try {
-      response = await fetch(`${SDO_BASE_URL}/webservice/rest/server.php`, {
+      response = await (window.fetchWithTimeout || window.fetch.bind(window))(`${SDO_BASE_URL}/webservice/rest/server.php`, {
         method: 'POST',
         body,
         headers: { Accept: 'application/json' },
         credentials: 'omit',
         mode: 'cors',
+        timeout: 15000,
       });
     } catch (error) {
       return { success: false, network: true, message: `СДО не отвечает (${error && error.message ? error.message : 'сеть недоступна'})` };
@@ -398,12 +399,13 @@ class SDOClient {
 
     let response;
     try {
-      response = await fetch(`${SDO_BASE_URL}/login/token.php`, {
+      response = await (window.fetchWithTimeout || window.fetch.bind(window))(`${SDO_BASE_URL}/login/token.php`, {
         method: 'POST',
         body,
         headers: { Accept: 'application/json' },
         credentials: 'omit',
         mode: 'cors',
+        timeout: 15000,
       });
     } catch (error) {
       return { success: false, network: true, message: `СДО не отвечает (${error && error.message ? error.message : 'сеть недоступна'})` };
@@ -869,11 +871,12 @@ class SDOClient {
 
     let response;
     try {
-      response = await fetch(`${SDO_BASE_URL}/webservice/upload.php`, {
+      response = await (window.fetchWithTimeout || window.fetch.bind(window))(`${SDO_BASE_URL}/webservice/upload.php`, {
         method: 'POST',
         body: form,
         credentials: 'omit',
         mode: 'cors',
+        timeout: 45000,
       });
     } catch (error) {
       return { success: false, network: true, message: `СДО не отвечает (${error && error.message ? error.message : 'сеть недоступна'})` };
@@ -1031,6 +1034,61 @@ const SDOUI = {
     wrap.appendChild(spinner);
     wrap.appendChild(label);
     return wrap;
+  },
+
+  /**
+   * ✓ Встроенный предпросмотр файла: полноэкранное окно с документом.
+   * Закрывается крестиком или системной кнопкой «назад» (через ModalBack).
+   */
+  openFilePreview(url, title) {
+    if (!url) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'sdo-file-preview';
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'sdo-file-preview-bar';
+    const label = document.createElement('span');
+    label.className = 'sdo-file-preview-title';
+    label.textContent = String(title || 'Просмотр файла');
+    const actions = document.createElement('span');
+    actions.className = 'sdo-file-preview-actions';
+
+    const external = document.createElement('button');
+    external.type = 'button';
+    external.className = 'sdo-file-preview-button';
+    external.textContent = 'Открыть в новой вкладке';
+    external.addEventListener('click', () => { if (typeof openLink === 'function') openLink(url); });
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'sdo-file-preview-button sdo-file-preview-close';
+    close.textContent = '✕ Закрыть';
+
+    actions.appendChild(external);
+    actions.appendChild(close);
+    toolbar.appendChild(label);
+    toolbar.appendChild(actions);
+
+    const frame = document.createElement('iframe');
+    frame.className = 'sdo-file-preview-frame';
+    frame.src = url;
+    frame.title = String(title || 'Предпросмотр файла');
+
+    overlay.appendChild(toolbar);
+    overlay.appendChild(frame);
+    document.body.appendChild(overlay);
+
+    let backId = null;
+    const shutdown = () => {
+      if (backId !== null && window.ModalBack && typeof window.ModalBack.remove === 'function') {
+        window.ModalBack.remove(backId);
+      }
+      overlay.remove();
+    };
+    close.addEventListener('click', shutdown);
+    if (window.ModalBack && typeof window.ModalBack.push === 'function') {
+      backId = window.ModalBack.push(shutdown);
+    }
   },
 
   /** Карточка курса: название, категория, прогресс, кнопка открытия. */
@@ -1498,6 +1556,19 @@ const SDOPages = {
             ? module.url
             : SDOClient.fileUrl(file.fileUrl || module.url || '');
           if (!url) return;
+          // ✓ Предпросмотр: изображения открываются в просмотрщике приложения,
+          //   PDF — во встроенном окне; остальные файлы скачиваются как раньше
+          const fileName = String(file.fileName || '');
+          const isImage = /(image)/i.test(String(file.mimeType || '')) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(fileName);
+          const isPdf = /pdf/i.test(String(file.mimeType || '')) || /\.pdf$/i.test(fileName);
+          if (isImage && window.imageViewer && typeof window.imageViewer.open === 'function') {
+            window.imageViewer.open(url, { title: fileName || 'Просмотр изображения' });
+            return;
+          }
+          if (isPdf && SDOUI && typeof SDOUI.openFilePreview === 'function') {
+            SDOUI.openFilePreview(url, fileName);
+            return;
+          }
           if (typeof openLink === 'function') openLink(url);
         });
         list.appendChild(row);
@@ -1508,7 +1579,7 @@ const SDOPages = {
     if (module.url) {
       const open = document.createElement('button');
       open.type = 'button';
-      open.className = 'sdo-primary-button';
+      open.className = 'sdo-primary-button sdo-primary-button--full';
       open.textContent = module.modName === 'url' ? 'Перейти по ссылке' : 'Открыть в СДО';
       open.addEventListener('click', () => {
         if (typeof openLink === 'function') openLink(module.url);

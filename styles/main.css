@@ -1,5 +1,85 @@
 /* ==================================== ✓ Стили общего назначения ==================================== */
 
+/* ==================================== ✓ Темы оформления (CSS-переменные) ====================================
+ * Все цвета приложения задаются через переменные: светлая тема — :root, тёмная — [data-theme="dark"].
+ * Переключение темы (шестерёнка в настройках) меняет только значения переменных, поэтому
+ * отдельные стили тёмной темы под каждый элемент прописывать не приходится.
+ * =============================================================================================================== */
+
+:root {
+    color-scheme: light;
+    /* Фоны */
+    --bg: rgb(238, 238, 238);              /* фон страницы */
+    --bg-page: #f5f5f5;                    /* фон контейнеров контента */
+    --surface: #ffffff;                    /* карточки и панели */
+    --surface-2: rgb(238, 238, 238);       /* нейтральные кнопки */
+    --surface-3: rgb(247, 247, 247);       /* подсветка при наведении */
+    --surface-4: rgb(197, 197, 197);       /* нажатие */
+    --surface-soft: #eef2f7;               /* мягкие вкладки и подложки */
+    --glass: rgba(255, 255, 255, 0.75);    /* «стеклянные» полосы (неделя, меню) */
+    --glass-soft: rgba(255, 255, 255, 0.25); /* полупрозрачные подложки шапки/нижней панели */
+    /* Баннер уведомлений */
+    --notice-bg: #fdf7ea;    --notice-title: #3a2a10;  --notice-text: #4a3a20;
+    --notice-meta: #8a6a3a;  --notice-role: #a4630c;   --notice-line: #e08a1e;
+    /* Текст */
+    --text: #1b2430;
+    --text-strong: #000000;
+    --text-muted: #5a6b80;
+    --text-on-accent: #ffffff;
+    /* Границы и тени */
+    --border: rgba(33, 33, 33, 0.15);
+    --border-soft: rgba(0, 0, 0, 0.10);
+    --shadow-btn: rgba(0, 0, 0, 0.35);
+    --shadow-soft: rgba(0, 0, 0, 0.15);
+    --shadow-strong: rgba(0, 0, 0, 0.5);
+    /* Акценты (общие для обеих тем) */
+    --accent: rgb(114, 178, 231);
+    --accent-deep: rgb(74, 127, 181);
+    --accent-border: rgba(65, 136, 194, 0.75);
+    --scrollbar: rgba(155, 155, 155, 0.5);
+    /* Уведомления */
+    --toast-error-bg: #ffeeee;   --toast-error-line: #e74c3c;   --toast-error-text: #c0392b;
+    --danger-text: #a01212;      --success-text: #238247;
+    --link: #1b6fd6;            --warning-text: #a06a00;
+    --danger-soft: #fdf3f3;     --danger-soft-2: #fbecec;   --danger-border: #f3c4c4;
+    --success-soft: #f1fbf4;    --success-border: #c3ecd1;
+    --toast-info-bg: #eff6ff;    --toast-info-line: #3498db;    --toast-info-text: #1e40af;
+    --toast-question-bg: #fef9e7; --toast-question-line: #f39c12; --toast-question-text: #b8860b;
+    --toast-success-bg: #f0fdf4; --toast-success-line: #27ae60; --toast-success-text: #1b5e20;
+}
+
+[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #12161d;
+    --bg-page: #151a22;
+    --surface: #1d232e;
+    --surface-2: #242b38;
+    --surface-3: #2c3442;
+    --surface-4: #3a4250;
+    --surface-soft: #232a36;
+    --glass: rgba(29, 35, 46, 0.78);
+    --glass-soft: rgba(255, 255, 255, 0.07);
+    --notice-bg: #33270f;    --notice-title: #ffe9c2;  --notice-text: #efe0c4;
+    --notice-meta: #c7ab7d;  --notice-role: #efb85e;   --notice-line: #e08a1e;
+    --text: #e6ebf3;
+    --text-strong: #ffffff;
+    --text-muted: #9aa7bd;
+    --border: rgba(255, 255, 255, 0.14);
+    --border-soft: rgba(255, 255, 255, 0.08);
+    --shadow-btn: rgba(0, 0, 0, 0.55);
+    --shadow-soft: rgba(0, 0, 0, 0.4);
+    --shadow-strong: rgba(0, 0, 0, 0.65);
+    --toast-error-bg: #3a1d1b;   --toast-error-line: #e74c3c;   --toast-error-text: #f2b1a7;
+    --danger-text: #ff9a90;      --success-text: #62d99a;
+    --link: #7ab6f2;            --warning-text: #f0c060;
+    --danger-soft: #33201f;     --danger-soft-2: #3a2423;   --danger-border: #6e3a37;
+    --success-soft: #17301f;    --success-border: #2f6e4a;
+    --toast-info-bg: #17293d;    --toast-info-line: #3498db;    --toast-info-text: #a8cdf3;
+    --toast-question-bg: #362b12; --toast-question-line: #f39c12; --toast-question-text: #f0d18b;
+    --toast-success-bg: #14301f; --toast-success-line: #27ae60; --toast-success-text: #a3e0b8;
+}
+
+
 /* ✓ Настройки видимости блоков */
 .visible { opacity: 1 !important; visibility: visible !important; transition: opacity 0.35s ease, visibility 0.35s ease !important; }
 .hidden { opacity: 0 !important; visibility: hidden !important; transition: opacity 0.35s ease, visibility 0.35s ease !important; }
@@ -13,7 +93,7 @@
 
 /* ==================================== ✓ Основные HTML стили ==================================== */
 
-html, body { margin: 0; padding: 0; overflow: hidden; position: relative; background-color: rgb(238, 238, 238); }
+html, body { margin: 0; padding: 0; overflow: hidden; position: relative; background-color: var(--bg); color: var(--text); }
 div::-webkit-scrollbar { width: 5px; }
 div::-webkit-scrollbar-track { opacity: 0; }
 div::-webkit-scrollbar-thumb { box-shadow: 0 0 10px rgba(255, 255, 255 0.3); background-color: rgba(155, 155, 155, 0.50); border-radius: 10px;}
@@ -21,7 +101,7 @@ div::-webkit-scrollbar-thumb { box-shadow: 0 0 10px rgba(255, 255, 255 0.3); bac
 /* ✓ Задний фон приложения */
 #background-session { 
   position: fixed; width: 100%; height: 100%; top: 0; left: 0; bottom: 0; right: 0;
-  background-color: #f5f5f5; z-index: 1; opacity: 1;
+  background-color: var(--bg-page); z-index: 1; opacity: 1;
 }
 
 /* ======== ✓ Главные контейнеры ======== */
@@ -37,13 +117,13 @@ div::-webkit-scrollbar-thumb { box-shadow: 0 0 10px rgba(255, 255, 255 0.3); bac
 }
 #container { z-index: 5; }
 #container-translate { z-index: 4; }
-#container-upwards { z-index: 6; background-color: #f5f5f5; } /* ✓ Контейнер перекрывающего контента */
+#container-upwards { z-index: 6; background-color: var(--bg-page); } /* ✓ Контейнер перекрывающего контента */
 
 /* ✓ Контейнер загрузки контента */ 
 #container-loading {
   position: fixed; top: 0; left: 0; bottom: 0; right: 0; width: 100vw; height: 100vh; margin: 0; padding: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 7; background-color: #f5f5f5;
+  z-index: 7; background-color: var(--bg-page);
 }
 
 /* ✓ Контейнер анимации перелистывания */
@@ -65,7 +145,7 @@ div::-webkit-scrollbar-thumb { box-shadow: 0 0 10px rgba(255, 255, 255 0.3); bac
 
 .info-container {
     margin: 0 auto !important; width: 80%;
-    border-radius: 30px; border: 2px solid rgba(33,33,33,0.15);
+    border-radius: 30px; border: 2px solid var(--border);
     padding: 5px 30px;
 }
 .banner-half { width: 50%; padding: 5px; font-size: 15px; }
@@ -82,7 +162,7 @@ img.banner-half { min-width: 150px !important; max-width: 220px !important; }
 .radio-button {
     min-width: 40%; padding: 5px 10px; 
     border-radius: 10px; border: 0; font-size: 15px;  
-    background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.35); color: #000; 
+    background-color: var(--surface-2); box-shadow: 0 0 10px var(--shadow-btn); color: var(--text-strong); 
     transition: all 0.5s ease;
 }
 
@@ -90,13 +170,13 @@ img.banner-half { min-width: 150px !important; max-width: 220px !important; }
 .radio-week-container { 
   position: sticky; top: -10px; z-index: 9999; width: 90%; padding: 0px 10px; margin: 10px auto; height: 70px !important; 
   justify-content: start !important; align-items: center !important; gap: 10px; overflow-x: scroll;
-  background-color: rgba(255,255,255,0.75); border-radius: 10px; backdrop-filter: blur(5px); box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+  background-color: var(--glass); border-radius: 10px; backdrop-filter: blur(5px); box-shadow: 0 0 10px var(--shadow-soft);
   scrollbar-width: none; &::-webkit-scrollbar { display: none; }
 }
 .radio-week-button {
   box-sizing: border-box; min-width: 80px; max-width: 80px; padding: 5px 10px; min-height: 50px;
   border-radius: 10px; border: 0; font-size: 15px;  
-  background-color: rgb(238, 238, 238); box-shadow: 0 0 10px rgba(0,0,0,0.35); color: #000; direction: ltr; 
+  background-color: var(--surface-2); box-shadow: 0 0 10px var(--shadow-btn); color: var(--text-strong); direction: ltr; 
   transition: all 0.5s ease;
 }
 .radio-week-button.current-week-button { 
@@ -104,13 +184,20 @@ img.banner-half { min-width: 150px !important; max-width: 220px !important; }
 }
 
 /* ✓ Анимация радиокнопок */
-.radio-button:hover, .radio-week-button:hover { background-color: rgb(247, 247, 247); transition: all 0.35s ease; }
-.radio-button:active, .radio-week-button:active { background-color: rgb(197, 197, 197); transition: all 0.25s ease; }
+.radio-button:hover, .radio-week-button:hover { background-color: var(--surface-3); transition: all 0.35s ease; }
+.radio-button:active, .radio-week-button:active { background-color: var(--surface-4); transition: all 0.25s ease; }
 .radio-button.selected, .radio-week-button.selected {
-    color: rgb(255, 255, 255); background-color: rgb(114, 178, 231) !important; text-shadow: 0 0 10px rgba(10, 83, 143, 0.25);
+    color: var(--text-on-accent); background-color: var(--accent) !important; text-shadow: 0 0 10px rgba(10, 83, 143, 0.25);
     box-shadow: 0 0 10px rgba(0, 140, 255, 0.35) !important;
 }
 
+
+/* ✓ Текст на кнопках и управляющих элементах не выделяется копированием */
+button, summary, .radio-button, .radio-week-button, .nav-element, .account-standartButton,
+.account-service-button, .header-button, .header-group-item, .header-group-compare,
+.homework-checkpoint, .account-toggle, .account-groups-item, .lesson-day-button {
+    user-select: none; -webkit-user-select: none;
+}
 
 /* ==================================== Уведомления ==================================== */
 
@@ -126,7 +213,7 @@ img.banner-half { min-width: 150px !important; max-width: 220px !important; }
   display: flex; align-items: center; justify-content: space-between; gap: 5px;
   width: 70%; max-width: 500px; min-height: 50px; padding: 16px 20px; margin: 0 auto;
   font-size: 17px; font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); border-radius: 20px; filter: brightness(100%);
+  box-shadow: 0 4px 12px var(--shadow-strong); border-radius: 20px; filter: brightness(100%);
   cursor: pointer; pointer-events: auto; user-select: none;
   animation: slideDown 0.3s ease-out forwards; transition: transform 0.1s ease-out, opacity 0.1s ease-out, filter 0.3s ease;
 }
@@ -147,10 +234,10 @@ img.banner-half { min-width: 150px !important; max-width: 220px !important; }
 }
 
 /* ✓ Стилизация уведомлений по типам */
-.notification-error { background-color: #fee; border-left: 6px solid #e74c3c; color: #c0392b; }
-.notification-info { background-color: #eff6ff; border-left: 6px solid #3498db; color: #1e40af; }
-.notification-question { background-color: #fef9e7; border-left: 6px solid #f39c12; color: #b8860b; }
-.notification-success { background-color: #f0fdf4; border-left: 6px solid #27ae60; color: #1b5e20; }
+.notification-error { background-color: var(--toast-error-bg); border-left: 6px solid var(--toast-error-line); color: var(--toast-error-text); }
+.notification-info { background-color: var(--toast-info-bg); border-left: 6px solid var(--toast-info-line); color: var(--toast-info-text); }
+.notification-question { background-color: var(--toast-question-bg); border-left: 6px solid var(--toast-question-line); color: var(--toast-question-text); }
+.notification-success { background-color: var(--toast-success-bg); border-left: 6px solid var(--toast-success-line); color: var(--toast-success-text); }
 
 /* ✓ Адаптивность для узких экранов*/
 @media (max-width: 640px) {

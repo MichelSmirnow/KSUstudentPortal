@@ -11,61 +11,67 @@
   color: #33566f; background: rgba(74, 110, 143, 0.1);
   font-size: 10.5px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap;
 }
-.homework-role-badge--starosta { border-color: #2f6fd0; color: #1f57ab; background: rgba(47, 111, 208, 0.1); }
+.homework-role-badge--starosta { border-color: #2f6fd0; color: var(--link); background: rgba(47, 111, 208, 0.1); }
 .homework-role-badge--teacher { border-color: #8a2be2; color: #6d21b6; background: rgba(138, 43, 226, 0.1); }
-.homework-role-badge--custom { border-color: #2f6fd0; color: #1f57ab; background: rgba(47, 111, 208, 0.08); font-style: italic; }
+.homework-role-badge--custom { border-color: #2f6fd0; color: var(--link); background: rgba(47, 111, 208, 0.08); font-style: italic; }
+.homework-role-badge--achievement {
+    border-color: transparent; color: #fff; font-style: normal;
+    background-image: linear-gradient(115deg, #7b5cff 0%, #2f8fe0 34%, #23c39a 68%, #e0a12f 100%);
+    background-size: 220% 100%; animation: achievementTagShimmer 5s linear infinite;
+}
+.homework-role-badge--selftag { border-color: #0f8f83; color: #0f8f83; background: rgba(15, 143, 131, 0.12); }
 .homework-role-badge--blocked { border-color: #6b7280; color: #4b5563; background: rgba(107, 114, 128, 0.12); text-transform: none; }
 
 /* Значок «не проверено» у публикаций, которые ещё не прошли модерацию */
 .homework-moderation-badge {
   display: inline-flex; align-items: center; flex: 0 0 auto;
   padding: 1px 9px; border: 2px dashed #d98a00; border-radius: 999px;
-  color: #a06a00; background: rgba(252, 184, 38, 0.14);
+  color: var(--warning-text); background: rgba(252, 184, 38, 0.14);
   font-size: 10.5px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap;
 }
 
 /* Группа обучения рядом с автором публикации */
-.homework-post-group { color: #4a5568; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.homework-post-group { color: var(--text-muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
 
 /* -------------------------------- Меню публикации (три точки) -------------------------------- */
 
 .homework-post-menu-button {
   flex: 0 0 auto; width: 26px; height: 26px; margin-left: 4px; padding: 0;
   border: 1px solid rgba(75, 98, 132, 0.22); border-radius: 8px;
-  color: #41536b; background: #fff; font-size: 16px; line-height: 1; cursor: pointer;
+  color: #41536b; background: var(--surface); font-size: 16px; line-height: 1; cursor: pointer;
 }
-.homework-post-menu-button:hover { border-color: #a01212; color: #a01212; }
+.homework-post-menu-button:hover { border-color: #a01212; color: var(--danger-text); }
 
 .homework-post-menu {
   position: fixed; z-index: 30000; display: flex; flex-direction: column;
   min-width: 210px; max-width: 78vw; padding: 5px;
   border: 1px solid rgba(53, 69, 99, 0.16); border-radius: 12px;
-  background: #fff; box-shadow: 0 12px 28px rgba(24, 33, 52, 0.22);
+  background: var(--surface); box-shadow: 0 12px 28px rgba(24, 33, 52, 0.22);
 }
 .homework-post-menu-item {
   padding: 9px 11px; border: 0; border-radius: 9px;
-  color: #253148; background: transparent; font-size: 13px; text-align: left; cursor: pointer;
+  color: var(--text); background: transparent; font-size: 13px; text-align: left; cursor: pointer;
 }
-.homework-post-menu-item:hover { background: #eef3fa; }
-.homework-post-menu-item--danger { color: #a01212; }
-.homework-post-menu-item--danger:hover { background: #fdf1f1; }
+.homework-post-menu-item:hover { background: var(--surface-2); }
+.homework-post-menu-item--danger { color: var(--danger-text); }
+.homework-post-menu-item--danger:hover { background: var(--danger-soft); }
 .homework-post-menu-item--disabled { color: #8a93a3; cursor: default; }
 .homework-post-menu-item--disabled:hover { background: transparent; }
 
 /* -------------------------------- Панель администратора -------------------------------- */
 
 .admin-panel { display: flex; flex-direction: column; gap: 12px; padding: 0 0 20px; }
-.admin-panel-header { padding: 14px 16px; border-radius: 16px; background: #edf1f7; }
+.admin-panel-header { padding: 14px 16px; border-radius: 16px; background: var(--surface-2); }
 .admin-panel-header h2 { margin: 0; font-size: 20px; }
-.admin-panel-subtitle { margin: 5px 0 0; color: #687386; font-size: 13px; }
+.admin-panel-subtitle { margin: 5px 0 0; color: var(--text-muted); font-size: 13px; }
 .admin-panel-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
 .admin-panel-tab { flex: 1 1 140px; }
 .admin-panel-content { display: flex; flex-direction: column; gap: 10px; }
 .admin-panel-denied, .admin-panel-empty, .admin-panel-loading {
   padding: 14px 16px; border: 1px dashed rgba(67, 82, 110, 0.3); border-radius: 14px;
-  color: #667085; background: rgba(245, 247, 251, 0.8); font-size: 13px;
+  color: var(--text-muted); background: rgba(245, 247, 251, 0.8); font-size: 13px;
 }
-.admin-panel-summary { margin: 0; color: #687386; font-size: 12px; }
+.admin-panel-summary { margin: 0; color: var(--text-muted); font-size: 12px; }
 .admin-panel-search {
   width: 100%; box-sizing: border-box; padding: 10px 12px;
   border: 1px solid rgba(75, 98, 132, 0.28); border-radius: 10px; font-size: 14px;
@@ -85,54 +91,54 @@
 .admin-user-toggle { white-space: nowrap; }
 .admin-user-body { display: flex; flex-direction: column; gap: 9px; }
 .admin-user--expanded { border-color: rgba(102, 126, 234, 0.45); }
-.admin-user-hint { color: #9aa0a6; font-size: 11px; }
+.admin-user-hint { color: var(--text-muted); font-size: 11px; }
 .admin-user {
   display: flex; flex-direction: column; gap: 9px; padding: 12px;
-  border: 1px solid rgba(53, 69, 99, 0.12); border-radius: 13px; background: #fff;
+  border: 1px solid var(--border-soft); border-radius: 13px; background: var(--surface);
 }
-.admin-user--blocked { border-color: rgba(160, 18, 18, 0.35); background: #fffafa; }
+.admin-user--blocked { border-color: rgba(160, 18, 18, 0.35); background: var(--danger-soft); }
 .admin-user-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .admin-user-name-box { min-width: 0; }
-.admin-user-name { margin: 0; color: #1e2b40; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
-.admin-user-meta { margin: 3px 0 0; color: #687386; font-size: 12px; overflow-wrap: anywhere; }
+.admin-user-name { margin: 0; color: var(--text); font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.admin-user-meta { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
 .admin-user-badges { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .admin-user-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-.admin-user-field { display: flex; flex-direction: column; gap: 4px; color: #4a5568; font-size: 11px; font-weight: 700; }
+.admin-user-field { display: flex; flex-direction: column; gap: 4px; color: var(--text-muted); font-size: 11px; font-weight: 700; }
 .admin-user-select, .admin-user-input {
   padding: 8px 10px; border: 1px solid rgba(75, 98, 132, 0.28); border-radius: 9px;
-  background: #fff; font-size: 13px; color: #253148;
+  background: var(--surface); font-size: 13px; color: var(--text);
 }
 .admin-user-input { min-width: 150px; }
 .admin-user-button {
   padding: 8px 12px; border: 1px solid rgba(75, 98, 132, 0.25); border-radius: 9px;
-  color: #31445f; background: #eef3fa; font-size: 13px; cursor: pointer;
+  color: var(--text); background: var(--surface-2); font-size: 13px; cursor: pointer;
 }
-.admin-user-button:hover { background: #e3ebf7; }
+.admin-user-button:hover { background: var(--surface-3); }
 .admin-user-button:disabled { opacity: 0.55; cursor: not-allowed; }
-.admin-user-button--danger { border-color: rgba(160, 18, 18, 0.35); color: #a01212; background: #fdf3f3; }
-.admin-user-button--danger:hover { background: #fbe7e7; }
-.admin-user-button--success { border-color: rgba(35, 130, 71, 0.35); color: #1e6b3a; background: #edf8f1; }
+.admin-user-button--danger { border-color: rgba(160, 18, 18, 0.35); color: var(--danger-text); background: var(--danger-soft); }
+.admin-user-button--danger:hover { background: var(--danger-soft); }
+.admin-user-button--success { border-color: rgba(35, 130, 71, 0.35); color: var(--success-text); background: var(--success-soft); }
 .admin-user-block { display: flex; flex-direction: column; gap: 7px; }
 .admin-user-block-reason { display: flex; flex-wrap: wrap; gap: 7px; }
 .admin-user-posts { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px dashed rgba(67, 82, 110, 0.25); }
 
 /* Компактная карточка публикации (в списке постов пользователя) */
-.admin-post-card { display: flex; flex-direction: column; gap: 7px; padding: 10px; border: 1px solid rgba(53, 69, 99, 0.12); border-radius: 11px; background: #f8f9fc; }
-.admin-post-card-meta { margin: 0; color: #687386; font-size: 11.5px; }
-.admin-post-card-text { margin: 0; color: #202a3b; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-post-card { display: flex; flex-direction: column; gap: 7px; padding: 10px; border: 1px solid var(--border-soft); border-radius: 11px; background: var(--surface-2); }
+.admin-post-card-meta { margin: 0; color: var(--text-muted); font-size: 11.5px; }
+.admin-post-card-text { margin: 0; color: var(--text); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .admin-post-card-actions { display: flex; gap: 7px; }
 
 /* Модерация */
 .admin-moderation-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .admin-moderation-list { display: flex; flex-direction: column; gap: 10px; }
-.admin-moderation-card { display: flex; flex-direction: column; gap: 9px; padding: 12px; border: 1px solid rgba(53, 69, 99, 0.14); border-left: 5px solid #d98a00; border-radius: 13px; background: #fff; }
+.admin-moderation-card { display: flex; flex-direction: column; gap: 9px; padding: 12px; border: 1px solid rgba(53, 69, 99, 0.14); border-left: 5px solid #d98a00; border-radius: 13px; background: var(--surface); }
 .admin-moderation-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .admin-moderation-title-box { min-width: 0; }
-.admin-moderation-title { margin: 0; color: #1e2b40; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
-.admin-moderation-meta { margin: 3px 0 0; color: #687386; font-size: 12px; }
+.admin-moderation-title { margin: 0; color: var(--text); font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.admin-moderation-meta { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
 .admin-moderation-badges { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .admin-moderation-body { display: flex; flex-direction: column; gap: 8px; }
-.admin-moderation-text { margin: 0; color: #202a3b; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-moderation-text { margin: 0; color: var(--text); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .admin-moderation-actions { display: flex; align-items: center; gap: 10px; }
 .admin-moderation-button {
   flex: 1 1 120px; padding: 10px 14px; border: 0; border-radius: 10px;
@@ -141,7 +147,7 @@
 .admin-moderation-button:disabled { opacity: 0.55; cursor: not-allowed; }
 .admin-moderation-button--reject { background: #c02222; }
 .admin-moderation-button--approve { background: #238247; }
-.admin-moderation-note { flex: 1 1 auto; margin: 0; color: #a06a00; font-size: 12px; text-align: center; }
+.admin-moderation-note { flex: 1 1 auto; margin: 0; color: var(--warning-text); font-size: 12px; text-align: center; }
 
 @media (max-width: 480px) {
   .admin-user-controls { align-items: stretch; }
@@ -177,6 +183,41 @@
 
 /* ✓ Заголовки разделов внутри вкладки «Фидбек»: в обработке и отвеченные */
 .admin-feedback-section-title {
-    margin: 14px 0 6px; font-size: 16px; font-weight: 700; color: #22314a; line-height: 1.25;
+    margin: 14px 0 6px; font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.25;
 }
 .admin-feedback-section-title + .admin-feedback-list { margin-top: 0; }
+
+/* ======== Модерация: подочередь «Описание и аватар» ======== */
+.admin-moderation-subtabs { display: flex; gap: 8px; margin: 4px 0 12px; flex-wrap: wrap; }
+.admin-moderation-subtab {
+    padding: 8px 14px; border: 0; border-radius: 12px; cursor: pointer;
+    font-family: inherit; font-size: 13.5px; font-weight: 700;
+    background: var(--surface-2); color: var(--text);
+}
+.admin-moderation-subtab.selected { background: var(--accent); color: var(--text-on-accent); }
+.admin-profile-queue { margin-top: 4px; }
+.admin-profile-mod-row {
+    display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap;
+    padding: 10px 0; border-top: 1px solid var(--border-soft);
+}
+.admin-profile-mod-row--bio { flex-direction: column; }
+.admin-profile-mod-avatar {
+    width: 72px; height: 72px; border-radius: 14px; object-fit: cover; cursor: zoom-in;
+    border: 1px solid var(--border); background: var(--surface-2);
+}
+.admin-profile-mod-info { flex: 1 1 220px; min-width: 200px; }
+.admin-profile-mod-label { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.admin-profile-mod-text {
+    margin: 0 0 8px; font-size: 14.5px; color: var(--text); line-height: 1.5;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.admin-profile-mod-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ======== История блокировок в карточке пользователя ======== */
+.admin-user-block-log {
+    margin-top: 8px; padding: 8px 10px; border-radius: 10px;
+    background: var(--surface-2); border: 1px solid var(--border-soft);
+}
+.admin-user-block-log-title { margin: 0 0 4px; font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; }
+.admin-user-block-log-line { margin: 2px 0; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
+.admin-user-block-term { max-width: 150px; }

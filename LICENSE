@@ -1,0 +1,32 @@
+PROPRIETARY LICENSE — KSUstudentPortal
+Copyright (c) 2026 Michel Smirnow (github.com/MichelSmirnow)
+Created: 2026-09-06T09:10:11Z — First public commit on GitHub
+All Rights Reserved.
+
+1. Собственность
+   Весь исходный код, дизайн, тексты, изображения преподавателей,
+   база данных, структура проекта KSUstudentPortal принадлежит
+   исключительно автору — Michel Smirnow.
+
+2. Запрещено без письменного разрешения автора:
+   - копировать, воспроизводить, клонировать репозиторий целиком или частями;
+   - использовать код в других проектах (включая переписывание "по мотивам" с сохранением структуры);
+   - обучать нейросети / AI-модели на коде из этого репозитория;
+   - публиковать форки, зеркала, дистрибутивы;
+   - использовать в коммерческих продуктах.
+
+3. Разрешено:
+   - просматривать код в ознакомительных целях на kgustud.ru;
+   - цитировать фрагменты до 30 строк с обязательным указанием авторства и ссылкой на оригинал.
+
+4. Нарушение лицензии преследуется по ст. 1252, 1301 ГК РФ,
+   а также по правилам DMCA GitHub. Автор фиксирует все коммиты
+   и сохраняет нотариальные копии с датой создания 06.09.2026.
+
+Для получения разрешения: github.com/MichelSmirnow
+
+ENGLISH SUMMARY:
+This is proprietary proprietary software. No permission is granted to
+copy, modify, distribute, or use this code or assets without explicit
+written consent. Viewing for evaluation is allowed with attribution.
+For commercial or educational reuse contact the author.

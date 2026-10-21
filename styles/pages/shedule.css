@@ -25,29 +25,29 @@
 .pauseEvent { 
   padding: 0px !important; height: 40px;
   align-items: center !important; justify-content: center;
-  color: #777; font-size: 15px;
+  color: var(--text-muted); font-size: 15px;
 }
-.event:hover, .pauseEvent:hover { background-color: #f5f5f5; transition: all 0.2s; }
-.event:active, .pauseEvent:active { background-color: #dddddd; transition: all 0.2s; }
+.event:hover, .pauseEvent:hover { background: var(--bg-page); transition: all 0.2s; }
+.event:active, .pauseEvent:active { background: var(--surface-2); transition: all 0.2s; }
 .event:last-child { border-bottom: none; }
 
 /* ✓ Блок времени занятия */
 .event-time-block { min-width: 70px; margin-right: 20px; padding-left: 10px; }
 .event-time { display: flex; flex-direction: column; gap: 5px; }
-.start-time { font-weight: 700; font-size: 18px; color: #333; }
-.end-time { font-size: 12px; color: #999; }
+.start-time { font-weight: 700; font-size: 18px; color: var(--text); }
+.end-time { font-size: 12px; color: var(--text-muted); }
 
 /* ✓ Информация о занятии */
 .event-content { flex: 1; min-width: 0; }
 .event-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.event-subject { margin: 0; font-size: 14px; font-weight: 600; color: #333; word-break: break-word; }
+.event-subject { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); word-break: break-word; }
 .event-type-container { display: flex; flex-direction: column; justify-content: center; align-items: end; gap: 5px; }
 .event-type {
   padding: 2px 8px;
-  color: #666; font-size: 11px; font-weight: 600; white-space: nowrap;
+  color: var(--text-muted); font-size: 11px; font-weight: 600; white-space: nowrap;
   background-color: #e8e8e8; border-radius: 12px;
 }
-.event-details { font-size: 13px; color: #666; }
+.event-details { font-size: 13px; color: var(--text-muted); }
 .event-detail { margin-bottom: 4px; display: flex; align-items: center; gap: 8px; font-size: 14px; }
 
 
@@ -104,7 +104,7 @@
 .class-progress-label { opacity: 0.9; }
 .class-remaining-time { font-weight: 600; font-size: 15px; }
 .class-progress-bar-container { width: 100%; height: 8px; background: rgba(255, 255, 255, 0.3); border-radius: 4px; overflow: hidden; }
-.class-progress-bar { height: 100%; width: 0%; background: white; border-radius: 4px; transition: width 0.3s ease; }
+.class-progress-bar { height: 100%; width: 0%; background: var(--surface); border-radius: 4px; transition: width 0.3s ease; }
 
 /* ✓ В ближайшее время нет пар */
 .no-classes-block { 
@@ -126,20 +126,20 @@
 .shedule-fallback {
   width: calc(100% - 20px); margin: 0 auto 20px; padding: 16px 18px; box-sizing: border-box;
   border: 1px dashed rgba(75, 98, 132, 0.4); border-radius: 16px;
-  background: #f7f9fc; color: #253148; font-size: 14px;
+  background: var(--surface-2); color: var(--text); font-size: 14px;
 }
 .shedule-fallback-title { font-size: 17px; margin: 0 0 6px; }
-.shedule-fallback-reason { margin: 0 0 8px; font-size: 13px; color: #a01212; }
-.shedule-fallback-explain { margin: 0 0 8px; font-size: 13px; color: #4a5568; }
-.shedule-fallback-meta { margin: 0 0 8px; font-size: 12px; color: #8a8f98; }
-.shedule-fallback-hint { margin: 0 0 12px; font-size: 13px; color: #4a5568; }
+.shedule-fallback-reason { margin: 0 0 8px; font-size: 13px; color: var(--danger-text); }
+.shedule-fallback-explain { margin: 0 0 8px; font-size: 13px; color: var(--text-muted); }
+.shedule-fallback-meta { margin: 0 0 8px; font-size: 12px; color: var(--text-muted); }
+.shedule-fallback-hint { margin: 0 0 12px; font-size: 13px; color: var(--text-muted); }
 .shedule-fallback-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .shedule-fallback-file { display: inline-flex; align-items: center; cursor: pointer; }
 .shedule-fallback-paste { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .shedule-fallback-paste textarea {
   width: 100%; min-height: 140px; padding: 10px 12px; box-sizing: border-box; resize: vertical;
   border: 1px solid rgba(75, 98, 132, 0.28); border-radius: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #253148;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--text);
 }
 .shedule-fallback--drop { border-color: #667eea; background: #eef2ff; }
 
@@ -188,7 +188,7 @@
     background: linear-gradient(to right, rgba(27, 111, 214, 0.10), rgba(27, 111, 214, 0.03));
     box-shadow: 0 0 12px rgba(27, 111, 214, 0.22);
 }
-.event--notice-event .event-kind-label { color: #1b6fd6; font-size: 12px; margin-top: 5px; }
+.event--notice-event .event-kind-label { color: var(--link); font-size: 12px; margin-top: 5px; }
 
 /* ======== Полоски событий, пересекающихся с парами ======== */
 .schedule-event-strips { display: flex; flex-direction: column; gap: 4px; margin: 6px 8px 0; }
@@ -208,12 +208,14 @@
 .schedule-day { position: relative; }
 .day-notes { margin-top: 8px; padding: 0 8px 10px; position: relative; }
 
-/* пусто: только «+» в правом нижнем углу дня */
+/* пусто: «язычок» с плюсом свисает чуть ниже дня, по центру */
 .day-notes--empty { padding: 0; }
 .day-notes--empty .day-notes-add {
-    position: absolute; right: 10px; bottom: 10px;
-    width: 34px; height: 34px; border-radius: 50%;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+    position: relative; right: auto; bottom: auto;
+    width: 132px; height: 30px; margin: 6px auto -12px;
+    border-radius: 4px 4px 16px 16px;
+    background: rgba(84, 104, 138, 0.20); font-size: 19px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
 }
 
 /* есть заметки: аккуратный контейнер и «выемка» с плюсиком по центру */
@@ -231,33 +233,29 @@
 }
 .day-note-check:hover { background: rgba(44, 107, 60, 0.12); border-color: rgba(44, 107, 60, 0.6); }
 .day-note-input {
-    flex: 1 1 auto; min-height: 20px; font-size: 13.5px; line-height: 1.35; color: #22314a;
+    flex: 1 1 auto; min-height: 20px; font-size: 13.5px; line-height: 1.35; color: var(--text);
     outline: none; border: 0; background: transparent; overflow-wrap: anywhere; cursor: text;
 }
-.day-note-input:empty::before { content: attr(data-placeholder); color: #8a97a8; }
+.day-note-input:empty::before { content: attr(data-placeholder); color: var(--text-muted); }
 .day-note--done .day-note-input { text-decoration: line-through; color: #7b8798; }
 
 .day-note-remove {
     flex: 0 0 auto; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
-    background: transparent; color: #8a97a8; font-size: 16px; line-height: 1; cursor: pointer;
+    background: transparent; color: var(--text-muted); font-size: 16px; line-height: 1; cursor: pointer;
     opacity: 0; visibility: hidden; transition: opacity 0.2s ease, background-color 0.2s ease;
 }
 .day-note--editing .day-note-remove, .day-note:hover .day-note-remove { opacity: 1; visibility: visible; }
 .day-note-remove:hover { background: rgba(180, 52, 52, 0.12); color: #b43434; }
 
-/* «выемка» с плюсиком, плавно входящая в контейнер */
+/* «язычок» под контейнером заметок: узкая выемка с плюсом, выступающая ниже */
 .day-notes-add {
-    display: block; width: 100%; height: 30px; margin-top: 0; padding: 0;
-    border: 0; border-radius: 0 0 14px 14px;
-    background: rgba(84, 104, 138, 0.16); color: #3c5478;
-    font-size: 18px; line-height: 1; cursor: pointer;
+    display: block; width: 46%; min-width: 120px; height: 28px; margin: 0 auto -10px; padding: 0;
+    border: 0; border-radius: 2px 2px 16px 16px;
+    background: rgba(84, 104, 138, 0.16); color: var(--text-muted);
+    font-size: 17px; line-height: 1; cursor: pointer;
     transition: background-color 0.2s ease;
 }
 .day-notes-add:hover { background: rgba(84, 104, 138, 0.28); }
-.day-notes--empty .day-notes-add {
-    width: 34px; height: 34px; border-radius: 50%;
-    background: rgba(84, 104, 138, 0.22); font-size: 20px;
-}
 
 /* ======== Кнопка «Создать событие»: закреплена, полупрозрачная, с размытием фона ======== */
 .schedule-create-button {
@@ -307,3 +305,72 @@
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .event-overlap-strip:hover .event-overlap-strip-label { opacity: 1; transform: translateY(-50%) scale(1); }
+
+/* ============================ Сравнение расписаний ============================ */
+.compare-panel { display: flex; flex-direction: column; gap: 2px; padding: 0 6px; }
+.compare-panel-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.compare-field { flex: 1 1 190px; display: flex; flex-direction: column; gap: 4px; }
+.compare-field-label { font-size: 12px; color: #b9c4d4; }
+.compare-group-badge {
+    padding: 7px 10px; border-radius: 10px; font-size: 13px; color: #EEE;
+    background: rgba(255, 255, 255, 0.12);
+}
+.compare-select {
+    width: 100%; padding: 7px 10px; border: 0; border-radius: 10px;
+    font-size: 13px; color: #EEE; background: rgba(255, 255, 255, 0.12);
+}
+.compare-select optgroup { color: var(--text); background: #FFF; }
+.compare-select option { color: var(--text); background: #FFF; }
+.compare-days { display: flex; gap: 6px; padding: 6px 0 2px; overflow-x: auto; }
+.compare-day-button {
+    flex: 1 1 0; min-width: 50px; padding: 6px 4px; border: 0; border-radius: 10px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: rgba(238, 238, 238, 0.92); color: var(--text); font-size: 12px;
+    transition: filter 0.2s ease;
+}
+.compare-day-button:hover { filter: brightness(108%); }
+.compare-day-button.selected { background: rgb(114, 178, 231); color: #FFF; }
+.compare-day-button.today { box-shadow: 0 0 0 2px rgba(178, 39, 31, 0.65) inset; }
+
+.compare-view { display: flex; flex-direction: column; gap: 18px; padding: 6px 4px; }
+.compare-day { display: flex; flex-direction: column; gap: 8px; }
+.compare-day-header { display: flex; align-items: baseline; gap: 8px; padding: 0 4px; }
+.compare-day-name { font-size: 15px; font-weight: 700; color: #EEE; }
+.compare-day-date { font-size: 12.5px; color: var(--text-muted); }
+.compare-day-header--today .compare-day-name { color: #ff8b7f; }
+.compare-empty { margin: 6px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+.compare-slot { display: flex; gap: 8px; align-items: stretch; }
+.compare-slot-time {
+    flex: 0 0 44px; display: flex; align-items: center; justify-content: center;
+    font-size: 12.5px; font-weight: 700; color: #c9d6e5;
+}
+.compare-slot-body { flex: 1 1 auto; display: flex; gap: 8px; min-width: 0; }
+.compare-column { flex: 1 1 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.compare-other-row { display: flex; flex-direction: column; gap: 4px; }
+
+.compare-card { display: flex; gap: 8px; padding: 7px 9px; border-radius: 12px; min-width: 0; background: rgba(255, 255, 255, 0.07); }
+.compare-card--mine { background: rgba(114, 178, 231, 0.20); }
+.compare-card--other { background: rgba(126, 200, 140, 0.20); }
+.compare-card--empty { justify-content: center; color: #8fa0b4; font-size: 12px; background: rgba(255, 255, 255, 0.04); }
+.compare-card-time { display: flex; flex-direction: column; flex: 0 0 40px; }
+.compare-card-start { font-size: 13px; font-weight: 700; color: #EEE; }
+.compare-card-end { font-size: 11px; color: #b9c4d4; }
+.compare-card-content { min-width: 0; }
+.compare-card-subject { margin: 0; font-size: 13px; font-weight: 600; color: #EEE; overflow-wrap: anywhere; }
+.compare-card-details { margin: 2px 0 0; font-size: 11.5px; color: #b9c4d4; overflow-wrap: anywhere; }
+
+/* Построчный режим: сначала своя пара, затем пара другой группы */
+.compare-view--rows .compare-slot { flex-direction: column; gap: 4px; }
+.compare-view--rows .compare-slot-time { justify-content: flex-start; }
+.compare-view--rows .compare-slot-body { flex-direction: column; gap: 4px; }
+
+/* Тег совпадения — в стиле админ-тега */
+.compare-tag {
+    align-self: flex-start; padding: 3px 9px; border-radius: 10px; font-size: 11.5px; font-weight: 700;
+    color: #FFF; background-color: #4a7fb5; text-shadow: 0 0 8px rgba(0, 0, 0, 0.25);
+}
+.compare-tag--room { background-color: #12673c; }
+.compare-tag--floor { background-color: #2f6fd0; }
+.compare-tag--building { background-color: #d68213; }
+.compare-tag--buildings { background-color: #4a7fb5; }

@@ -24,6 +24,76 @@ async function importSheduleFromText(text, sheduleID, sheduleType) {
   }
 }
 
+/* -----------------------------------------------------------------------------------------
+ * ✓ Сеть без софтлока
+ *
+ * Раньше запрос к ЭЙОС уходил в никуда: пока сервер не отвечал, страница висела в загрузке
+ * (на плохой сети — около 20 секунд) и сыпала ошибками в консоль. Теперь у каждого запроса
+ * есть предел ожидания, а при отсутствии соединения запрос не делается вовсе: приложение
+ * сразу уходит в оффлайн-режим и показывает то, что уже сохранено на устройстве.
+ * -------------------------------------------------------------------------------------- */
+
+// ✓ Нет сохранённого расписания — ждём чуть дольше, есть — почти не ждём
+const SHEDULE_FETCH_TIMEOUT = 10000;   // расписания на устройстве нет
+const SHEDULE_REFRESH_TIMEOUT = 4000;  // расписание уже есть, показывать есть что
+
+// ✓ Есть ли подключение к интернету
+function isNetworkOnline() {
+  try { return navigator.onLine !== false; } catch (_) { return true; }
+}
+window.isNetworkOnline = isNetworkOnline;
+
+/**
+ * ✓ Запрос с ограничением по времени.
+ * Отменённый по таймауту запрос не висит в фоне и не мешает повторной загрузке.
+ */
+async function fetchWithTimeout(url, options) {
+  const settings = options || {};
+  const timeout = Number(settings.timeout) > 0 ? Number(settings.timeout) : SHEDULE_FETCH_TIMEOUT;
+  const requestOptions = Object.assign({}, settings);
+  delete requestOptions.timeout;
+
+  // ✓ Отмена + гонка по времени: страница дождётся ответа не дольше лимита,
+  //   даже если запрос «повис» и не отменяется сам (или браузер старый).
+  let timer = 0;
+  let controller = null;
+  if (typeof AbortController === 'function') {
+    controller = new AbortController();
+    requestOptions.signal = controller.signal;
+  }
+  const attempt = Promise.resolve().then(() => fetch(url, requestOptions));
+  try {
+    return await Promise.race([
+      attempt,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          if (controller) { try { controller.abort(); } catch (_) { /* уже отменён */ } }
+          reject(new Error('время ожидания ответа истекло'));
+        }, timeout);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    // ✓ Отказ после истечения лимита никому не нужен — гасим, чтобы не сыпало в консоль
+    attempt.catch(() => {});
+  }
+}
+window.fetchWithTimeout = fetchWithTimeout;
+
+// ✓ Состояние последней загрузки расписания: ok | offline | error
+const sheduleLoadStatus = new Map();
+function setSheduleStatus(sheduleID, sheduleType, status, details) {
+  sheduleLoadStatus.set(`${sheduleType || 'group'}:${sheduleID}`, { status, details: details || '' });
+}
+window.getSheduleStatus = (sheduleID, sheduleType) => {
+  const record = sheduleLoadStatus.get(`${sheduleType || 'group'}:${sheduleID}`);
+  return record ? record.status : 'unknown';
+};
+window.getSheduleStatusDetails = (sheduleID, sheduleType) => {
+  const record = sheduleLoadStatus.get(`${sheduleType || 'group'}:${sheduleID}`);
+  return record ? record.details : '';
+};
+
 // ✓ Парсер ICS календаря с сайта ЕЙОС КГУ
 class ICSParser {
   constructor() {
@@ -31,14 +101,20 @@ class ICSParser {
   }
 
   // ✓ Получение ICS календаря расписания: обычный запрос по ссылке и разбор ответа
-  async fetch(url) {
+  async fetch(url, options) {
+    const timeout = Number(options && options.timeout) > 0 ? Number(options.timeout) : undefined;
     if (!url) {
       window.lastSheduleFetchError = 'ссылка на расписание не собралась';
-      console.warn('Ссылка на расписание не собралась');
-      return undefined;
+      if (DEBUG_MODE) console.warn('Ссылка на расписание не собралась');
+      throw new Error('ссылка на расписание не собралась');
+    }
+    // ✓ Нет соединения — даже не стучимся: страница должна открыться сразу
+    if (!isNetworkOnline()) {
+      window.lastSheduleFetchError = 'нет подключения к интернету';
+      throw new Error('нет подключения к интернету');
     }
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url, { timeout });
       if (!response.ok) throw new Error(`сервер ответил ${response.status}`);
       window.lastSheduleFetchError = '';
       return this.parse(await response.text());
@@ -274,15 +350,17 @@ async function loadLocalShedule(sheduleID, sheduleType) {
   if (!sheduleID || !sheduleType) { 
     throw new Error('Данные для загрузки расписания объявлены неверным образом'); 
   }
+  let timer = 0;
   try {
     const storage = getStorage(sheduleType);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Load timeout')), 10000)
-    );
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Load timeout')), 10000);
+    });
     const loadedData = await Promise.race([
       storage.load(sheduleID), // Передаем sheduleID как ключ
       timeoutPromise
     ]);
+    clearTimeout(timer);
     if (loadedData === null || loadedData === undefined) {
       if (DEBUG_MODE) console.warn(`Данные ${sheduleID} не найдены в локальной памяти`);
       return undefined;
@@ -291,6 +369,7 @@ async function loadLocalShedule(sheduleID, sheduleType) {
     if (DEBUG_MODE) console.log(`Загруженное расписание ${sheduleID}:`, parsedData);
     return parsedData ?? [];
   } catch (error) {
+    clearTimeout(timer);
     if (DEBUG_MODE) console.warn(`Ошибка загрузки ${sheduleID}:`, error.message);
     return undefined;
   }
@@ -301,18 +380,21 @@ async function saveLocalShedule(inputShedule, sheduleID, sheduleType) {
   if (!inputShedule || !sheduleID || !sheduleType) { 
     throw new Error('Данные для сохранения расписания объявлены неверным образом'); 
   }
+  let timer = 0;
   try {
     const storage = getStorage(sheduleType);
     const stringedShedule = JSON.stringify(inputShedule);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Save timeout')), 10000)
-    );
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Save timeout')), 10000);
+    });
     await Promise.race([
       storage.save(sheduleID, stringedShedule), // Передаем sheduleID как ключ
       timeoutPromise
     ]);
+    clearTimeout(timer);
     if (DEBUG_MODE) console.log(`✓ Расписание ${sheduleID} успешно сохранено`);
   } catch (error) {
+    clearTimeout(timer);
     if (DEBUG_MODE) console.warn(`Ошибка сохранения данных ${sheduleID}:`, error.message);
     throw new Error(`Ошибка сохранения данных: ${error.message}`);
   }
@@ -446,20 +528,31 @@ async function fetchShedule(sheduleID, sheduleType) {
   }
 
   let newShedule;
+  const online = isNetworkOnline();
+  // ✓ Если расписание уже есть — ждём сервер совсем недолго: показывать есть что
+  const requestTimeout = oldShedule ? SHEDULE_REFRESH_TIMEOUT : SHEDULE_FETCH_TIMEOUT;
   try { // ✓ Попытка обновить данные с сервера
+    if (!online) throw new Error('нет подключения к интернету');
     const parser = new ICSParser();
     const sheduleLink = getSheduleLink(sheduleType, sheduleID);
-    newShedule = await parser.fetch(sheduleLink);
+    newShedule = await parser.fetch(sheduleLink, { timeout: requestTimeout });
     if (!newShedule || newShedule.length === 0 || !Array.isArray(newShedule)) {
       newShedule = undefined;
       throw new Error('Не получилось соединиться с сервером или формат расписания на сервере неверен');
     }
     if (DEBUG_MODE) console.log('Удалось сделать запрос и получить расписание: ', newShedule);
+    setSheduleStatus(sheduleID, sheduleType, 'ok');
   } catch (error) { // Если пришел пустой массив
+    newShedule = undefined;
+    const details = (error && error.message) ? error.message : String(error);
+    setSheduleStatus(sheduleID, sheduleType, online ? 'error' : 'offline', details);
     if (DEBUG_MODE) console.warn('Ошибка при загрузке расписания с сервера, используется файл локального сохранения', error);
   }
 
-  if (!newShedule && !oldShedule) { console.warn('Без интернета первый раз зашел в приложение, ужас что говорить :/'); return undefined; }
+  if (!newShedule && !oldShedule) {
+    if (DEBUG_MODE) console.warn('Расписания нет ни на сервере, ни на устройстве');
+    return undefined;
+  }
   let mergedShedule;
   try { // ✓ Слияние двух расписаний
     if (!newShedule) {
@@ -471,17 +564,17 @@ async function fetchShedule(sheduleID, sheduleType) {
     }
     if (DEBUG_MODE) console.log({ mergedShedule });
   } catch (error) {
-    console.warn('Этот этап невозможно крашнуть');
+    if (DEBUG_MODE) console.warn('Ошибка слияния расписаний:', error && error.message ? error.message : error);
   }
 
   // ✓ Сохраняем слитое расписание в локальное хранилище
   try {
     await saveLocalShedule(mergedShedule, sheduleID, sheduleType);
   } catch (error) {
-    console.log('Тебе прям реально не везет :(', error);
+    if (DEBUG_MODE) console.warn('Не удалось сохранить расписание на устройстве:', error && error.message ? error.message : error);
     return mergedShedule;
   }
-  console.log('Расписание успешно сохранено и обновлено');
+  if (DEBUG_MODE) console.log('Расписание успешно сохранено и обновлено');
   return mergedShedule;
 }
 
@@ -510,6 +603,145 @@ function escapeSheduleText(value) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+/* -----------------------------------------------------------------------------------------
+ * ✓ Живой блок «текущая и следующая пара»
+ *
+ * Раньше за временем следила каждая карточка: при наступлении пары она скрывалась, через
+ * полсекунды удалялась и перерисовывала страницу расписания целиком. Из-за этого начавшаяся
+ * пара на мгновение пропадала, просмотр недели переключался на день, а после окончания пары
+ * следующая пара не становилась текущей (она и оставалась «следующей»).
+ * Теперь блоком управляет один таймер — ScheduleLiveTrack: он обновляет отсчёт на карточках
+ * и пересобирает только сам блок, когда текущая или следующая пара меняется.
+ * -------------------------------------------------------------------------------------- */
+
+// ✓ Подпись состояния блока: по ней таймер понимает, что пора пересобрать карточки
+function liveStateSignature(state) {
+  if (!state) return '';
+  const itemKey = (item) => {
+    if (!item) return '-';
+    const event = item.event || {};
+    const title = String(event.summary || event.title || '');
+    return `${item.kind}:${item.start.getTime()}:${item.end.getTime()}:${title}`;
+  };
+  return [
+    itemKey(state.current),
+    (state.extraCurrent || []).map(itemKey).join('+'),
+    itemKey(state.next),
+  ].join('|');
+}
+
+// ✓ Собрать карточку пары или события
+function buildLiveItemElement(renderer, item, isNext) {
+  if (!item || !renderer) return undefined;
+  if (item.kind === 'event') return renderer.createDayEventNoticeElement(item.event, isNext);
+  return renderer.createDayEventElement(item.event, isNext);
+}
+
+// ✓ Пересобрать содержимое блока текущих пар, вернуть подпись состояния
+function fillScheduleLiveBlock(block, renderer) {
+  if (!block) return '';
+  const state = renderer && typeof renderer.getDayEventState === 'function'
+    ? renderer.getDayEventState()
+    : { current: null, extraCurrent: [], next: null };
+  const signature = liveStateSignature(state);
+  const nodes = [];
+  const push = (node) => { if (node) nodes.push(node); };
+  push(buildLiveItemElement(renderer, state.current, false));
+  (state.extraCurrent || []).forEach((item) => push(buildLiveItemElement(renderer, item, false)));
+  push(buildLiveItemElement(renderer, state.next, true));
+  if (nodes.length === 0) nodes.push(buildNoClassesBlock('В ближайшее время пар не будет, можете отдохнуть)'));
+  block.innerHTML = '';
+  nodes.forEach((node) => block.appendChild(node));
+  return signature;
+}
+
+// ✓ Текущий режим просмотра расписания (день или неделя)
+function currentScheduleViewType() {
+  const weekButton = document.getElementById('shedule-week');
+  return weekButton && weekButton.classList.contains('selected') ? 'week' : 'day';
+}
+
+// ✓ Перерисовать расписание, сохранив место прокрутки
+function rerenderScheduleInPlace(type) {
+  const scrollNode = typeof getSheduleScrollContainer === 'function' ? getSheduleScrollContainer() : null;
+  const top = scrollNode ? scrollNode.scrollTop : 0;
+  if (typeof changeSheduleTypeContent === 'function') changeSheduleTypeContent(type || currentScheduleViewType());
+  const actualNode = typeof getSheduleScrollContainer === 'function' ? getSheduleScrollContainer() : null;
+  if (actualNode && scrollNode) actualNode.scrollTop = top;
+}
+
+// ✓ Подключить общий таймер к блоку текущих пар
+function attachScheduleLiveTrack(container, block, renderer, endedProbe) {
+  if (typeof ScheduleLiveTrack === 'undefined' || !ScheduleLiveTrack) return;
+  ScheduleLiveTrack.attach(container, block, renderer, endedProbe);
+}
+
+const ScheduleLiveTrack = {
+  entries: new Map(),
+  period: 1000,
+
+  // ✓ Один таймер на контейнер расписания
+  attach(container, block, renderer, endedProbe) {
+    if (!container || !block || !renderer) return;
+    this.detach(container);
+    const probe = typeof endedProbe === 'function' ? endedProbe : null;
+    const entry = {
+      container, block, renderer,
+      signature: fillScheduleLiveBlock(block, renderer),
+      endedProbe: probe,
+      ended: probe ? Boolean(probe(renderer.sheduleData)) : false,
+      timer: 0,
+    };
+    entry.timer = setInterval(() => { this.tick(entry); }, this.period);
+    this.entries.set(container, entry);
+  },
+
+  detach(container) {
+    const entry = this.entries.get(container);
+    if (!entry) return;
+    clearInterval(entry.timer);
+    this.entries.delete(container);
+  },
+
+  // ✓ Убрать таймеры у контейнеров, которых уже нет на странице
+  prune() {
+    this.entries.forEach((entry, container) => {
+      if (!entry.container.isConnected || !entry.block.isConnected) this.detach(container);
+    });
+  },
+
+  tick(entry) {
+    try {
+      if (!entry.container.isConnected || !entry.block.isConnected) { this.detach(entry.container); return; }
+
+      // ✓ Отсчёт времени на показанных карточках
+      const cards = entry.block.querySelectorAll('.lesson-container');
+      for (let index = 0; index < cards.length; index += 1) {
+        const card = cards[index];
+        if (typeof card.updateLiveValues === 'function') card.updateLiveValues();
+      }
+
+      // ✓ Пара началась или закончилась — пересобираем блок
+      const signature = liveStateSignature(entry.renderer.getDayEventState());
+      if (signature !== entry.signature) entry.signature = fillScheduleLiveBlock(entry.block, entry.renderer);
+
+      // ✓ Закончились ли сегодня пары — перерисовываем расписание, сохраняя прокрутку
+      if (entry.endedProbe) {
+        const ended = Boolean(entry.endedProbe(entry.renderer.sheduleData));
+        if (ended !== entry.ended) {
+          entry.ended = ended;
+          this.detach(entry.container);
+          rerenderScheduleInPlace(currentScheduleViewType());
+        }
+      }
+    } catch (error) {
+      if (DEBUG_MODE) console.warn('Обновление текущей пары остановлено: ', error);
+      this.detach(entry.container);
+    }
+  },
+};
+window.ScheduleLiveTrack = ScheduleLiveTrack;
 
 // ✓ Отрисовка расписания 
 class ScheduleRenderer {
@@ -697,7 +929,7 @@ class ScheduleRenderer {
         <span class="start-time">${extractedData.startTime}</span>
         <span class="end-time">${extractedData.endTime}</span>
       </div>
-      <span style="color: #555; margin-top: 5px; font-size: 13px;">${extractedData.name}</span>
+      <span style="color: var(--text-muted); margin-top: 5px; font-size: 13px;">${extractedData.name}</span>
     </div>
     <div class="event-content">
       <div class="event-header">
@@ -754,19 +986,14 @@ class ScheduleRenderer {
     const pad = (value) => String(value).padStart(2, '0');
     const clock = (date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
-    const now = new Date();
-    let remainingText = '';
-    if (next) {
-      const diff = start - now;
+    // ✓ Оставшееся время пересчитывается общим таймером блока текущих пар
+    const noticeRemainingText = () => {
+      const now = new Date();
+      const diff = Math.max((next ? start - now : end - now), 0);
       const hours = Math.floor(diff / 3600000);
       const minutes = Math.floor((diff % 3600000) / 60000);
-      remainingText = `До начала события: ${pad(hours)}:${pad(minutes)}`;
-    } else {
-      const diff = end - now;
-      const hours = Math.floor(diff / 3600000);
-      const minutes = Math.floor((diff % 3600000) / 60000);
-      remainingText = `До конца события: ${pad(hours)}:${pad(minutes)}`;
-    }
+      return `${next ? 'До начала события' : 'До конца события'}: ${pad(hours)}:${pad(minutes)}`;
+    };
 
     const roleLabel = item.ownerRoleLabel || 'Событие';
     const authorLabel = item.ownerLogin ? `${roleLabel} · ${item.ownerLogin}` : roleLabel;
@@ -792,12 +1019,19 @@ class ScheduleRenderer {
       </div>
       <div class="lesson-progress"><div class="class-progress-header">
         <span class="class-progress-label">${next ? 'Скоро начнётся' : 'Идёт сейчас'}</span>
-        <span class="class-remaining-time">${remainingText}</span>
+        <span class="class-remaining-time">${noticeRemainingText()}</span>
       </div></div>`;
 
     container.addEventListener('click', async () => {
       if (typeof window.openScheduleEvent === 'function') window.openScheduleEvent(item.eventId);
     });
+
+    // ✓ Обновление оставшегося времени по общему таймеру (без своего setInterval)
+    container.updateLiveValues = () => {
+      const remainingSpan = container.querySelector('.class-remaining-time');
+      if (remainingSpan) remainingSpan.textContent = noticeRemainingText();
+    };
+    setTimeout(() => { container.classList.remove('container-hidden'); }, 10);
     return container;
   }
 
@@ -882,43 +1116,18 @@ class ScheduleRenderer {
       await navigateTo('lesson', { event, source: 'schedule' });
     });
 
-    // ✓ Тик обновления оставшегося времени
-    const updateProgress = () => {
-      const nowUpdate = new Date();
-      const startTime = justifyDate(event.startTime);
-      const endTime = justifyDate(event.endTime);
-
-      // ✓ Проверяем, не началась ли пара (для следующей пары)
-      if (nowUpdate > startTime && next === true) {
-        dayEventContainer.classList.add('container-hidden');
-        setTimeout(() => { dayEventContainer.remove(); changeSheduleTypeContent('day'); }, 510);
-        return;
-      }
-
-      // ✓ Проверяем, не закончилась ли пара (для текущей пары)
-      if (nowUpdate > endTime) {
-        dayEventContainer.classList.add('container-hidden');
-        setTimeout(() => { dayEventContainer.remove(); }, 510);
-        return;
-      }
-
-      // ✓ Получаем и применяем данные об оставшемся времени
+    // ✓ Обновление оставшегося времени: вызывается общим таймером блока текущих пар.
+    //   Раньше у каждой карточки был свой setInterval: он сам удалял карточку и перерисовывал
+    //   всю страницу — начавшаяся пара на полсекунды пропадала, а после окончания пары
+    //   следующая пара не становилась текущей. Теперь карточка только показывает время,
+    //   а сменой состояния управляет ScheduleLiveTrack.
+    dayEventContainer.updateLiveValues = () => {
       const extractedUpdateTime = calculateTime(next);
-      const progressBar = container.querySelector(`#class-progress-bar-${next}`);
-      const remainingTimeSpan = container.querySelector(`#class-remaining-time-${next}`);
+      const progressBar = dayEventContainer.querySelector(`#class-progress-bar-${next}`);
+      const remainingTimeSpan = dayEventContainer.querySelector(`#class-remaining-time-${next}`);
       if (progressBar) progressBar.style.width = extractedUpdateTime.progressPercent + '%';
       if (remainingTimeSpan) remainingTimeSpan.textContent = extractedUpdateTime.remainingTime;
     };
-    const intervalId = setInterval(updateProgress, 500);
-    dayEventContainer.dataset.intervalId = intervalId;
-
-    // ✓ Останавливаем обновление при удалении элемента
-    const observer = new MutationObserver(() => {
-      if (!document.contains(dayEventContainer)) {
-        clearInterval(intervalId); observer.disconnect();
-      }
-    });
-    observer.observe(document, { childList: true, subtree: true });
 
     setTimeout(() => { dayEventContainer.classList.remove('container-hidden'); }, 10);
     return dayEventContainer; // ✓ Возвращаем собранный контейнер
@@ -1214,13 +1423,13 @@ class ScheduleRenderer {
     return list.sort((a, b) => a.start - b.start);
   }
 
-  // ✓ Получить элементы текущего и следующего занятия
-  getDayEventElements() {
-    const now = new Date();
-    const timeline = this._timelineForToday(now);
+  // ✓ Какие занятия показывать прямо сейчас (без создания элементов)
+  getDayEventState(now) {
+    const currentTime = now instanceof Date ? now : new Date();
+    const timeline = this._timelineForToday(currentTime);
 
     // ✓ Всё, что идёт прямо сейчас: пара и, возможно, события поверх неё
-    const running = timeline.filter((item) => now >= item.start && now <= item.end);
+    const running = timeline.filter((item) => currentTime >= item.start && currentTime <= item.end);
 
     // Пара остаётся главной карточкой, события при пересечении показываются дополнительно
     const currentLesson = running.find((item) => item.kind === 'lesson') || null;
@@ -1232,28 +1441,26 @@ class ScheduleRenderer {
     const runningEnd = running.length > 0
       ? running.reduce((max, item) => (item.end > max ? item.end : max), running[0].end)
       : null;
-    const next = (runningEnd
-      ? timeline.find((item) => item.start > runningEnd)
-      : timeline.find((item) => item.start > now)) || null;
+    const upcoming = runningEnd
+      ? timeline.filter((item) => item.start > runningEnd)
+      : timeline.filter((item) => item.start > currentTime);
 
-    const build = (item, isNext) => {
-      if (!item) return undefined;
-      if (item.kind === 'event') return this.createDayEventNoticeElement(item.event, isNext);
-      return this.createDayEventElement(item.event, isNext);
-    };
+    // ✓ «Следующее занятие» показываем, только если до него не больше трёх часов
+    const next = upcoming.find((item) => (item.start - currentTime) / (1000 * 60 * 60) <= 3) || null;
 
-    let nextClassElement;
-    if (next) {
-      // ✓ «Следующее занятие» показываем, только если до него не больше трёх часов
-      const hoursUntilNext = (next.start - now) / (1000 * 60 * 60);
-      if (hoursUntilNext <= 3) nextClassElement = build(next, true);
-    }
+    return { current, extraCurrent, next };
+  }
+
+  // ✓ Получить элементы текущего и следующего занятия
+  getDayEventElements() {
+    const state = this.getDayEventState();
+    const build = (item, isNext) => buildLiveItemElement(this, item, isNext);
 
     return {
-      currentClassElement: build(current, false),
+      currentClassElement: build(state.current, false),
       // ✓ Дополнительные текущие события при пересечении с парой
-      extraCurrentElements: extraCurrent.map((item) => build(item, false)).filter(Boolean),
-      nextClassElement,
+      extraCurrentElements: state.extraCurrent.map((item) => build(item, false)).filter(Boolean),
+      nextClassElement: build(state.next, true),
     };
   }
 
@@ -1383,14 +1590,11 @@ class ScheduleRenderer {
       const dayElementContainer = document.createElement('div');
       dayElementContainer.classList.add('relative-container');
 
-      // ✓ Получаем текущую и следующую пары, если их нет, то в ближайщее время нет занятий
-      const DayEventElements = this.getDayEventElements();
-      if (DayEventElements.currentClassElement) dayElementContainer.appendChild(DayEventElements.currentClassElement);
-      (DayEventElements.extraCurrentElements || []).forEach((element) => dayElementContainer.appendChild(element));
-      if (DayEventElements.nextClassElement) dayElementContainer.appendChild(DayEventElements.nextClassElement);
-      if (!DayEventElements.currentClassElement && !DayEventElements.nextClassElement) {
-        dayElementContainer.appendChild(buildNoClassesBlock('В ближайшее время пар не будет, можете отдохнуть)'));
-      }
+      // ✓ Блок «текущая и следующая пара»: его содержимое обновляет общий таймер
+      const liveBlock = document.createElement('div');
+      liveBlock.classList.add('shedule-live-block');
+      dayElementContainer.appendChild(liveBlock);
+      fillScheduleLiveBlock(liveBlock, this);
 
       // ✓ Проверяем, закончились ли сегодня пары
       function isClassesEndedToday(sheduleData) {
@@ -1447,6 +1651,9 @@ class ScheduleRenderer {
       fillerDiv.setAttribute("style", "height: 100px; width: 100%;")
       dayElementContainer.appendChild(fillerDiv);
 
+      // ✓ Подключаем общий таймер: он сам сменит текущую пару на следующую
+      attachScheduleLiveTrack(dayElementContainer, liveBlock, this, isClassesEndedToday);
+
       return dayElementContainer; // ✓ Возвращаем собранный контейнер
 
     } else if (type === 'week') { // Сгенерировать недельное расписание
@@ -1477,6 +1684,250 @@ class ScheduleRenderer {
       return undefined;
     }
   }
+
+  /* ==================================================================================
+   * ✓ Сравнение расписаний двух групп
+   *
+   * Дополнительные виды контейнеров для отдельной подстраницы «Сравнение расписаний»:
+   * слева — упрощённое расписание своей подгруппы, справа — расписание другой группы.
+   * Сравнение работает и внутри дня, и внутри недели; есть два режима — «два столбика»
+   * и «построчно» (сначала своя пара, затем пара другой группы).
+   *
+   * Тег совпадения один на сравнение: показывается самое важное совпадение
+   * (аудитория → этаж → разные корпуса одного института → один корпус разных институтов).
+   * Если у другой группы в это время пары для двух подгрупп — сравнение тройное:
+   * своя пара сравнивается с каждой из них и получает свой тег.
+   * =============================================================================== */
+
+  // ✓ Аудитория: корпус и этаж («Б-407» → корпус «Б», этаж 4; «СДО» — без этажа)
+  static parseRoomInfo(room) {
+    const text = String(room || '').trim();
+    if (!text) return null;
+    const match = text.match(/^([A-Za-zА-Яа-яЁё]+)[\s\-–—]*(\d)?/);
+    const building = match && match[1] ? match[1].toUpperCase() : text.toUpperCase();
+    const floor = match && match[2] ? Number(match[2]) : null;
+    return { building, floor, room: text.toUpperCase() };
+  }
+
+  // ✓ Институт группы: сравнивается и у бакалавров, и у магистров
+  static getGroupInstitute(groupName) {
+    try {
+      if (typeof getGroupInfo === 'function') {
+        const info = getGroupInfo(groupName);
+        if (info && info.institute) return String(info.institute);
+      }
+    } catch (_) { /* метаданные групп недоступны */ }
+    return '';
+  }
+
+  // ✓ Один тег на сравнение: от самого важного совпадения к менее важному
+  static compareVerdict(mine, theirs) {
+    if (!mine || !theirs) return null;
+    const left = ScheduleRenderer.parseRoomInfo(mine.room);
+    const right = ScheduleRenderer.parseRoomInfo(theirs.room);
+    if (!left || !right) return null;
+
+    if (left.room === right.room) return { kind: 'room', text: 'в одной аудитории' };
+
+    const sameBuilding = left.building === right.building;
+    if (sameBuilding && left.floor !== null && left.floor === right.floor) {
+      return { kind: 'floor', text: 'на одном этаже' };
+    }
+
+    const institutesKnown = Boolean(mine.institute) && Boolean(theirs.institute);
+    const sameInstitute = institutesKnown && String(mine.institute) === String(theirs.institute);
+    if (sameInstitute) {
+      // ✓ У групп одного института интересно другое: пары разъезжаются по корпусам
+      if (!sameBuilding) return { kind: 'buildings', text: 'в разных корпусах' };
+      return null;
+    }
+    if (sameBuilding) return { kind: 'building', text: 'в одном корпусе' };
+    return null;
+  }
+
+  // ✓ Занятия по дням: dateKey -> [{ event, start, end }] по времени начала
+  static groupEventsByDay(events) {
+    const map = new Map();
+    (Array.isArray(events) ? events : []).forEach((event) => {
+      if (!event || !event.startTime) return;
+      const start = justifyDate(event.startTime);
+      const end = justifyDate(event.endTime || event.startTime);
+      if (Number.isNaN(start.getTime())) return;
+      const key = ScheduleRenderer.formatDateKey(start);
+      if (!key) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push({ event, start, end });
+    });
+    map.forEach((list) => list.sort((a, b) => a.start - b.start));
+    return map;
+  }
+
+  // ✓ Слоты сравнения: пары, начинающиеся одновременно
+  static buildCompareSlots(myItems, theirItems) {
+    const stamps = new Map();
+    const add = (side, items) => {
+      (items || []).forEach((item) => {
+        const stamp = item.start.getTime();
+        if (!stamps.has(stamp)) stamps.set(stamp, { time: item.start, mine: [], theirs: [] });
+        stamps.get(stamp)[side].push(item);
+      });
+    };
+    add('mine', myItems);
+    add('theirs', theirItems);
+    return Array.from(stamps.values()).sort((a, b) => a.time - b.time);
+  }
+
+  // ✓ Часы и минуты занятия
+  static formatClock(date) {
+    const value = justifyDate(date);
+    if (!value || Number.isNaN(value.getTime())) return '';
+    return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+  }
+
+  // ✓ Название дня недели (понедельник — первый)
+  static getDayName(date) {
+    const value = justifyDate(date);
+    if (!value || Number.isNaN(value.getTime())) return '';
+    return ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'][(value.getDay() + 6) % 7];
+  }
+
+  // ✓ Упрощённая карточка пары: время, предмет, вид занятия, аудитория
+  createCompareCard(event, side) {
+    const data = ScheduleRenderer.extractElementData(event) || {};
+    const card = document.createElement('div');
+    card.className = `compare-card compare-card--${side === 'other' ? 'other' : 'mine'}`;
+
+    const time = document.createElement('div');
+    time.className = 'compare-card-time';
+    time.innerHTML = `<span class="compare-card-start">${escapeSheduleText(data.startTime || '')}</span>`
+      + `<span class="compare-card-end">${escapeSheduleText(data.endTime || '')}</span>`;
+
+    const content = document.createElement('div');
+    content.className = 'compare-card-content';
+    const subject = document.createElement('p');
+    subject.className = 'compare-card-subject';
+    subject.textContent = data.subject || 'Без названия';
+    const details = document.createElement('p');
+    details.className = 'compare-card-details';
+    const subgroup = data.subgroup ? ` · ${escapeSheduleText(data.subgroup)}` : '';
+    details.innerHTML = `${escapeSheduleText(data.name || '')}${subgroup} · <b>${escapeSheduleText(data.room || '')}</b>`;
+    content.appendChild(subject);
+    content.appendChild(details);
+
+    card.appendChild(time);
+    card.appendChild(content);
+    return card;
+  }
+
+  // ✓ Заглушка, когда пары в это время нет
+  createCompareEmptyCard(text) {
+    const card = document.createElement('div');
+    card.className = 'compare-card compare-card--empty';
+    card.textContent = text || 'Пары нет';
+    return card;
+  }
+
+  // ✓ Тег совпадения в стиле админ-тега
+  createCompareTag(verdict) {
+    const tag = document.createElement('span');
+    tag.className = `compare-tag compare-tag--${verdict.kind}`;
+    tag.textContent = `Пары ${verdict.text}`;
+    return tag;
+  }
+
+  // ✓ Строка сравнения: время, свои пары, пары другой группы с тегами
+  createCompareSlot(slot, options) {
+    const settings = options || {};
+    const wrapper = document.createElement('div');
+    wrapper.className = `compare-slot compare-slot--${settings.mode === 'rows' ? 'rows' : 'columns'}`;
+
+    const time = document.createElement('div');
+    time.className = 'compare-slot-time';
+    time.textContent = ScheduleRenderer.formatClock(slot.time);
+    wrapper.appendChild(time);
+
+    const body = document.createElement('div');
+    body.className = 'compare-slot-body';
+    wrapper.appendChild(body);
+
+    const mineColumn = document.createElement('div');
+    mineColumn.className = 'compare-column compare-column--mine';
+    const myItems = slot.mine.length > 0 ? slot.mine : [null];
+    myItems.forEach((item) => {
+      mineColumn.appendChild(item ? this.createCompareCard(item.event, 'mine') : this.createCompareEmptyCard('Пары нет'));
+    });
+    body.appendChild(mineColumn);
+
+    const otherColumn = document.createElement('div');
+    otherColumn.className = 'compare-column compare-column--other';
+    // ✓ Тройное сравнение: свою пару сравниваем с каждой парой другой группы
+    const mainMine = slot.mine[0] || null;
+    const theirItems = slot.theirs.length > 0 ? slot.theirs : [null];
+    theirItems.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'compare-other-row';
+      row.appendChild(item ? this.createCompareCard(item.event, 'other') : this.createCompareEmptyCard('Пары нет'));
+      if (item && mainMine) {
+        const verdict = ScheduleRenderer.compareVerdict(
+          { room: mainMine.event.location, institute: settings.myInstitute },
+          { room: item.event.location, institute: settings.otherInstitute },
+        );
+        if (verdict) row.appendChild(this.createCompareTag(verdict));
+      }
+      otherColumn.appendChild(row);
+    });
+    body.appendChild(otherColumn);
+
+    return wrapper;
+  }
+
+  /**
+   * ✓ Контейнер сравнения расписаний.
+   * options: days, mode ('columns' | 'rows'), myGroup, otherGroup, myEvents, otherEvents
+   */
+  renderCompare(options) {
+    const settings = options || {};
+    const days = Array.isArray(settings.days) && settings.days.length > 0 ? settings.days : [new Date()];
+    const mode = settings.mode === 'rows' ? 'rows' : 'columns';
+    const myInstitute = ScheduleRenderer.getGroupInstitute(settings.myGroup);
+    const otherInstitute = ScheduleRenderer.getGroupInstitute(settings.otherGroup);
+    const myByDay = ScheduleRenderer.groupEventsByDay(settings.myEvents);
+    const otherByDay = ScheduleRenderer.groupEventsByDay(settings.otherEvents);
+    const todayKey = ScheduleRenderer.formatDateKey(new Date());
+
+    const root = document.createElement('div');
+    root.className = `compare-view compare-view--${mode}`;
+
+    days.forEach((day) => {
+      const key = ScheduleRenderer.formatDateKey(day);
+      if (!key) return;
+      const section = document.createElement('div');
+      section.className = 'compare-day';
+
+      if (days.length > 1) {
+        const header = document.createElement('div');
+        header.className = 'compare-day-header' + (key === todayKey ? ' compare-day-header--today' : '');
+        header.innerHTML = `<span class="compare-day-name">${escapeSheduleText(ScheduleRenderer.getDayName(day))}</span>`
+          + `<span class="compare-day-date">${escapeSheduleText(ScheduleRenderer.formatDate(day) || '')}</span>`;
+        section.appendChild(header);
+      }
+
+      const slots = ScheduleRenderer.buildCompareSlots(myByDay.get(key) || [], otherByDay.get(key) || []);
+      if (slots.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'compare-empty';
+        empty.textContent = 'Пар в этот день нет';
+        section.appendChild(empty);
+      } else {
+        slots.forEach((slot) => section.appendChild(this.createCompareSlot(slot, {
+          mode, myInstitute, otherInstitute,
+        })));
+      }
+      root.appendChild(section);
+    });
+
+    return root;
+  }
 }
 
 // ✓ Помощники расписания наружу (нужны ui.js и разделу «Данные приложения»)
@@ -1488,16 +1939,19 @@ window.clearLocalShedules = clearLocalShedules;
 // ✓ Сменить контент расписания
 function changeSheduleTypeContent(type) {
   const sheduleContainer = document.getElementById('shedule-container');
+  if (!sheduleContainer) return; // ✓ Страница расписания не открыта — обновлять нечего
+  // ✓ Таймеры предыдущего блока текущих пар больше не нужны
+  if (typeof ScheduleLiveTrack !== 'undefined' && ScheduleLiveTrack) ScheduleLiveTrack.prune();
   if (groupData[CurrentGroup]) {
     const renderer = new ScheduleRenderer(groupData[CurrentGroup]);
     const sheduleFiller = renderer.render(type);
+    if (!sheduleFiller) return; // ✓ Неизвестный режим — оставляем как есть
     sheduleContainer.innerHTML = '';
     sheduleContainer.appendChild(sheduleFiller);
   } else {
     sheduleContainer.innerHTML = '';
     sheduleContainer.appendChild(generateNoEthernetContainer());
   }
-  
 }
 
 // ✓ Изменение режима просмотра расписания

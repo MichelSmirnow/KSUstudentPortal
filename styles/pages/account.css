@@ -9,7 +9,7 @@
     padding: 5px 10px; margin: 0; margin-top: 9px; border: 0; cursor: pointer; white-space: nowrap;
     border-radius: 10px; transition: all 0.3s ease;
 }
-.account-standartButton { background-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 10px rgba(0, 0, 0, 0.35); }
+.account-standartButton { background: var(--surface); box-shadow: 0 0 10px rgba(0, 0, 0, 0.35); }
 .account-awairButton { background-color: rgba(241, 37, 19, 0.8); box-shadow: 0 0 10px rgba(214, 34, 34, 0.5); color: #FFF !important; }
 /* ✓ Наведение и нажатие больше не меняют размеры: кнопка не «уплывает» из-под курсора */
 .account-awairButton:hover, .account-standartButton:hover { box-shadow: 0 0 12px rgba(0, 0, 0, 0.5); filter: brightness(110%); }
@@ -51,32 +51,44 @@
 .input-wrapper.account-input-wrapper { position: relative; width: 100%; }
 
 .input-wrapper.account-input-wrapper input {
-    width: 100%; box-sizing: border-box; padding: 26px 44px 10px 15px;
-    color: #16233a; font-size: 15.5px; font-weight: 600; line-height: 1.25;
-    background: #FFF; border: 1px solid rgba(120, 145, 175, 0.42); border-radius: 14px;
-    outline: none;
+    width: 100%; box-sizing: border-box; padding: 13px 44px 13px 15px;
+    color: var(--text); font-size: 15.5px; font-weight: 600; line-height: 1.25;
+    background: var(--surface); border: 1px solid rgba(120, 145, 175, 0.42); border-radius: 14px;
+    outline: none; transform: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
-.input-wrapper.account-input-wrapper input::placeholder { color: transparent; }
+/* Подписи над полями в настройках убраны — роль подсказки берёт placeholder */
+.input-wrapper.account-input-wrapper input::placeholder { color: var(--text-muted); opacity: 1; font-weight: 500; }
+/* Состояния валидности из авторизации (плавающий label и циан-подсветка) здесь не нужны */
+.input-wrapper.account-input-wrapper input:focus,
+.input-wrapper.account-input-wrapper input:valid,
+.input-wrapper.account-input-wrapper input.input-preselected {
+    transform: none; padding-top: 13px; padding-bottom: 13px;
+    box-shadow: none;
+}
+.input-wrapper.account-input-wrapper input:focus {
+    border-color: #2f8fd0; box-shadow: 0 0 0 3px rgba(47, 143, 208, 0.14);
+}
 
 .input-wrapper.account-input-wrapper label {
     position: absolute; left: 16px; top: 9px; right: 44px;
     margin: 0; padding: 0; border: 0; background: transparent;
     font-size: 11.5px; font-weight: 700; letter-spacing: 0.2px; text-transform: uppercase;
-    color: #7b8da5; pointer-events: none; transform: none;
+    color: var(--text-muted); pointer-events: none; transform: none;
     transition: color 0.2s ease;
 }
 
 .input-wrapper.account-input-wrapper input:focus {
     border-color: #2f8fd0; box-shadow: 0 0 0 3px rgba(47, 143, 208, 0.14);
 }
-.input-wrapper.account-input-wrapper input:focus + label { color: #1d6fa8; }
+.input-wrapper.account-input-wrapper input:focus + label { color: var(--link); }
 
 /* Выбранные значения (группа, подгруппа, язык) — спокойный светлый фон, как «готовое» поле */
 .input-wrapper.account-input-wrapper input[readonly] {
-    background: #F7FAFE; color: #16233a; cursor: pointer;
+    background: var(--surface-soft); color: var(--text); cursor: pointer;
 }
-.input-wrapper.account-input-wrapper input[readonly]:hover { background: #EFF6FD; }
+.input-wrapper.account-input-wrapper input[readonly]:hover { background: var(--surface-3); }
+.input-wrapper.account-input-wrapper input[readonly]:valid { background: var(--surface-soft); }
 
 .account-password-toggle { color: rgba(30, 60, 90, 0.65); }
 .account-password-toggle:hover { color: rgba(16, 85, 122, 0.95); }
@@ -88,7 +100,7 @@
 }
 .account-text-input {
     width: 100%; box-sizing: border-box; padding: 10px 12px;
-    color: #1b2430; font-size: 15px; background: #FFF;
+    color: var(--text); font-size: 15px; background: #FFF;
     border: 1px solid rgba(90, 110, 140, 0.35); border-radius: 12px; outline: none;
 }
 .account-text-input:focus { border-color: #1677a7; box-shadow: 0 6px 20px rgba(6, 182, 212, 0.18); }
@@ -100,7 +112,7 @@
 
 .profile-card { padding-bottom: 6px; }
 .profile-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
-.profile-name { margin: 0; font-size: 20px; font-weight: 700; color: #16233a; line-height: 1.2; }
+.profile-name { margin: 0; font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.2; }
 .profile-statuses { display: flex; flex-wrap: wrap; gap: 6px; }
 .profile-status {
     padding: 3px 9px; border-radius: 10px; font-size: 12px; font-weight: 700; white-space: nowrap;
@@ -117,26 +129,26 @@
 .profile-status--self { background-color: #455a75; }
 
 .profile-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; margin: 6px 0; font-size: 14px; }
-.profile-row-label { min-width: 150px; color: #64748b; }
-.profile-row-value { flex: 1 1 auto; color: #1f2a3a; font-weight: 600; overflow-wrap: anywhere; }
+.profile-row-label { min-width: 150px; color: var(--text-muted); }
+.profile-row-value { flex: 1 1 auto; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
 
 /* ======== Сворачиваемые категории настроек ======== */
 .profile-section {
     margin-top: 12px; padding: 10px 12px; border-radius: 16px;
-    background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 12px rgba(0, 0, 0, 0.12);
+    background: var(--surface); box-shadow: 0 0 12px rgba(0, 0, 0, 0.12);
 }
-.profile-section > summary { cursor: pointer; font-size: 16px; color: #16233a; line-height: 1.3; }
-.profile-section > summary::marker { color: #4a7fb5; }
+.profile-section > summary { cursor: pointer; font-size: 16px; color: var(--text); line-height: 1.3; }
+.profile-section > summary::marker { color: var(--link); }
 .profile-section-body { padding-top: 8px; }
 .profile-section--danger { background: rgba(255, 245, 245, 0.95); }
-.profile-section--danger > summary { color: #8f1d18; }
+.profile-section--danger > summary { color: var(--danger-text); }
 
 .account-setting-row { padding: 8px 0; border-top: 1px dashed rgba(90, 110, 140, 0.25); }
 .account-setting-row:first-child { border-top: 0; }
 .account-setting-row--inline { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
-.account-setting-title { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #22314a; }
-.account-data-title { margin: 0 0 2px; font-size: 15px; font-weight: 700; color: #22314a; }
-.account-data-description { margin: 4px 0; color: #5a6b80; font-size: 12.5px; line-height: 1.35; }
+.account-setting-title { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--text); }
+.account-data-title { margin: 0 0 2px; font-size: 15px; font-weight: 700; color: var(--text); }
+.account-data-description { margin: 4px 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.35; }
 .account-setting-row .account-standartButton, .account-setting-row .account-awairButton { margin-top: 6px; }
 
 /* ======== Переключатель (заготовка тёмной темы) ======== */
@@ -148,7 +160,7 @@
 .account-data-size {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 8px 12px; border-radius: 12px; background: rgba(74, 127, 181, 0.12);
-    font-size: 14px; color: #22314a;
+    font-size: 14px; color: var(--text);
 }
 .account-data-action { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
 .account-data-text { flex: 1 1 220px; min-width: 0; }
@@ -158,19 +170,47 @@
 .account-groups-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .account-groups-item {
     display: inline-flex; gap: 6px; align-items: center; cursor: pointer;
-    padding: 6px 10px; border-radius: 12px; font-size: 13px; color: #22314a;
-    background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 8px rgba(0, 0, 0, 0.12);
+    padding: 6px 10px; border-radius: 12px; font-size: 13px; color: var(--text);
+    background: var(--surface); box-shadow: 0 0 8px rgba(0, 0, 0, 0.12);
 }
 .account-groups-item.selected { background: rgba(114, 178, 231, 0.35); }
 .account-groups-item input { accent-color: #4a7fb5; }
 
+/* ======== Выбор групп: дерево «тип обучения → институт → курс» ======== */
+.groups-tree { display: flex; flex-direction: column; gap: 8px; }
+.groups-branch {
+    border-radius: 14px; overflow: hidden;
+    background: var(--surface); box-shadow: 0 0 8px rgba(0, 0, 0, 0.08);
+}
+.groups-branch--institute { background: rgba(255, 255, 255, 0.5); box-shadow: none; }
+.groups-branch--course { background: rgba(255, 255, 255, 0.32); box-shadow: none; }
+.groups-branch-head {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 9px 12px; border: none; background: none; cursor: pointer;
+    font-size: 13.5px; font-weight: 600; color: var(--text); text-align: left;
+    transition: background 0.2s ease;
+}
+.groups-branch-head:hover { background: rgba(74, 127, 181, 0.14); }
+.groups-branch-arrow { display: inline-block; font-size: 9px; opacity: 0.7; transition: transform 0.2s ease; }
+.groups-branch--collapsed > .groups-branch-head > .groups-branch-arrow { transform: rotate(-90deg); }
+.groups-branch-count { margin-left: auto; font-size: 11.5px; font-weight: 400; color: var(--text-muted); }
+.groups-branch-count--filled { color: var(--link); font-weight: 600; }
+.groups-branch-body { display: flex; flex-direction: column; gap: 6px; padding: 4px 10px 10px 16px; }
+.groups-branch--collapsed > .groups-branch-body { display: none; }
+.groups-tree-search {
+    width: 100%; padding: 8px 12px; margin-top: 4px;
+    border: none; border-radius: 12px; background: var(--surface);
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.1); color: var(--text); font-size: 13px;
+}
+.groups-tree-search::placeholder { color: var(--text-muted); }
+
 /* ======== Доска достижений ======== */
 .achievements-board {
-    padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.9);
+    padding: 12px; border-radius: 16px; background: var(--surface);
     box-shadow: 0 0 12px rgba(0, 0, 0, 0.12);
 }
-.achievements-title { margin: 0 0 8px; font-size: 17px; font-weight: 700; color: #16233a; }
-.achievements-empty { margin: 0; color: #5a6b80; font-size: 13px; line-height: 1.35; }
+.achievements-title { margin: 0 0 8px; font-size: 17px; font-weight: 700; color: var(--text); }
+.achievements-empty { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.35; }
 .achievements-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .achievement { display: flex; gap: 10px; align-items: flex-start; }
 .achievement-icon {
@@ -179,33 +219,33 @@
 }
 .achievement-icon--fallback {
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px; font-weight: 800; color: #2f6fd0;
+    font-size: 20px; font-weight: 800; color: var(--link);
 }
 .achievement-body { min-width: 0; }
-.achievement-title { margin: 0; font-size: 14.5px; font-weight: 700; color: #16233a; }
-.achievement-date { margin: 1px 0; font-size: 12px; color: #4a7fb5; font-weight: 600; }
-.achievement-hint { margin: 1px 0 0; font-size: 11.5px; line-height: 1.3; color: #64748b; }
+.achievement-title { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--text); }
+.achievement-date { margin: 1px 0; font-size: 12px; color: var(--link); font-weight: 600; }
+.achievement-hint { margin: 1px 0 0; font-size: 11.5px; line-height: 1.3; color: var(--text-muted); }
 
 /* ======== Предосмотр аккаунта: список публикаций ======== */
 .profile-posts { padding-bottom: 8px; }
 .profile-post { padding: 8px 0; border-top: 1px dashed rgba(90, 110, 140, 0.25); }
 .profile-post:first-of-type { border-top: 0; }
-.profile-post-subject { margin: 0; font-size: 14.5px; font-weight: 700; color: #16233a; }
-.profile-post-meta { margin: 2px 0; font-size: 11.5px; color: #4a7fb5; font-weight: 600; }
-.profile-post-text { margin: 0; font-size: 13px; line-height: 1.35; color: #38445a; overflow-wrap: anywhere; }
+.profile-post-subject { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--text); }
+.profile-post-meta { margin: 2px 0; font-size: 11.5px; color: var(--link); font-weight: 600; }
+.profile-post-text { margin: 0; font-size: 13px; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
 
 /* ======== Обратная связь ======== */
-.feedback-page-status { margin: 8px auto; width: calc(100% - 20px); font-size: 14px; color: #4a5b70; }
+.feedback-page-status { margin: 8px auto; width: calc(100% - 20px); font-size: 14px; color: var(--text-muted); }
 .feedback-list { display: flex; flex-direction: column; gap: 12px; width: calc(100% - 20px); margin: 0 auto; }
 .feedback-card {
-    padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.92);
+    padding: 12px; border-radius: 16px; background: var(--surface);
     box-shadow: 0 0 12px rgba(0, 0, 0, 0.12);
 }
 .feedback-card--answered { background: rgba(244, 252, 246, 0.95); }
 .feedback-card-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; justify-content: space-between; }
 .feedback-card-title-box { min-width: 0; flex: 1 1 180px; }
-.feedback-card-title { margin: 0; font-size: 15px; font-weight: 700; color: #16233a; }
-.feedback-card-meta { margin: 2px 0 0; font-size: 11.5px; color: #64748b; }
+.feedback-card-title { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); }
+.feedback-card-meta { margin: 2px 0 0; font-size: 11.5px; color: var(--text-muted); }
 .feedback-author-link { cursor: pointer; filter: brightness(100%); text-shadow: 0 0 10px rgba(47, 111, 208, 0.25); transition: filter 0.2s ease; }
 .feedback-author-link:hover { filter: brightness(115%); }
 .feedback-author-link:active { filter: brightness(92%); }
@@ -217,15 +257,15 @@
 .feedback-status--answered { background-color: #17804b; }
 .feedback-menu-button {
     border: 0; background: none; cursor: pointer; padding: 0 4px; font-size: 20px; line-height: 1;
-    color: #5a6b80; filter: brightness(100%); transition: filter 0.2s ease;
+    color: var(--text-muted); filter: brightness(100%); transition: filter 0.2s ease;
 }
 .feedback-menu-button:hover { filter: brightness(80%); }
 .feedback-message { margin-top: 8px; padding: 8px 10px; border-radius: 12px; max-width: 92%; }
 .feedback-message--question { background: rgba(74, 127, 181, 0.12); }
 .feedback-message--answer { margin-left: auto; background: rgba(23, 128, 75, 0.14); }
-.feedback-message-author { margin: 0 0 2px; font-size: 12.5px; font-weight: 700; color: #17804b; }
-.feedback-message-text { margin: 0; font-size: 13.5px; line-height: 1.35; color: #22314a; overflow-wrap: anywhere; }
-.feedback-message-date { margin: 3px 0 0; font-size: 11px; color: #64748b; }
+.feedback-message-author { margin: 0 0 2px; font-size: 12.5px; font-weight: 700; color: var(--success-text); }
+.feedback-message-text { margin: 0; font-size: 13.5px; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
+.feedback-message-date { margin: 3px 0 0; font-size: 11px; color: var(--text-muted); }
 .feedback-image-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .feedback-image { width: 84px; height: 84px; object-fit: cover; border-radius: 12px; cursor: pointer; box-shadow: 0 0 8px rgba(0, 0, 0, 0.2); }
 .feedback-reply { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -234,7 +274,85 @@
     border: 1px solid rgba(90, 110, 140, 0.35); font-size: 14px; font-family: 'ProductSans-Regular'; outline: none;
 }
 .feedback-reply-input:focus { border-color: #1677a7; box-shadow: 0 6px 20px rgba(6, 182, 212, 0.18); }
-.feedback-card-note { margin: 8px 0 0; font-size: 12px; color: #17804b; font-weight: 600; }
+.feedback-card-note { margin: 8px 0 0; font-size: 12px; color: var(--success-text); font-weight: 600; }
 .feedback-locked { width: calc(100% - 20px); margin: 10px auto; text-align: center; }
 .feedback-composer { width: calc(100% - 20px); margin: 12px auto; }
 .feedback-composer-host { display: flex; flex-direction: column; gap: 10px; }
+
+/* ======== Теги в карточке: тег достижения (градиент) и свой текстовый тег ======== */
+.profile-status--achievement {
+    background-image: linear-gradient(115deg, #7b5cff 0%, #2f8fe0 34%, #23c39a 68%, #e0a12f 100%);
+    background-size: 220% 100%;
+    animation: achievementTagShimmer 5s linear infinite;
+    box-shadow: 0 0 8px rgba(96, 118, 255, 0.45);
+}
+.profile-status--selftag { background-color: #0f8f83; }
+
+@keyframes achievementTagShimmer {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 220% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .profile-status--achievement { animation: none; background-position: 40% 50%; }
+}
+
+/* ======== Подстраница «Достижения и теги» ======== */
+.achievements-page { display: flex; flex-direction: column; gap: 14px; width: 100%; box-sizing: border-box; }
+.achievements-tagbox { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; padding-bottom: 14px; }
+.achievements-current-tag { margin: 0; font-size: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.achievements-selftag-input { max-width: 340px; }
+.achievements-tag-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.achievements-tag-clear { background-color: var(--surface-2) !important; color: var(--text) !important; box-shadow: none !important; }
+/* Сетка на всю ширину экрана */
+.achievements-full { width: 100%; box-sizing: border-box; }
+.achievements-full .achievements-board { width: 100%; padding: 0; background: none; border: 0; box-shadow: none; }
+.achievements-full .achievements-title { display: none; }
+.achievements-full .achievements-list {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px; padding: 0; margin: 0; list-style: none; width: 100%;
+}
+.achievements-full .achievement { box-sizing: border-box; margin: 0; }
+.achievement--locked { opacity: 0.62; filter: saturate(0.35); }
+.achievement-date--locked { color: var(--text-muted) !important; font-weight: 700; }
+
+/* Тег внутри карточки достижения */
+.achievement-tag-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.achievement-tag-chip {
+    padding: 3px 9px; border-radius: 10px; font-size: 12px; font-weight: 700; color: #fff;
+    background-image: linear-gradient(115deg, #7b5cff 0%, #2f8fe0 34%, #23c39a 68%, #e0a12f 100%);
+    background-size: 220% 100%; animation: achievementTagShimmer 5s linear infinite;
+}
+.achievement-tag-chip--active { outline: 2px solid rgba(255, 255, 255, 0.65); outline-offset: 1px; }
+.achievement-tag-chip--locked { background-image: none; background-color: var(--surface-4); animation: none; }
+.achievement-tag-button { padding: 5px 12px !important; font-size: 12.5px !important; margin: 0 !important; }
+.achievement-tag-button--off { background-color: var(--surface-2) !important; color: var(--text) !important; box-shadow: none !important; }
+@media (prefers-reduced-motion: reduce) {
+    .achievement-tag-chip { animation: none; background-position: 40% 50%; }
+}
+
+/* ======== О себе и аватар ======== */
+.profile-avatar-card {
+    width: 64px; height: 64px; border-radius: 50%; object-fit: cover;
+    border: 3px solid var(--accent-border); cursor: zoom-in; flex: 0 0 auto;
+    background: var(--surface-2);
+}
+.profile-avatar-edit { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.profile-avatar-edit-img {
+    width: 72px; height: 72px; border-radius: 50%; object-fit: cover;
+    border: 3px solid var(--accent-border); background: var(--surface-2);
+}
+.profile-avatar-edit-img--empty { opacity: 0.45; }
+.profile-avatar-edit-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.profile-bio {
+    margin: 8px 0 2px; font-size: 14.5px; line-height: 1.5; color: var(--text);
+    white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.profile-status--pending { background-color: #a16207; }
+.profile-status--published { background-color: #12673c; }
+.account-bio-input {
+    width: 100%; box-sizing: border-box; height: 96px; resize: none;
+    padding: 10px 12px; font-family: inherit; font-size: 15px; line-height: 1.45;
+    color: var(--text); background: var(--surface);
+    border: 1px solid rgba(90, 110, 140, 0.35); border-radius: 12px; outline: none;
+}
+.account-bio-input:focus { border-color: #2f8fd0; box-shadow: 0 0 0 3px rgba(47, 143, 208, 0.14); }

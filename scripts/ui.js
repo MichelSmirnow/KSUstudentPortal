@@ -222,7 +222,7 @@ function generateNoEthernetContainer() {
   <p style="font-size: 20px; margin-bottom: -5px;"><b>Нет подключения к интернету</b></p>
   <p>1) Если у вас выключен интернет, попробуйте подключиться к сети и обновить данную страницу</p>
   <p>2) Если у вас выключен VPN или PROXY сервис, попробуйте отключить его и обновить страницу</p>
-  <p style="color: #333 !important; font-size: 13px !important;">Код ошибки (для тестировщиков): ETH0</p>
+  <p style="color: var(--text) !important; font-size: 13px !important;">Код ошибки (для тестировщиков): ETH0</p>
   <img style="width: 100%; margin-top: -30px; filter: drop-shadow(0 10px 5px rgba(2, 8, 61, 0.35));" src="images/supbanners/noEthernet.png" />`;
   return ethernetContainer;
 }
@@ -255,6 +255,39 @@ function generateSheduleUnavailableContainer(options) {
   const link = typeof window.buildSheduleLink === 'function'
     ? window.buildSheduleLink(sheduleType, sheduleID)
     : undefined;
+
+  // ✓ Нет соединения — показываем обычный баннер «нет интернета»: ждать всё равно нечего
+  const status = typeof window.getSheduleStatus === 'function'
+    ? window.getSheduleStatus(cacheKey, sheduleType)
+    : 'unknown';
+  if (status === 'offline' || (typeof window.isNetworkOnline === 'function' && window.isNetworkOnline() === false)) {
+    // ✓ Просто нет соединения — ждать нечего: показываем баннер «нет интернета» и кнопку повтора
+    const offlineBox = document.createElement('div');
+    offlineBox.classList.add('shedule-fallback');
+    offlineBox.appendChild(generateNoEthernetContainer());
+    const offlineActions = document.createElement('div');
+    offlineActions.classList.add('shedule-fallback-actions');
+    const offlineRetry = document.createElement('button');
+    offlineRetry.type = 'button';
+    offlineRetry.classList.add('account-standartButton');
+    offlineRetry.textContent = 'Повторить загрузку';
+    offlineRetry.addEventListener('click', async () => {
+      offlineRetry.disabled = true;
+      offlineRetry.textContent = 'Загружаем…';
+      const fresh = await fetchShedule(sheduleID, sheduleType);
+      if (fresh && Array.isArray(fresh) && fresh.length) {
+        groupData[cacheKey] = fresh;
+        await refreshCurrentPage();
+        return;
+      }
+      offlineRetry.disabled = false;
+      offlineRetry.textContent = 'Повторить загрузку';
+      showNotification('Интернет по-прежнему недоступен', 'error');
+    });
+    offlineActions.appendChild(offlineRetry);
+    offlineBox.appendChild(offlineActions);
+    return offlineBox;
+  }
 
   const container = document.createElement('div');
   container.classList.add('shedule-fallback');
@@ -424,7 +457,7 @@ function generateNoAuthContainer() {
   <b>Эта функция доступна только авторизованным пользователям :/</b>
   <p>Пройдите регистрацию или войдите в уже существующий аккаунт, чтобы использовать все функции приложения</p>
   <button class="guest-button" onclick="(async () => { await window.auth.logout(); auth.endSession(); })();">Перейти на страницу авторизации</button>
-  <p style="color: #333 !important; font-size: 13px !important;">Код ошибки (для тестировщиков): NOAUTH</p>
+  <p style="color: var(--text) !important; font-size: 13px !important;">Код ошибки (для тестировщиков): NOAUTH</p>
   <img style="width: 100%; margin-top: -30px; filter: drop-shadow(0 10px 5px rgba(2, 8, 61, 0.35)); src="images/supbanners/ " />`;
   return noAuthContainer;
 }
@@ -591,7 +624,7 @@ async function generatePageContent(id) {
       <div class="banner-half" style="z-index: 9999 !important;">
         <h3>Кафедра</h3>
         <p>Списки институтов, аудиторий и преподавательский состав</p>
-        <p style="font-size: 12px; color: #777;">Вся информация взята из открытых источников</p>
+        <p style="font-size: 12px; color: var(--text-muted);">Вся информация взята из открытых источников</p>
       </div>
       <img class="banner-half" style="z-index: 1 !important;" src="images/supbanners/kafeder.png"/>
     </div>
@@ -670,6 +703,7 @@ async function generatePageContent(id) {
     function getRandomDescription() {
       const descriptions = [
         "Ходит слух, что 4 курс умудряется прогуливать даже перемены",
+        "Не прогуливай лекции!",
         "Мы преследовали умные мысли. Они не смогли убежать",
         "Три пары хорошо, а две - лучше",
         "Лучше не прогуливать физкультуру. Поверьте.",
@@ -759,11 +793,19 @@ async function generatePageContent(id) {
     </button>
     <button onclick="(async () => { await navigateTo('profile'); })();" class="account-service-button" id="account-service-profile">
       <img src="images/ui/settings.png" />  
-      <div class="account-service-button-subcontainer"><p><b>Настройки</b></p><p style="font-size: 13px;">Профиль, достижения, данные, стилизация</p></div>
+      <div class="account-service-button-subcontainer"><p><b>Настройки</b></p><p style="font-size: 13px;">Профиль, данные, оформление</p></div>
+    </button>
+    <button onclick="(async () => { await navigateTo('achievements'); })();" class="account-service-button" id="account-service-achievements">
+      <img src="images/ui/idea.png" />  
+      <div class="account-service-button-subcontainer"><p><b>Достижения</b></p><p style="font-size: 13px;">Награды и теги профиля</p></div>
     </button>
     <button onclick="(async () => { await navigateTo('feedback'); })();" class="account-service-button" id="account-service-callback">
-      <img src="images/ui/callback.png" />  
+      <img src="images/ui/mail.png" />  
       <div class="account-service-button-subcontainer"><p><b>Обратная связь</b></p><p style="font-size: 13px;">Задать вопрос администрации</p></div>
+    </button>
+    <button onclick="(async () => { await navigateTo('rules'); })();" class="account-service-button" id="account-service-rules">
+      <img src="images/ui/list-checked.png" />  
+      <div class="account-service-button-subcontainer"><p><b>Свод правил</b></p><p style="font-size: 13px;">Как пользоваться приложением</p></div>
     </button>
     `;
     // ✓ Отдельной кнопки «Фидбек» у администраторов здесь больше нет: это та же самая обратная связь.
@@ -801,6 +843,14 @@ async function generatePageContent(id) {
       </div>
       <p class="">Чтобы поддержать разработчика, можете ему лично купить <i>глазированный сырок</i> (а лучше два)</p>
     </div>
+    <div class="info-container" style="display: flex; flex-direction: column; gap: 8px;">
+      <p style="margin: 0;"><b>Донаты</b></p>
+      <div class="flex-container" style="flex-wrap: wrap; gap: 10px;">
+        <button type="button" class="account-standartButton" disabled>DonationsAlerts</button>
+        <button type="button" class="account-standartButton" disabled>DonatePay</button>
+      </div>
+      <p style="margin: 0; font-size: 13px; color: var(--text-muted);">Ссылки на донат-площадки появятся здесь, когда автор их добавит.</p>
+    </div>
     `;
     return generatePageContentContainer;
   } else { // Страница не найдена, ошибка 404
@@ -837,11 +887,13 @@ async function generatePage(id, skip) {
   // ✓ Мгновенное перемещение второстепенного окна вбок и плавное перемещение текущего окна
   if (navPosition[id] > navPosition[navOpened]) { // Если открыта правая страница
     const a = await generatePageContent(id);
+    containerTranslate.innerHTML = ''; // ✓ От прошлого перелистывания ничего не должно остаться
     containerTranslate.appendChild(a);
     containerTranslate.classList.add('right');
     containerMain.classList.add('left');
   } else if (navPosition[id] < navPosition[navOpened]) { // Если открыта левая страница
     const a = await generatePageContent(id);
+    containerTranslate.innerHTML = ''; // ✓ От прошлого перелистывания ничего не должно остаться
     containerTranslate.appendChild(a);
     containerTranslate.classList.add('left');
     containerMain.classList.add('right');
@@ -1354,8 +1406,52 @@ async function generateSubpageContent(id, data) {
     }
     await renderProfileSubpage(generatePageContentContainer, data);
 
+  } else if (id === 'achievements') {   // ✓ Достижения и теги профиля
+    await renderAchievementsSubpage(generatePageContentContainer);
+    return generatePageContentContainer;
+  } else if (id === 'rules') {          // ✓ Свод правил приложения
+    generatePageContentContainer.innerHTML = `
+    <div class="flex-container info-container">
+      <div class="banner-half">
+        <h3>Свод правил</h3>
+        <p>Коротко о главном: чтобы материалы были полезными, а общение — безопасным</p>
+      </div>
+      <img class="banner-half" src="images/supbanners/note.png"/>
+    </div>
+    <div class="rules-page">
+      <section class="rules-card">
+        <h4>1. Публикации материалов и ДЗ</h4>
+        <p>Публикуйте только то, что относится к учёбе: конспекты, задания, задачи, полезные ссылки. Каждая публикация проходит проверку администратора — до неё запись помечена «Не проверено» и видна только автору.</p>
+        <p>Нельзя выдавать чужие работы за свои, публиковать рекламу, оскорбления и личные данные других людей. Ошибку можно исправить — редактирование снова отправляет работу на проверку, а отклонённая публикация удаляется полностью.</p>
+      </section>
+      <section class="rules-card">
+        <h4>2. Жалобы</h4>
+        <p>На любую чужую публикацию можно пожаловаться. После седьмой жалобы запись удаляется автоматически. Ложные жалобы и жалобы на собственные записи — нарушение правил.</p>
+      </section>
+      <section class="rules-card">
+        <h4>3. События и уведомления</h4>
+        <p>События создают только староста, профорг, культорг и администраторы. Пишите по делу: когда, где и что нужно сделать. Спам и дубли удаляются.</p>
+      </section>
+      <section class="rules-card">
+        <h4>4. Заметки</h4>
+        <p>Заметки личные: их видите только вы и только в расписании своей группы. Они работают без интернета и синхронизируются, когда появляется сеть.</p>
+      </section>
+      <section class="rules-card">
+        <h4>5. Аккаунт и блокировки</h4>
+        <p>Один человек — один аккаунт; чужие данные другим пользователям не показывайте. За серьёзные нарушения доступ могут заблокировать — временно или постоянно; история блокировок хранится у администрации.</p>
+        <p>Фото преподавателей, тексты и структура приложения принадлежат автору проекта — используйте их только внутри приложения (подробнее — в разделе «Об авторах»).</p>
+      </section>
+      <section class="rules-card">
+        <h4>6. Техническое</h4>
+        <p>Расписание, ДЗ и отметки хранятся на устройстве и синхронизируются при наличии сети. Ошибки и предложения присылайте через «Обратную связь» — мы читаем всё.</p>
+      </section>
+    </div>
+    `;
+    return generatePageContentContainer;
   } else if (id === 'eventcreate') { // ✓ Создание события или уведомления
     await renderEventCreateSubpage(generatePageContentContainer, data);
+  } else if (id === 'compare') {     // ✓ Сравнение расписаний двух групп
+    await renderCompareSubpage(generatePageContentContainer, data);
   } else if (id === 'eventshow') {   // ✓ Полная информация о событии или уведомлении
     await renderEventShowSubpage(generatePageContentContainer, data);
   } else if (id === 'sdocourse') {   // ✓ Курс СДО: разделы и элементы курса
@@ -1622,6 +1718,428 @@ async function generateSubpageContent(id, data) {
 }
 
 // ✓ Функция генерации перекрывающего окна
+/* ============================ Сравнение расписаний ============================ */
+
+// ✓ Понедельник недели, на которой стоит дата
+function getMondayOfDateSafe(date) {
+  const value = new Date(date || new Date());
+  const day = value.getDay();
+  const diff = value.getDate() - day + (day === 0 ? -6 : 1);
+  value.setDate(diff);
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
+
+// ✓ Список всех групп, кроме своей (для выбора второй группы сравнения)
+function fillCompareGroupSelect(select, myGroup, selectedGroup) {
+  if (!select) return;
+  select.innerHTML = '';
+  Object.keys(groupsID || {}).forEach((education) => {
+    Object.keys(groupsID[education] || {}).forEach((institute) => {
+      Object.keys(groupsID[education][institute] || {}).forEach((course) => {
+        const names = Object.keys(groupsID[education][institute][course] || {});
+        const group = document.createElement('optgroup');
+        group.label = `${education} · ${institute} · ${course}`;
+        names.forEach((name) => {
+          if (String(name) === String(myGroup)) return;
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          if (String(name) === String(selectedGroup)) option.selected = true;
+          group.appendChild(option);
+        });
+        if (group.children.length > 0) select.appendChild(group);
+      });
+    });
+  });
+}
+
+// ✓ Подстраница сравнения расписаний: слева своя подгруппа, справа — другая группа
+async function renderCompareSubpage(container, data) {
+  const own = getOwnGroupData();
+  const myGroup = String(own.ownGroup || CurrentGroup || '');
+  const requested = String((data && data.group) || '');
+  const favorites = typeof getFavoriteGroupList === 'function' ? getFavoriteGroupList() : [];
+  const defaultOther = favorites.find((name) => String(name) !== myGroup) || '';
+
+  const state = {
+    myGroup,
+    otherGroup: requested && requested !== myGroup ? requested : defaultOther,
+    period: 'day',      // «день» или «неделя»
+    mode: 'columns',    // «два столбика» или «построчно»
+    dayIndex: Math.min(5, Math.max(0, (new Date().getDay() + 6) % 7)), // выбранный день недели
+  };
+
+  container.innerHTML = `
+    <div class="flex-container info-container">
+      <div class="banner-half">
+        <h3>Сравнение расписаний</h3>
+        <p>Слева — расписание вашей подгруппы, справа — расписание выбранной группы. Тег подсказывает, где пары совпадают.</p>
+      </div>
+      <img class="banner-half" src="images/supbanners/note.png"/>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-row">
+        <label class="compare-field">
+          <span class="compare-field-label">Моя группа</span>
+          <span class="compare-group-badge" id="compare-my-group"></span>
+        </label>
+        <label class="compare-field">
+          <span class="compare-field-label">Группа для сравнения</span>
+          <select class="compare-select" id="compare-other-group"></select>
+        </label>
+      </div>
+      <div class="flex-container radio-container">
+        <button type="button" id="compare-period-day" class="radio-button selected">День</button>
+        <button type="button" id="compare-period-week" class="radio-button">Неделя</button>
+      </div>
+      <div class="flex-container radio-container">
+        <button type="button" id="compare-mode-columns" class="radio-button selected">Два столбика</button>
+        <button type="button" id="compare-mode-rows" class="radio-button">Построчно</button>
+      </div>
+      <div class="compare-days" id="compare-days"></div>
+    </div>
+    <div id="compare-container"></div>`;
+
+  const myBadge = container.querySelector('#compare-my-group');
+  if (myBadge) myBadge.textContent = `${myGroup} · ${own.ownSubgroup} подгруппа`;
+  const select = container.querySelector('#compare-other-group');
+  fillCompareGroupSelect(select, myGroup, state.otherGroup);
+  const daysBox = container.querySelector('#compare-days');
+  const viewBox = container.querySelector('#compare-container');
+
+  // ✓ Своя подгруппа и свой язык — тот же фильтр, что и на главной странице расписания
+  const filterForMe = (events) => {
+    if (!Array.isArray(events)) return [];
+    try {
+      const probe = new ScheduleRenderer([]);
+      return events.filter((event) => probe.isEventForUser(event));
+    } catch (_) { return events; }
+  };
+
+  const weekDays = () => {
+    const monday = getMondayOfDateSafe(new Date());
+    const list = [];
+    for (let index = 0; index < 6; index += 1) {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + index);
+      list.push(day);
+    }
+    return list;
+  };
+
+  const buildDayButtons = () => {
+    if (!daysBox) return;
+    daysBox.innerHTML = '';
+    const list = weekDays();
+    const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+    list.forEach((day, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+      const names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+      button.className = 'compare-day-button' + (index === state.dayIndex ? ' selected' : '') + (key === todayKey ? ' today' : '');
+      button.innerHTML = `<span class="compare-day-button-name">${names[index] || ''}</span><span class="compare-day-button-date">${String(day.getDate()).padStart(2, '0')}.${String(day.getMonth() + 1).padStart(2, '0')}</span>`;
+      button.addEventListener('click', () => {
+        state.dayIndex = index;
+        buildDayButtons();
+        renderView();
+      });
+      daysBox.appendChild(button);
+    });
+  };
+
+  const showMessage = (text) => {
+    if (!viewBox) return;
+    viewBox.innerHTML = '';
+    const message = document.createElement('p');
+    message.className = 'compare-empty';
+    message.textContent = text;
+    viewBox.appendChild(message);
+  };
+
+  const renderView = async () => {
+    if (!viewBox) return;
+    const offline = typeof window.isNetworkOnline === 'function' && window.isNetworkOnline() === false;
+    // ✓ Та же схема, что и на главной: нет сохранённого расписания и нет сети — сразу баннер,
+    //   есть сохранённое — показываем его и не ждём сервер
+    if (!Array.isArray(groupData[state.otherGroup]) || !Array.isArray(groupData[state.myGroup])) {
+      const missing = !Array.isArray(groupData[state.otherGroup]) ? state.otherGroup : state.myGroup;
+      viewBox.innerHTML = '';
+      // ✓ Всегда говорим прямо, какая группа не загрузилась, а при отсутствии
+      //   интернета — показываем и сообщение, и стандартный баннер из пункта 1
+      const message = document.createElement('p');
+      message.className = 'compare-empty';
+      message.textContent = missing
+        ? `Расписание группы ${missing} загрузить не удаётся`
+        : 'Выберите группу для сравнения';
+      viewBox.appendChild(message);
+      if (offline) viewBox.appendChild(generateNoEthernetContainer());
+      return;
+    }
+    const myEvents = filterForMe(groupData[state.myGroup] || []);
+    const otherEvents = groupData[state.otherGroup] || [];
+    const days = state.period === 'week' ? weekDays() : [weekDays()[state.dayIndex]];
+    try {
+      const renderer = new ScheduleRenderer(myEvents);
+      const view = renderer.renderCompare({
+        days,
+        mode: state.mode,
+        myGroup: state.myGroup,
+        otherGroup: state.otherGroup,
+        myEvents,
+        otherEvents,
+      });
+      viewBox.innerHTML = '';
+      viewBox.appendChild(view);
+    } catch (error) {
+      showMessage('Не удалось построить сравнение');
+      if (DEBUG_MODE) console.warn('Ошибка сравнения расписаний:', error);
+    }
+  };
+
+  const loadGroup = async (name) => {
+    if (!name) return;
+    if (groupData[name]) return;
+    try {
+      groupData[name] = await fetchShedule(name, 'group');
+    } catch (error) {
+      if (DEBUG_MODE) console.warn('Не удалось загрузить расписание группы:', error && error.message);
+    }
+  };
+
+  if (select) {
+    select.addEventListener('change', async () => {
+      state.otherGroup = String(select.value || '');
+      await loadGroup(state.otherGroup);
+      renderView();
+    });
+  }
+
+  const dayButton = container.querySelector('#compare-period-day');
+  const weekButton = container.querySelector('#compare-period-week');
+  if (dayButton && weekButton) {
+    dayButton.addEventListener('click', () => {
+      state.period = 'day';
+      dayButton.classList.add('selected');
+      weekButton.classList.remove('selected');
+      if (daysBox) daysBox.classList.remove('hidden');
+      renderView();
+    });
+    weekButton.addEventListener('click', () => {
+      state.period = 'week';
+      weekButton.classList.add('selected');
+      dayButton.classList.remove('selected');
+      if (daysBox) daysBox.classList.add('hidden');
+      renderView();
+    });
+  }
+
+  const columnsButton = container.querySelector('#compare-mode-columns');
+  const rowsButton = container.querySelector('#compare-mode-rows');
+  if (columnsButton && rowsButton) {
+    columnsButton.addEventListener('click', () => {
+      state.mode = 'columns';
+      columnsButton.classList.add('selected');
+      rowsButton.classList.remove('selected');
+      renderView();
+    });
+    rowsButton.addEventListener('click', () => {
+      state.mode = 'rows';
+      rowsButton.classList.add('selected');
+      columnsButton.classList.remove('selected');
+      renderView();
+    });
+  }
+
+  buildDayButtons();
+  await Promise.all([loadGroup(state.myGroup), loadGroup(state.otherGroup)]);
+  renderView();
+  return container;
+}
+
+/**
+ * ✓ Подстраница «Достижения»: вся сетка во всю ширину + редактор тегов.
+ * Текстовый тег и тег достижения взаимоисключающи; оба хранятся в аккаунте.
+ */
+async function renderAchievementsSubpage(container) {
+  const user = window.auth.getCurrentUser();
+  if (!user) {
+    container.innerHTML = '<div class="info-container"><p><b>Войдите в аккаунт</b></p>'
+      + '<p>Достижения и теги показываются авторизованным студентам.</p></div>';
+    return container;
+  }
+
+  const profile = await loadProfileData(user);
+  const account = profile.account || {};
+  const state = {
+    key: String(account.achievementTagKey || ''),
+    selfTag: String(account.selfTag || ''),
+    achievements: account.achievements || [],
+    meta: account.achievementsMeta || {},
+  };
+
+  const banner = document.createElement('div');
+  banner.className = 'flex-container info-container';
+  banner.innerHTML = `
+    <div class="banner-half">
+      <h3>Достижения и теги</h3>
+      <p>Собирайте награды за активность и подписывайте профиль тегом — своим или за достижение</p>
+    </div>
+    <img class="banner-half" src="images/ui/idea.png"/>`;
+  container.appendChild(banner);
+
+  const page = document.createElement('div');
+  page.className = 'achievements-page';
+  container.appendChild(page);
+
+  // --- блок «мой тег» ---
+  const tagBox = document.createElement('div');
+  tagBox.className = 'info-container achievements-tagbox';
+  page.appendChild(tagBox);
+
+  const drawTagBox = () => {
+    tagBox.innerHTML = '';
+    const title = document.createElement('p');
+    title.className = 'account-data-title';
+    title.textContent = 'Мой тег';
+    const hint = document.createElement('p');
+    hint.className = 'account-data-description';
+    hint.textContent = 'Короткая подпись (до 24 символов) рядом с вашими публикациями. '
+      + 'Свой тег и тег достижения нельзя включить одновременно — один заменяет другой. '
+      + 'Админский тег и статусы (староста, преподаватель и т.д.) работают параллельно.';
+    const current = document.createElement('p');
+    current.className = 'achievements-current-tag';
+    const key = state.key;
+    const found = key && Array.isArray(window.Achievements.LIST)
+      ? window.Achievements.LIST.find((item) => item.key === key) : null;
+    if (found && found.tag) {
+      current.innerHTML = 'Сейчас стоит: <span class="profile-status profile-status--achievement"></span>';
+      current.querySelector('.profile-status--achievement').textContent = String(found.tag);
+    } else if (state.selfTag) {
+      current.innerHTML = 'Сейчас стоит: <span class="profile-status profile-status--selftag"></span>';
+      current.querySelector('.profile-status--selftag').textContent = state.selfTag;
+    } else {
+      current.textContent = 'Сейчас тег не установлен.';
+    }
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'account-text-input achievements-selftag-input';
+    input.maxLength = 24;
+    input.placeholder = 'Например: Всегда на связи';
+    input.value = state.selfTag;
+    input.setAttribute('aria-label', 'Мой текстовый тег');
+
+    const row = document.createElement('div');
+    row.className = 'achievements-tag-actions';
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'account-standartButton';
+    save.textContent = 'Сохранить свой тег';
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'account-standartButton achievements-tag-clear';
+    clear.textContent = 'Убрать тег';
+
+    save.addEventListener('click', async () => {
+      const value = String(input.value || '').trim().slice(0, 24);
+      if (!value) { showNotification('Введите текст тега', 'error'); return; }
+      save.disabled = true;
+      const result = await window.database.updateAccount({ selfTag: value, achievementTagKey: '' });
+      save.disabled = false;
+      if (result && result.success === true) {
+        state.selfTag = value;
+        state.key = '';
+        showNotification('Свой тег сохранён — тег достижения снят', 'success');
+        drawTagBox();
+        drawBoard();
+      } else {
+        showNotification((result && result.message) || 'Не удалось сохранить тег', 'error');
+      }
+    });
+    clear.addEventListener('click', async () => {
+      if (!state.selfTag) { showNotification('Свой тег и так не установлен', 'info'); return; }
+      clear.disabled = true;
+      const result = await window.database.updateAccount({ selfTag: '' });
+      clear.disabled = false;
+      if (result && result.success === true) {
+        state.selfTag = '';
+        showNotification('Свой тег убран', 'success');
+        drawTagBox();
+      } else {
+        showNotification((result && result.message) || 'Не удалось убрать тег', 'error');
+      }
+    });
+    row.appendChild(save);
+    row.appendChild(clear);
+
+    tagBox.appendChild(title);
+    tagBox.appendChild(hint);
+    tagBox.appendChild(current);
+    tagBox.appendChild(input);
+    tagBox.appendChild(row);
+  };
+
+  // --- сетка достижений во всю ширину ---
+  const boardHost = document.createElement('div');
+  boardHost.className = 'achievements-full';
+  page.appendChild(boardHost);
+
+  const drawBoard = () => {
+    boardHost.innerHTML = '';
+    window.Achievements.render(boardHost, {
+      achievements: state.achievements,
+      meta: state.meta,
+      showAll: true,
+      showTags: true,
+      hideTitle: true,
+      equippedKey: state.key,
+      onEquip: async (key) => {
+        const result = await window.database.updateAccount({ achievementTagKey: key, selfTag: '' });
+        if (result && result.success === true) {
+          state.key = key;
+          state.selfTag = '';
+          showNotification('Тег достижения установлен', 'success');
+          drawTagBox();
+          drawBoard();
+        } else {
+          showNotification((result && result.message) || 'Не удалось поставить тег', 'error');
+        }
+      },
+      onUnequip: async () => {
+        const result = await window.database.updateAccount({ achievementTagKey: '' });
+        if (result && result.success === true) {
+          state.key = '';
+          showNotification('Тег достижения убран', 'success');
+          drawTagBox();
+          drawBoard();
+        } else {
+          showNotification((result && result.message) || 'Не удалось убрать тег', 'error');
+        }
+      },
+    });
+  };
+
+  drawTagBox();
+  drawBoard();
+
+  // ✓ Новые достижения проверяем при открытии вкладки — условия считает база
+  if (window.Achievements && typeof window.Achievements.evaluate === 'function') {
+    window.Achievements.evaluate().then((result) => {
+      if (!result) return;
+      state.achievements = result.achievements || state.achievements;
+      state.meta = result.meta || state.meta;
+      if (Array.isArray(result.added) && result.added.length > 0) {
+        showNotification('Новые достижения: ' + result.added.length, 'success');
+      }
+      drawBoard();
+    }).catch(() => { /* не критично */ });
+  }
+
+  return container;
+}
+
 async function generateSubpage(id, options) {
   // ✓ На перекрывающем окне кнопка создания события не нужна
   if (typeof unmountScheduleCreateButton === 'function') unmountScheduleCreateButton();
@@ -1824,6 +2342,23 @@ window.navigateTo = navigateTo;
 window.generatePage = generatePage;
 window.refreshCurrentPage = refreshCurrentPage;
 
+/**
+ * ✓ Выполнить обещание, но не дольше указанного времени.
+ * Без интернета Firestore отвечает очень долго, из-за чего страница висит в загрузке.
+ * Если ответа нет — работаем с тем, что уже сохранено на устройстве.
+ */
+function withDeadline(promise, timeout, fallback) {
+  const limit = Number(timeout) > 0 ? Number(timeout) : 3000;
+  return Promise.race([
+    Promise.resolve(promise).then((value) => (value === undefined ? fallback : value))
+      .catch(() => fallback),
+    new Promise((resolve) => { setTimeout(() => resolve(fallback), limit); }),
+  ]);
+}
+
+// ✓ Данные с сервера нужны, но ждать их страница не обязана
+const NETWORK_DATA_TIMEOUT = 3000;
+
 // ✓ Обработка нажатия системной кнопки возврата по странице
 window.addEventListener("popstate", async function (event) {
   // ✓ Модальные слои (галерея, просмотр и редактирование изображений) перехватывают
@@ -1869,6 +2404,14 @@ const FEEDBACK_LOCK_ABOUT_ANSWER = true;
 // Ключи localStorage
 const FAVORITE_GROUPS_KEY = 'kgFavoriteGroups';
 const THEME_PREFERENCE_KEY = 'kgThemePreference';
+
+// ✓ Применить тему к документу (вызывается и при старте из index.html, и при переключении)
+function applyAppTheme(theme) {
+  const dark = theme === 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const meta = document.getElementById('theme-color-meta');
+  if (meta) meta.setAttribute('content', dark ? '#151a22' : '#f5f5f5');
+}
 
 /* ---------------------------------- Общие помощники ---------------------------------- */
 
@@ -2028,21 +2571,46 @@ function buildHeaderGroupMenu(account) {
   if (old) old.remove();
 
   const groups = getFavoriteGroupList(account);
+  const own = getOwnGroupData();
   const menu = document.createElement('div');
   menu.id = 'header-group-menu';
   menu.className = 'header-group-menu hidden';
   groups.forEach((name) => {
+    // ✓ Строка группы: слева выбор группы для просмотра, справа — сравнение расписаний
+    const row = document.createElement('div');
+    row.className = 'header-group-row';
+
     const item = document.createElement('button');
     item.type = 'button';
-    item.className = 'header-group-item' + (name === CurrentGroup ? ' selected' : '');
-    const own = getOwnGroupData();
+    item.className = 'header-group-item'
+      + (name === CurrentGroup ? ' selected' : '')
+      + (name === own.ownGroup ? ' header-group-item--own' : '');
     item.textContent = name === own.ownGroup ? `${name}(${own.ownSubgroup})` : name;
     item.addEventListener('click', async () => {
       closeHeaderGroupMenu();
       if (name === CurrentGroup) return;
       await changeCurrentGroup(name);
     });
-    menu.appendChild(item);
+    row.appendChild(item);
+
+    // ✓ Свою группу сравнивать не с чем — кнопку сравнения ей не показываем
+    if (String(name) !== String(own.ownGroup)) {
+      const compare = document.createElement('button');
+      compare.type = 'button';
+      compare.className = 'header-group-compare';
+      compare.title = `Сравнить расписание с группой ${name}`;
+      compare.setAttribute('aria-label', `Сравнить расписание с группой ${name}`);
+      compare.innerHTML = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="7" height="16" rx="1.8"/><rect x="14.5" y="4" width="7" height="16" rx="1.8"/><path d="M9.6 10h4.8"/><path d="M12.8 8.4 15.4 10l-2.6 1.6"/><path d="M14.4 14H9.6"/><path d="M11.2 12.4 8.6 14l2.6 1.6"/></svg>';
+      compare.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeHeaderGroupMenu();
+        await navigateTo('compare', { group: name });
+      });
+      row.appendChild(compare);
+    }
+
+    menu.appendChild(row);
   });
   if (groups.length < GROUP_VIEW_LIMIT) {
     const hint = document.createElement('p');
@@ -2055,6 +2623,7 @@ function buildHeaderGroupMenu(account) {
     hint.textContent = `Показаны первые ${GROUP_VIEW_LIMIT} групп из настроек профиля`;
     menu.appendChild(hint);
   }
+
   host.appendChild(menu);
 }
 
@@ -2333,6 +2902,34 @@ function buildStatusBadge(statusKey, text) {
   return badge;
 }
 
+/**
+ * ✓ Какой аватар показывать: владелец видит свой новый (на проверке) сразу,
+ *   остальные — только одобренный («видят все после проверки»).
+ */
+function profileAvatarView(account, isOwner) {
+  const approved = String((account && account.avatarUrl) || '');
+  const pending = String((account && account.avatarPending) || '');
+  if (pending && isOwner) return { url: pending, pending: true };
+  return { url: approved, pending: false };
+}
+
+/**
+ * ✓ Теги пользователя в карточке аккаунта: тег достижения ИЛИ свой текстовый тег
+ *   (взаимоисключающи — одновременно только один), админский тег и статусы
+ *   показываются параллельно с ними.
+ */
+function appendTagBadges(statuses, account) {
+  if (!statuses || !account) return;
+  const key = String(account.achievementTagKey || '');
+  let tagText = '';
+  if (key && window.Achievements && Array.isArray(window.Achievements.LIST)) {
+    const found = window.Achievements.LIST.find((item) => item.key === key);
+    tagText = found && found.tag ? String(found.tag) : '';
+  }
+  if (tagText) statuses.appendChild(buildStatusBadge('achievement', tagText));
+  else if (account.selfTag) statuses.appendChild(buildStatusBadge('selftag', String(account.selfTag)));
+}
+
 /* ============================ Личный кабинет и обратная связь ============================ */
 
 // ✓ Настройки профиля: группа, подгруппа, язык (те же селекторы, что при регистрации)
@@ -2342,8 +2939,7 @@ function buildAccountSelectors(container) {
     <div class="group-selector">
       <div class="form-group">
         <div class="input-wrapper account-input-wrapper">
-          <input type="text" id="account-input-group" readonly required>
-          <label for="account-input-group">Группа</label><span class="focus-border"></span>
+          <input type="text" id="account-input-group" readonly required placeholder="Группа" aria-label="Группа"><span class="focus-border"></span>
         </div>
       </div>
       <div id="account-input-groupDropdown" class="auth-input-dropdown">
@@ -2353,8 +2949,7 @@ function buildAccountSelectors(container) {
     <div class="group-selector">
       <div class="form-group">
         <div class="input-wrapper account-input-wrapper">
-          <input type="text" id="account-input-subgroup" readonly required>
-          <label for="account-input-subgroup">Подгруппа</label><span class="focus-border"></span>
+          <input type="text" id="account-input-subgroup" readonly required placeholder="Подгруппа" aria-label="Подгруппа"><span class="focus-border"></span>
         </div>
       </div>
       <div id="account-input-subgroupDropdown" class="auth-input-dropdown">
@@ -2364,8 +2959,7 @@ function buildAccountSelectors(container) {
     <div class="group-selector">
       <div class="form-group">
         <div class="input-wrapper account-input-wrapper">
-          <input type="text" id="account-input-language" readonly required>
-          <label for="account-input-language">Изучаемый язык</label><span class="focus-border"></span>
+          <input type="text" id="account-input-language" readonly required placeholder="Изучаемый язык" aria-label="Изучаемый язык"><span class="focus-border"></span>
         </div>
       </div>
       <div id="account-input-languageDropdown" class="auth-input-dropdown">
@@ -2396,8 +2990,7 @@ function buildPasswordField(options) {
   group.className = 'form-group account-form-group';
   group.innerHTML = `
     <div class="input-wrapper account-input-wrapper">
-      <input type="password" id="${inputId}" placeholder="${escapeHtmlText(settings.placeholder || '')}">
-      <label for="${inputId}">${escapeHtmlText(settings.label || 'Пароль')}</label><span class="focus-border"></span>
+      <input type="password" id="${inputId}" placeholder="${escapeHtmlText(settings.placeholder || 'Пароль')}" aria-label="${escapeHtmlText(settings.label || 'Пароль')}"><span class="focus-border"></span>
       <button type="button" class="password-toggle account-password-toggle" id="${inputId}-toggle">
         <span class="eye-icon"></span>
       </button>
@@ -2529,82 +3122,256 @@ function buildAppDataSection(container) {
   return { refreshSize };
 }
 
-// ✓ Выбор предпочитаемых групп (не больше семи)
+// ✓ Список групп в виде дерева: тип обучения → институт → курс → группы
+function collectGroupTree() {
+  const compare = (a, b) => String(a).localeCompare(String(b), 'ru');
+  const tree = [];
+  Object.keys(groupsID || {}).forEach((education) => {
+    const institutes = groupsID[education] || {};
+    const instituteNodes = [];
+    Object.keys(institutes).forEach((institute) => {
+      const courses = institutes[institute] || {};
+      const courseNodes = [];
+      Object.keys(courses).forEach((course) => {
+        const names = Object.keys(courses[course] || {}).sort(compare);
+        if (names.length > 0) courseNodes.push({ course, groups: names });
+      });
+      courseNodes.sort((a, b) => compare(a.course, b.course));
+      if (courseNodes.length > 0) instituteNodes.push({ institute, courses: courseNodes });
+    });
+    instituteNodes.sort((a, b) => compare(a.institute, b.institute));
+    if (instituteNodes.length > 0) tree.push({ education, institutes: instituteNodes });
+  });
+  return tree;
+}
+
+// ✓ Какие ветки раскрыты сразу: там, где отмечены группы.
+//   Если ничего не отмечено — раскрыта ветка своей группы.
+function collectExpandedBranches(tree, selectedSet, ownInfo) {
+  const keys = new Set();
+  const openPath = (education, institute, course) => {
+    keys.add(`education:${education}`);
+    keys.add(`institute:${education}|${institute}`);
+    if (course) keys.add(`course:${education}|${institute}|${course}`);
+  };
+
+  let hasSelected = false;
+  tree.forEach((educationNode) => {
+    educationNode.institutes.forEach((instituteNode) => {
+      instituteNode.courses.forEach((courseNode) => {
+        courseNode.groups.forEach((name) => {
+          if (selectedSet.has(name)) {
+            openPath(educationNode.education, instituteNode.institute, courseNode.course);
+            hasSelected = true;
+          }
+        });
+      });
+    });
+  });
+
+  if (!hasSelected && ownInfo) {
+    openPath(ownInfo.education, ownInfo.institute, ownInfo.course);
+    return keys;
+  }
+  if (!hasSelected && tree.length > 0) {
+    const first = tree[0];
+    const institute = first.institutes[0];
+    openPath(first.education, institute.institute, institute.courses[0] ? institute.courses[0].course : '');
+  }
+  return keys;
+}
+
+// ✓ Выбор предпочитаемых групп (не больше семи): дерево «тип обучения → институт → курс»
 function buildFavoriteGroupsEditor(container, account) {
+  const own = getOwnGroupData();
+  const ownInfo = typeof getGroupInfo === 'function' ? getGroupInfo(own.ownGroup) : null;
   const selected = getFavoriteGroupList(account);
+  const chosen = new Set(selected);
+  const checkboxes = [];
+  const branches = [];   // все ветки дерева — для поиска
+  const leaves = [];     // все строки с группами — для поиска
+
   const box = document.createElement('div');
   box.className = 'account-groups-box';
   box.appendChild(Object.assign(document.createElement('p'), {
     className: 'account-data-description',
-    textContent: `Отметьте до ${GROUP_VIEW_LIMIT} групп — они появятся в выпадающем меню в шапке приложения. По умолчанию предлагаются группы вашего института и курса.`,
+    textContent: `Отметьте до ${GROUP_VIEW_LIMIT} групп — они появятся в выпадающем меню в шапке приложения. Список разложен по типу обучения, институту и курсу.`,
   }));
 
-  const own = getOwnGroupData();
-  const info = typeof getGroupInfo === 'function' ? getGroupInfo(own.ownGroup) : null;
-  const education = info ? info.education : Object.keys(groupsID)[0];
-  const institute = info ? info.institute : Object.keys(groupsID[education] || {})[0];
-  const course = info ? info.course : Object.keys((groupsID[education] || {})[institute] || {})[0];
-  const available = (groupsID[education] && groupsID[education][institute] && groupsID[education][institute][course])
-    ? Object.keys(groupsID[education][institute][course])
-    : [];
+  const tree = collectGroupTree();
+  const expanded = collectExpandedBranches(tree, new Set(selected), ownInfo);
+  const counters = new Map();   // ключ ветки -> { node, items }
 
-  const list = document.createElement('div');
-  list.className = 'account-groups-list';
-  const checkboxes = [];
-  available.forEach((name) => {
-    const label = document.createElement('label');
-    label.className = 'account-groups-item' + (selected.includes(name) ? ' selected' : '');
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.value = name;
-    input.checked = selected.includes(name);
-    if (name === own.ownGroup) input.disabled = true; // своя группа всегда остаётся
-    input.addEventListener('change', () => {
-      const checked = checkboxes.filter((node) => node.checked);
-      if (checked.length > GROUP_VIEW_LIMIT) {
-        input.checked = false;
-        showNotification(`Можно выбрать не больше ${GROUP_VIEW_LIMIT} групп`, 'error');
-        return;
-      }
-      label.classList.toggle('selected', input.checked);
-      hint.textContent = `Выбрано ${checkboxes.filter((node) => node.checked).length} из ${GROUP_VIEW_LIMIT}`;
+  // ✓ Поиск группы по названию
+  const search = document.createElement('input');
+  search.type = 'search';
+  search.className = 'groups-tree-search';
+  search.placeholder = 'Поиск группы';
+  box.appendChild(search);
+
+  const treeBox = document.createElement('div');
+  treeBox.className = 'groups-tree';
+  box.appendChild(treeBox);
+
+  // ✓ Ветка дерева: заголовок с треугольником, счётчиком и телом
+  const buildBranch = (title, key, level) => {
+    const branch = document.createElement('div');
+    branch.className = `groups-branch groups-branch--${level}`;
+
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'groups-branch-head';
+    const arrow = document.createElement('span');
+    arrow.className = 'groups-branch-arrow';
+    arrow.textContent = '▼';
+    const caption = document.createElement('span');
+    caption.textContent = title;
+    const counter = document.createElement('span');
+    counter.className = 'groups-branch-count';
+    head.appendChild(arrow);
+    head.appendChild(caption);
+    head.appendChild(counter);
+
+    const body = document.createElement('div');
+    body.className = 'groups-branch-body';
+    branch.appendChild(head);
+    branch.appendChild(body);
+
+    branch.classList.toggle('groups-branch--collapsed', !expanded.has(key));
+    head.addEventListener('click', (event) => {
+      event.preventDefault();
+      branch.classList.toggle('groups-branch--collapsed');
     });
-    checkboxes.push(input);
-    const text = document.createElement('span');
-    text.textContent = name === own.ownGroup ? `${name} (ваша группа)` : name;
-    label.appendChild(input);
-    label.appendChild(text);
-    list.appendChild(label);
+
+    const record = { type: 'branch', key, title, element: branch, body, counter, items: [], children: [] };
+    branches.push(record);
+    counters.set(key, { node: counter, items: record.items });
+    return record;
+  };
+
+  const roots = [];
+  tree.forEach((educationNode) => {
+    const educationBranch = buildBranch(educationNode.education, `education:${educationNode.education}`, 'education');
+    roots.push(educationBranch);
+    educationNode.institutes.forEach((instituteNode) => {
+      const instituteBranch = buildBranch(instituteNode.institute,
+        `institute:${educationNode.education}|${instituteNode.institute}`, 'institute');
+      educationBranch.children.push(instituteBranch);
+      educationBranch.body.appendChild(instituteBranch.element);
+      instituteNode.courses.forEach((courseNode) => {
+        const courseBranch = buildBranch(courseNode.course,
+          `course:${educationNode.education}|${instituteNode.institute}|${courseNode.course}`, 'course');
+        instituteBranch.children.push(courseBranch);
+        instituteBranch.body.appendChild(courseBranch.element);
+        courseNode.groups.forEach((name) => {
+          const label = document.createElement('label');
+          label.className = 'account-groups-item' + (chosen.has(name) ? ' selected' : '');
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.value = name;
+          input.checked = chosen.has(name);
+          if (name === own.ownGroup) { input.disabled = true; input.checked = true; chosen.add(name); }
+          input.addEventListener('change', () => {
+            if (input.checked && !chosen.has(name) && chosen.size >= GROUP_VIEW_LIMIT) {
+              input.checked = false;
+              showNotification(`Можно выбрать не больше ${GROUP_VIEW_LIMIT} групп`, 'error');
+              return;
+            }
+            if (input.checked) chosen.add(name);
+            else chosen.delete(name);
+            label.classList.toggle('selected', input.checked);
+            refreshCounters();
+          });
+          checkboxes.push(input);
+          const text = document.createElement('span');
+          text.textContent = name === own.ownGroup ? `${name} (ваша группа)` : name;
+          label.appendChild(input);
+          label.appendChild(text);
+          courseBranch.body.appendChild(label);
+
+          const leaf = { type: 'leaf', name, label };
+          courseBranch.children.push(leaf);
+          courseBranch.items.push(name);
+          instituteBranch.items.push(name);
+          educationBranch.items.push(name);
+          leaves.push(leaf);
+        });
+      });
+    });
   });
-  box.appendChild(list);
+  roots.forEach((branch) => treeBox.appendChild(branch.element));
 
   const hint = document.createElement('p');
   hint.className = 'account-data-description';
-  hint.textContent = `Выбрано ${selected.length} из ${GROUP_VIEW_LIMIT}`;
   box.appendChild(hint);
+
+  // ✓ Счётчики выбранного в каждой ветке
+  function refreshCounters() {
+    counters.forEach((entry) => {
+      const selectedCount = entry.items.filter((name) => chosen.has(name)).length;
+      entry.node.textContent = selectedCount > 0 ? `выбрано ${selectedCount}` : `${entry.items.length} групп`;
+      entry.node.classList.toggle('groups-branch-count--filled', selectedCount > 0);
+    });
+    hint.textContent = `Выбрано ${chosen.size} из ${GROUP_VIEW_LIMIT}`;
+  }
+  refreshCounters();
+
+  // ✓ Поиск: скрываем лишнее и раскрываем найденные ветки
+  search.addEventListener('input', () => {
+    const query = String(search.value || '').trim().toLowerCase();
+    if (!query) {
+      leaves.forEach((leaf) => { leaf.label.hidden = false; });
+      branches.forEach((branch) => {
+        branch.element.hidden = false;
+        branch.element.classList.toggle('groups-branch--collapsed', !expanded.has(branch.key));
+      });
+      return;
+    }
+    const walk = (branch) => {
+      let visible = 0;
+      branch.children.forEach((child) => {
+        if (child.type === 'leaf') {
+          const found = child.name.toLowerCase().indexOf(query) !== -1;
+          child.label.hidden = !found;
+          if (found) visible += 1;
+        } else {
+          const inner = walk(child);
+          child.element.hidden = inner === 0;
+          child.element.classList.toggle('groups-branch--collapsed', inner === 0);
+          visible += inner;
+        }
+      });
+      branch.element.classList.toggle('groups-branch--collapsed', visible === 0);
+      return visible;
+    };
+    roots.forEach((branch) => { branch.element.hidden = walk(branch) === 0; });
+  });
 
   const save = document.createElement('button');
   save.type = 'button';
   save.className = 'account-standartButton';
   save.textContent = 'Сохранить список групп';
   save.addEventListener('click', async () => {
-    const chosen = checkboxes.filter((node) => node.checked).map((node) => node.value).slice(0, GROUP_VIEW_LIMIT);
+    const ordered = Array.from(chosen).sort((a, b) => {
+      if (a === own.ownGroup) return -1;
+      if (b === own.ownGroup) return 1;
+      return String(a).localeCompare(String(b), 'ru');
+    }).slice(0, GROUP_VIEW_LIMIT);
     save.disabled = true;
-    try { localStorage.setItem(FAVORITE_GROUPS_KEY, JSON.stringify(chosen)); } catch (_) { /* нет доступа */ }
-    const result = await window.database.updateAccount({ favoriteGroups: chosen });
+    try { localStorage.setItem(FAVORITE_GROUPS_KEY, JSON.stringify(ordered)); } catch (_) { /* нет доступа */ }
+    const result = await window.database.updateAccount({ favoriteGroups: ordered });
     save.disabled = false;
     showNotification(result && result.success === true
       ? 'Список групп сохранён'
       : 'Список сохранён локально, облачная синхронизация недоступна', result && result.success === true ? 'success' : 'info');
     const accountResult = await window.database.getAccount(window.auth.getCurrentUser().uid).catch(() => null);
-    buildHeaderGroupMenu(accountResult && accountResult.account ? accountResult.account : { favoriteGroups: chosen });
+    buildHeaderGroupMenu(accountResult && accountResult.account ? accountResult.account : { favoriteGroups: ordered });
   });
   box.appendChild(save);
 
   container.appendChild(box);
   return box;
 }
-
 // ✓ Карточка профиля: логин, почта, статусы, группа, институт, дата регистрации
 function buildProfileCard(container, user, profile) {
   const card = document.createElement('div');
@@ -2627,11 +3394,42 @@ function buildProfileCard(container, user, profile) {
   if (role && STATUS_LABELS[role]) statuses.appendChild(buildStatusBadge(role, STATUS_LABELS[role]));
   else if (!role) statuses.appendChild(buildStatusBadge('student', STATUS_LABELS.student));
   if (profile.userdata.customTag) statuses.appendChild(buildStatusBadge('tag', String(profile.userdata.customTag)));
-  if (profile.userdata.blocked) statuses.appendChild(buildStatusBadge('blocked', 'Аккаунт заблокирован'));
+  appendTagBadges(statuses, profile.account || {});
+  const blockedUntilMs = Number(profile.userdata.blockedUntil) || 0;
+  const blockedActive = profile.userdata.blocked === true
+    && (blockedUntilMs === 0 || blockedUntilMs > Date.now());
+  if (blockedActive) {
+    statuses.appendChild(buildStatusBadge('blocked', blockedUntilMs > 0
+      ? `Заблокирован до ${new Date(blockedUntilMs).toLocaleDateString('ru-RU')}`
+      : 'Аккаунт заблокирован'));
+  }
   head.appendChild(statuses);
-  card.appendChild(head);
 
   const account = profile.account || {};
+  // ✓ Аватар и описание «О себе» (владелец видит свой новый аватар до проверки)
+  const avatarView = profileAvatarView(account, true);
+  if (avatarView.url) {
+    const avatar = document.createElement('img');
+    avatar.className = 'profile-avatar-card';
+    avatar.src = avatarView.url;
+    avatar.alt = 'Аватар';
+    avatar.addEventListener('click', () => {
+      if (window.imageViewer && typeof window.imageViewer.open === 'function') {
+        window.imageViewer.open(avatarView.url, { title: 'Аватар' });
+      }
+    });
+    head.insertBefore(avatar, name);
+    if (avatarView.pending) {
+      statuses.appendChild(buildStatusBadge('pending', 'Аватар на проверке'));
+    }
+  }
+  card.appendChild(head);
+  if (String(account.bio || '').trim()) {
+    const bio = document.createElement('p');
+    bio.className = 'profile-bio';
+    bio.textContent = String(account.bio).trim();
+    card.appendChild(bio);
+  }
   const own = getOwnGroupData();
   const group = account.userGroup || own.ownGroup || '—';
   const subgroup = Number(account.userSubgroup) === 2 ? 2 : (Number(account.userSubgroup) === 1 ? 1 : own.ownSubgroup);
@@ -2676,27 +3474,9 @@ async function renderProfileSubpage(container, options) {
   main.className = 'profile-main-column';
   layout.appendChild(main);
 
-  const achievementsColumn = document.createElement('div');
-  achievementsColumn.className = 'profile-achievements-column';
-  achievementsColumn.id = 'profile-achievements';
-  layout.appendChild(achievementsColumn);
-
+  // ✓ Достижения переехали в отдельную вкладку «Достижения» (панель сервисов):
+  //   в настройках остаётся только карточка аккаунта и секции.
   buildProfileCard(main, user, profile);
-  window.Achievements.render(achievementsColumn, {
-    achievements: profile.account.achievements,
-    meta: profile.account.achievementsMeta,
-  });
-  // Достижения считаем при каждом входе в кабинет: условия проверяет база
-  if (window.Achievements && typeof window.Achievements.evaluate === 'function') {
-    window.Achievements.evaluate().then((result) => {
-      if (result && result.added && result.added.length > 0) {
-        window.Achievements.render(achievementsColumn, {
-          achievements: result.achievements,
-          meta: result.meta,
-        });
-      }
-    }).catch(() => { /* не критично для кабинета */ });
-  }
 
   /* ------------------------------ 1. Оформление ------------------------------ */
   const themeSection = document.createElement('details');
@@ -2712,11 +3492,13 @@ async function renderProfileSubpage(container, options) {
   themeInput.id = 'account-theme-toggle';
   try { themeInput.checked = localStorage.getItem(THEME_PREFERENCE_KEY) === 'dark'; } catch (_) { /* нет доступа */ }
   themeInput.addEventListener('change', () => {
-    try { localStorage.setItem(THEME_PREFERENCE_KEY, themeInput.checked ? 'dark' : 'light'); } catch (_) { /* нет доступа */ }
-    showNotification('Переключение темы появится в одном из следующих обновлений — выбор сохранён', 'info');
+    const theme = themeInput.checked ? 'dark' : 'light';
+    try { localStorage.setItem(THEME_PREFERENCE_KEY, theme); } catch (_) { /* нет доступа */ }
+    applyAppTheme(theme);
+    showNotification(theme === 'dark' ? 'Тёмная тема включена' : 'Светлая тема включена', 'success');
   });
   const themeText = document.createElement('span');
-  themeText.innerHTML = '<b>Тёмная тема</b><br/><span class="account-data-description">Заготовка: сам переключатель уже на месте, оформление добавим позже</span>';
+  themeText.innerHTML = '<b>Тёмная тема</b><br/><span class="account-data-description">Тёмное оформление всего приложения — выбор сохраняется на устройстве</span>';
   themeRow.appendChild(themeInput);
   themeRow.appendChild(themeText);
   themeBox.appendChild(themeRow);
@@ -2811,8 +3593,7 @@ async function renderProfileSubpage(container, options) {
     newEmailField.className = 'form-group account-form-group';
     newEmailField.innerHTML = `
       <div class="input-wrapper account-input-wrapper">
-        <input type="email" id="account-input-newEmail" placeholder="Новая почта">
-        <label for="account-input-newEmail">Новая почта</label><span class="focus-border"></span>
+        <input type="email" id="account-input-newEmail" placeholder="Новая почта" aria-label="Новая почта"><span class="focus-border"></span>
       </div>`;
     const emailButton = document.createElement('button');
     emailButton.type = 'button';
@@ -2902,6 +3683,174 @@ async function renderProfileSubpage(container, options) {
   profileBody.appendChild(logoutRow);
 
   main.appendChild(profileSection);
+
+  /* ------------------------ 3. О себе и аватар (на модерацию) ------------------------ */
+  const aboutSection = document.createElement('details');
+  aboutSection.className = 'profile-section';
+  if (settings.openSection === 'about') aboutSection.open = true;
+  aboutSection.innerHTML = '<summary><b>О себе и аватар</b></summary>';
+  const aboutBody = document.createElement('div');
+  aboutBody.className = 'profile-section-body';
+  aboutSection.appendChild(aboutBody);
+  main.appendChild(aboutSection);
+
+  const aboutAccount = profile.account || {};
+  const approvedAvatar = String(aboutAccount.avatarUrl || '');
+  const pendingAvatar = String(aboutAccount.avatarPending || '');
+  const approvedBio = String(aboutAccount.bio || '');
+  const pendingBio = String(aboutAccount.bioPending || '');
+
+  // --- Аватар ---
+  const avatarRow = document.createElement('div');
+  avatarRow.className = 'account-setting-row';
+  const drawAvatarRow = () => {
+    avatarRow.innerHTML = '<p class="account-setting-title">Аватар</p>';
+    const shown = profileAvatarView(profile.account || {}, true);
+    const wrap = document.createElement('div');
+    wrap.className = 'profile-avatar-edit';
+    const img = document.createElement('img');
+    img.className = 'profile-avatar-edit-img';
+    img.alt = 'Ваш аватар';
+    if (shown.url) img.src = shown.url;
+    else img.classList.add('profile-avatar-edit-img--empty');
+    const metaBox = document.createElement('div');
+    metaBox.className = 'profile-avatar-edit-meta';
+    if (shown.pending) {
+      const badge = document.createElement('span');
+      badge.className = 'profile-status profile-status--pending';
+      badge.textContent = 'Новый аватар на проверке';
+      metaBox.appendChild(badge);
+    } else if (shown.url) {
+      const badge = document.createElement('span');
+      badge.className = 'profile-status profile-status--published';
+      badge.textContent = 'Аватар опубликован';
+      metaBox.appendChild(badge);
+    } else {
+      const note = document.createElement('span');
+      note.className = 'account-data-description';
+      note.textContent = 'Аватар не выбран';
+      metaBox.appendChild(note);
+    }
+    const pick = document.createElement('button');
+    pick.type = 'button';
+    pick.className = 'account-standartButton';
+    pick.textContent = shown.url ? 'Заменить фото' : 'Выбрать фото';
+    pick.addEventListener('click', () => {
+      const picker = window.imagePicker;
+      if (!picker || typeof picker.open !== 'function') {
+        showNotification('Выбор фото недоступен на этом устройстве', 'error');
+        return;
+      }
+      picker.open({
+        max: 1,
+        onConfirm: async (files) => {
+          const file = files && files[0];
+          if (!file) return;
+          try {
+            if (window.PostimagesUploader) {
+              if (!window.PostimagesUploader.ALLOWED_TYPES.test(file.type || '')) {
+                showNotification('Этот файл не является изображением', 'error');
+                return;
+              }
+              if (file.size > window.PostimagesUploader.MAX_FILESIZE) {
+                showNotification('Файл больше 10 МБ', 'error');
+                return;
+              }
+            }
+          } catch (_) { /* проверки недоступны — не мешаем */ }
+          showNotification('Загружаю аватар…', 'info');
+          try {
+            const url = await window.PostimagesUploader.uploadDirect(file);
+            if (!url) throw new Error('сервер не вернул ссылку');
+            const result = await window.database.updateAccount({ avatarPending: url, avatarPendingAt: Date.now() });
+            if (result && result.success === true) {
+              profile.account = { ...profile.account, avatarPending: url, avatarPendingAt: Date.now() };
+              showNotification('Аватар отправлен на проверку', 'success');
+              drawAvatarRow();
+            } else {
+              showNotification((result && result.message) || 'Не удалось сохранить аватар', 'error');
+            }
+          } catch (error) {
+            showNotification('Не удалось загрузить аватар: ' + (error && error.message ? error.message : error), 'error');
+          }
+        },
+      });
+    });
+    metaBox.appendChild(pick);
+    if (shown.url) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'account-standartButton achievements-tag-clear';
+      remove.textContent = 'Убрать аватар';
+      remove.addEventListener('click', async () => {
+        remove.disabled = true;
+        const result = await window.database.updateAccount({ avatarUrl: '', avatarPending: '', avatarPendingAt: 0 });
+        remove.disabled = false;
+        if (result && result.success === true) {
+          profile.account = { ...profile.account, avatarUrl: '', avatarPending: '', avatarPendingAt: 0 };
+          showNotification('Аватар убран', 'success');
+          drawAvatarRow();
+        } else {
+          showNotification((result && result.message) || 'Не удалось убрать аватар', 'error');
+        }
+      });
+      metaBox.appendChild(remove);
+    }
+    wrap.appendChild(img);
+    wrap.appendChild(metaBox);
+    avatarRow.appendChild(wrap);
+  };
+  drawAvatarRow();
+  profileBody.appendChild(avatarRow);
+
+  // --- Описание «О себе» ---
+  const bioRow = document.createElement('div');
+  bioRow.className = 'account-setting-row';
+  bioRow.innerHTML = '<p class="account-setting-title">О себе</p>';
+  const bioInput = document.createElement('textarea');
+  bioInput.className = 'account-bio-input';
+  bioInput.rows = 4;
+  bioInput.maxLength = 500;
+  bioInput.placeholder = 'Пара слов о себе: чем занимаетесь, чем можете помочь…';
+  bioInput.value = approvedBio;
+  bioInput.setAttribute('aria-label', 'Описание профиля');
+  const bioNote = document.createElement('p');
+  bioNote.className = 'account-data-description';
+  const drawBioNote = () => {
+    const pending = String((profile.account && profile.account.bioPending) || '').trim();
+    const current = String((profile.account && profile.account.bio) || '').trim();
+    if (pending && pending !== current) {
+      bioNote.textContent = 'Новое описание отправлено на проверку и появится после одобрения администрацией.';
+    } else if (current) {
+      bioNote.textContent = 'Описание опубликовано и видно другим студентам.';
+    } else {
+      bioNote.textContent = 'Описание видно другим студентам после проверки администрацией.';
+    }
+  };
+  drawBioNote();
+  const bioSave = document.createElement('button');
+  bioSave.type = 'button';
+  bioSave.className = 'account-standartButton';
+  bioSave.textContent = 'Отправить на проверку';
+  bioSave.addEventListener('click', async () => {
+    const value = String(bioInput.value || '').trim().slice(0, 500);
+    if (!value) { showNotification('Введите описание', 'error'); return; }
+    if (value === approvedBio && !pendingBio) { showNotification('Описание не изменилось', 'info'); return; }
+    bioSave.disabled = true;
+    const result = await window.database.updateAccount({ bioPending: value, bioPendingAt: Date.now() });
+    bioSave.disabled = false;
+    if (result && result.success === true) {
+      profile.account = { ...profile.account, bioPending: value, bioPendingAt: Date.now() };
+      showNotification('Описание отправлено на проверку', 'success');
+      drawBioNote();
+    } else {
+      showNotification((result && result.message) || 'Не удалось отправить описание', 'error');
+    }
+  });
+  bioRow.appendChild(bioInput);
+  bioRow.appendChild(bioNote);
+  bioRow.appendChild(bioSave);
+  profileBody.appendChild(bioRow);
 
   /* --------------------------- 3. Данные приложения --------------------------- */
   const dataSection = document.createElement('details');
@@ -3018,9 +3967,31 @@ async function renderUserProfileSubpage(container, data) {
   statuses.appendChild(buildStatusBadge(role && STATUS_LABELS[role] ? role : 'student',
     role && STATUS_LABELS[role] ? STATUS_LABELS[role] : STATUS_LABELS.student));
   if (userdata.customTag) statuses.appendChild(buildStatusBadge('tag', String(userdata.customTag)));
+  appendTagBadges(statuses, account || {});
   if (isMine) statuses.appendChild(buildStatusBadge('self', 'Это вы'));
   head.appendChild(statuses);
+  // ✓ Аватар и описание профиля: виден одобренный аватар (свой новый — до проверки, только владельцу)
+  const viewerAvatar = profileAvatarView(account, Boolean(isMine));
+  if (viewerAvatar.url) {
+    const avatar = document.createElement('img');
+    avatar.className = 'profile-avatar-card';
+    avatar.src = viewerAvatar.url;
+    avatar.alt = 'Аватар';
+    avatar.addEventListener('click', () => {
+      if (window.imageViewer && typeof window.imageViewer.open === 'function') {
+        window.imageViewer.open(viewerAvatar.url, { title: 'Аватар' });
+      }
+    });
+    head.insertBefore(avatar, name);
+    if (viewerAvatar.pending) statuses.appendChild(buildStatusBadge('pending', 'Аватар на проверке'));
+  }
   hero.appendChild(head);
+  if (String(account.bio || '').trim()) {
+    const bio = document.createElement('p');
+    bio.className = 'profile-bio';
+    bio.textContent = String(account.bio).trim();
+    hero.appendChild(bio);
+  }
 
   const own = getOwnGroupData();
   const group = account.userGroup || '';
@@ -3367,9 +4338,18 @@ class AuthProcessor {
     // ✓ События, уведомления и заметки: одно чтение при входе, без постоянных запросов.
     //   После загрузки расписание перерисовывается один раз, чтобы показать события и заметки.
     try {
-      await EventRoles.ensure();
-      const [events] = await Promise.all([EventCenter.ensureLoaded(), NotesCenter.ensureLoaded()]);
-      Promise.resolve(NotesCenter.flushPending()).catch(() => { /* ничего страшного */ });
+      const offline = typeof window.isNetworkOnline === 'function' && window.isNetworkOnline() === false;
+      let events = [];
+      if (!offline) {
+        // ✓ Ждём сервер не дольше трёх секунд: страница уже должна быть на экране
+        const loaded = await withDeadline(Promise.all([
+          EventRoles.ensure(),
+          EventCenter.ensureLoaded(),
+          NotesCenter.ensureLoaded(),
+        ]), NETWORK_DATA_TIMEOUT, null);
+        events = (loaded && Array.isArray(loaded[1])) ? loaded[1] : [];
+        Promise.resolve(NotesCenter.flushPending()).catch(() => { /* ничего страшного */ });
+      }
       if (Array.isArray(events) && events.length > 0 && navOpened === 'nav-shedule'
         && typeof changeSheduleTypeContent === 'function') {
         // ✓ Обновляем только список дней, шапка страницы остаётся одна
@@ -3385,11 +4365,25 @@ class AuthProcessor {
   }
 
   // ✓ Функция завершения сессии и открытия окна авторизации
-  endSession() {
+  async endSession() {
     if (DEBUG_MODE) console.log("🔐 Завершение сессии пользователя");
     AuthProcessor.sessionStarted = false;
     flag.loading = true;
-    groupData = {}; localStorage.clear(); // ✓ Очищаем пользовательские сохраненные данные
+    // ✓ Накопленные отметки ДЗ уходят в Firestore до очистки памяти устройства
+    try {
+      if (typeof window.flushHomeworkCheckpoints === 'function') {
+        await Promise.race([
+          Promise.resolve(window.flushHomeworkCheckpoints()),
+          new Promise((resolve) => { setTimeout(resolve, 1500); }),
+        ]);
+      }
+    } catch (_) { /* отметки останутся на устройстве и уйдут при следующем входе */ }
+    groupData = {}; // ✓ Очищаем пользовательские сохраненные данные, но сохраняем выбранную тему
+    let keptTheme = null;
+    try { keptTheme = localStorage.getItem(THEME_PREFERENCE_KEY); } catch (_) { /* нет доступа */ }
+    localStorage.clear();
+    if (keptTheme) { try { localStorage.setItem(THEME_PREFERENCE_KEY, keptTheme); } catch (_) { /* нет доступа */ } }
+    if (window.HomeworkCheckpointStore) window.HomeworkCheckpointStore.reset();
     window.CurrentGroup = undefined;
     window.CurrentSubgroup = undefined;
     closeHeaderGroupMenu();          // ✓ Прячем выпадающий список групп
@@ -3982,20 +4976,27 @@ const EventCenter = {
       const db = window.database && window.database.db ? window.database.db : null;
       if (!db) { this.loaded = true; return this.list; }
 
+      // ✓ Нет соединения — показываем сохранённые события сразу, без запроса;
+      //   есть соединение, но сервер молчит — ждём не дольше восьми секунд.
+      if (typeof window.isNetworkOnline === 'function' && window.isNetworkOnline() === false) { this.loaded = true; return this.list; }
       try {
-        const snapshot = await db.collection(EVENTS_COLLECTION)
+        const snapshot = await window.waitForNetwork(db.collection(EVENTS_COLLECTION)
           .orderBy('timestamp', 'desc')
           .limit(EVENTS_LIMIT)
-          .get();
-        const items = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data() || {};
-          items.push({ ...data, eventId: data.eventId || doc.id });
-        });
-        this.list = items;
-        writeJsonStorage(EVENTS_CACHE_KEY, items);
+          .get(), 8000, null);
+        if (snapshot) {
+          const items = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data() || {};
+            items.push({ ...data, eventId: data.eventId || doc.id });
+          });
+          this.list = items;
+          writeJsonStorage(EVENTS_CACHE_KEY, items);
+        } else if (DEBUG_MODE) {
+          console.warn('События: сервер не отвечает, показываем сохранённые');
+        }
       } catch (error) {
-        console.warn('Не удалось загрузить события, показываем сохранённые:', error && error.message);
+        if (DEBUG_MODE) console.warn('Не удалось загрузить события, показываем сохранённые:', error && error.message);
       }
 
       this.loaded = true;
@@ -4058,6 +5059,7 @@ const EventCenter = {
   async create(input) {
     const user = window.auth.getCurrentUser();
     if (!user) return { success: false, message: 'Пользователь не авторизован' };
+    if (typeof window.isNetworkOnline === 'function' && window.isNetworkOnline() === false) return { success: false, offline: true, message: 'Нет подключения к интернету: публикация не отправлена' };
     const roles = await EventRoles.ensure();
     if (!roles.canPublish()) return { success: false, message: 'Создавать события могут только старосты, профорги, культорги и администраторы' };
 
@@ -4098,7 +5100,11 @@ const EventCenter = {
     };
 
     try {
-      await window.database.db.collection(EVENTS_COLLECTION).doc(payload.eventId).set(payload);
+      const saved = await window.waitForNetwork(
+        window.database.db.collection(EVENTS_COLLECTION).doc(payload.eventId).set(payload),
+        8000, '__no_answer__'
+      );
+      if (saved === '__no_answer__') return { success: false, message: 'Сервер не отвечает: событие не сохранено' };
     } catch (error) {
       return { success: false, message: `Не удалось сохранить: ${error && error.message ? error.message : error}` };
     }
@@ -4113,6 +5119,7 @@ const EventCenter = {
   async update(eventId, input) {
     const user = window.auth.getCurrentUser();
     if (!user) return { success: false, message: 'Пользователь не авторизован' };
+    if (typeof window.isNetworkOnline === 'function' && window.isNetworkOnline() === false) return { success: false, offline: true, message: 'Нет подключения к интернету: изменения не сохранены' };
     const current = this.list.find((item) => item.eventId === eventId);
     if (!current) return { success: false, message: 'Событие не найдено' };
     if (String(current.ownerUid) !== String(user.uid)) return { success: false, message: 'Изменять может только автор' };
@@ -4132,7 +5139,11 @@ const EventCenter = {
     }
 
     try {
-      await window.database.db.collection(EVENTS_COLLECTION).doc(eventId).update(patch);
+      const saved = await window.waitForNetwork(
+        window.database.db.collection(EVENTS_COLLECTION).doc(eventId).update(patch),
+        8000, '__no_answer__'
+      );
+      if (saved === '__no_answer__') return { success: false, message: 'Сервер не отвечает: изменения не сохранены' };
     } catch (error) {
       return { success: false, message: `Не удалось обновить: ${error && error.message ? error.message : error}` };
     }
@@ -4147,6 +5158,7 @@ const EventCenter = {
   async remove(eventId) {
     const user = window.auth.getCurrentUser();
     if (!user) return { success: false, message: 'Пользователь не авторизован' };
+    if (typeof window.isNetworkOnline === 'function' && window.isNetworkOnline() === false) return { success: false, offline: true, message: 'Нет подключения к интернету: событие не удалено' };
     const current = this.list.find((item) => item.eventId === eventId);
     if (!current) return { success: false, message: 'Событие не найдено' };
     const roles = await EventRoles.ensure();
@@ -4154,7 +5166,11 @@ const EventCenter = {
       return { success: false, message: 'Удалить может только автор или администратор' };
     }
     try {
-      await window.database.db.collection(EVENTS_COLLECTION).doc(eventId).delete();
+      const deleted = await window.waitForNetwork(
+        window.database.db.collection(EVENTS_COLLECTION).doc(eventId).delete(),
+        8000, '__no_answer__'
+      );
+      if (deleted === '__no_answer__') return { success: false, message: 'Сервер не отвечает: событие не удалено' };
     } catch (error) {
       return { success: false, message: `Не удалось удалить: ${error && error.message ? error.message : error}` };
     }
@@ -4168,6 +5184,7 @@ const EventCenter = {
   async report(eventId) {
     const user = window.auth.getCurrentUser();
     if (!user) return { success: false, message: 'Пользователь не авторизован' };
+    if (typeof window.isNetworkOnline === 'function' && window.isNetworkOnline() === false) return { success: false, offline: true, message: 'Нет подключения к интернету: жалоба не отправлена' };
     const current = this.list.find((item) => item.eventId === eventId);
     if (!current) return { success: false, message: 'Событие не найдено' };
     if (String(current.ownerUid) === String(user.uid)) return { success: false, message: 'На своё событие жаловаться нельзя' };
@@ -4178,7 +5195,11 @@ const EventCenter = {
     try {
       // ✓ Сначала фиксируем саму жалобу: правила Firebase разрешают удаление только
       //   после того, как седьмой пожаловавшийся уже записан в reportedBy.
-      await window.database.db.collection(EVENTS_COLLECTION).doc(eventId).update({ reportCount, reportedBy });
+      const saved = await window.waitForNetwork(
+        window.database.db.collection(EVENTS_COLLECTION).doc(eventId).update({ reportCount, reportedBy }),
+        8000, '__no_answer__'
+      );
+      if (saved === '__no_answer__') return { success: false, message: 'Сервер не отвечает: жалоба не отправлена' };
       if (reportCount >= 7) {
         await window.database.db.collection(EVENTS_COLLECTION).doc(eventId).delete();
         this.list = this.list.filter((item) => item.eventId !== eventId);
@@ -4200,10 +5221,24 @@ const EventCenter = {
 
 window.EventCenter = EventCenter;
 window.EventRoles = EventRoles;
+// ✓ Смотрит ли пользователь сейчас расписание своей группы
+//   (заметки показываются только в своей группе на главной странице расписания)
+function isOwnGroupViewed(groupName) {
+  try {
+    const current = String(groupName || (typeof CurrentGroup !== 'undefined' && CurrentGroup) || window.CurrentGroup || '');
+    if (!current) return false;
+    const own = String(getOwnGroupData().ownGroup || '');
+    if (!own) return false;
+    return current === own;
+  } catch (_) { return false; }
+}
+
 window.ScheduleExtras = {
   eventsForDay: (dateKey) => EventCenter.eventsForDay(dateKey),
-  notesForDay: (dateKey) => NotesCenter.buildDayNotes(dateKey),
+  // ✓ Заметки видны только в расписании своей группы
+  notesForDay: (dateKey) => (isOwnGroupViewed() ? NotesCenter.buildDayNotes(dateKey) : null),
 };
+window.isOwnGroupViewed = isOwnGroupViewed;
 window.openScheduleEvent = (eventId) => EventCenter.open(eventId);
 
 /* ------------------------------------------------------------------------------------------
@@ -4238,11 +5273,17 @@ const NotesCenter = {
       const user = window.auth && typeof window.auth.getCurrentUser === 'function' ? window.auth.getCurrentUser() : null;
       const db = window.database && window.database.db ? window.database.db : null;
       if (!user || !db) { this.loaded = true; return this.byDate; }
+
+      // ✓ Без соединения или с молчащим сервером страница не должна ждать: заметки лежат на устройстве
+      if (typeof window.isNetworkOnline === 'function' && window.isNetworkOnline() === false) { this.loaded = true; return this.byDate; }
       try {
-        const snapshot = await db.collection(NOTES_COLLECTION)
+        const snapshot = await window.waitForNetwork(db.collection(NOTES_COLLECTION)
           .where('userId', '==', String(user.uid))
           .limit(NOTES_FETCH_LIMIT)
-          .get();
+          .get(), 8000, null);
+        if (!snapshot) {
+          if (DEBUG_MODE) console.warn('Заметки: сервер не отвечает, работаем только локально');
+        } else {
         const remote = {};
         snapshot.forEach((doc) => {
           const data = doc.data() || {};
@@ -4267,8 +5308,9 @@ const NotesCenter = {
         });
         this.byDate = remote;
         this._saveLocal();
+        }
       } catch (error) {
-        console.warn('Заметки: работаем только локально —', error && error.message);
+        if (DEBUG_MODE) console.warn('Заметки: работаем только локально —', error && error.message);
       }
       this.loaded = true;
       return this.byDate;
@@ -4951,14 +5993,19 @@ window.NoticeBanner = NoticeBanner;
  * Кнопка «Создать событие» на странице расписания
  * ---------------------------------------------------------------------------------------- */
 
+let scheduleCreateToken = 0;
 function mountScheduleCreateButton() {
   const existing = document.getElementById('schedule-create-event');
   if (existing) existing.remove();
+  // ✓ Пока ждём роли, кнопку могли успеть повесить параллельно — токен гасит гонку
+  const token = ++scheduleCreateToken;
   EventRoles.ensure().then((roles) => {
-    if (!roles.canPublish()) return;
+    if (token !== scheduleCreateToken) return;
+    if (roles.canPublish && !roles.canPublish()) return;
     // ✓ Кнопка нужна только на самой странице расписания, поверх — нет
     if (navOpened !== 'nav-shedule') return;
     if (containerUpward && containerUpward.classList.contains('visible')) return;
+    if (document.getElementById('schedule-create-event')) return;
     const button = document.createElement('button');
     button.type = 'button';
     button.id = 'schedule-create-event';
@@ -5036,6 +6083,71 @@ async function refreshAfterPublish(lessonEvent, returnSource) {
 }
 
 const auth = new AuthProcessor();
+/* ✓ Фото из карточек преподавателей (список, поиск, страница преподавателя, пара)
+   открывается в полноэкранном просмотрщике. Перехват на фазе capture, чтобы клик по
+   фото не «уводил» в карточку преподавателя. */
+document.addEventListener('click', (event) => {
+  const target = event && event.target;
+  if (!target || typeof target.closest !== 'function') return;
+  const photo = target.closest('.teacher-image, .materials-teacher');
+  if (!photo) return;
+  const src = photo.getAttribute('src');
+  if (!src || !window.imageViewer || typeof window.imageViewer.open !== 'function') return;
+  if (window.ModalBack && typeof window.ModalBack.size === 'function' && window.ModalBack.size() > 0) return;
+  event.stopPropagation();
+  event.preventDefault();
+  window.imageViewer.open(src, { title: photo.getAttribute('alt') || 'Фото преподавателя' });
+}, true);
+
+/* ✓ Свайп по содержимому: переключение вкладок нижней навигации.
+   Работает только когда открыта обычная страница (не subpage и не модалка),
+   не мешает вертикальному скроллу и внутренним горизонтальным лентам. */
+(function setupSwipeTabs() {
+  const host = document.getElementById('container');
+  if (!host || typeof host.addEventListener !== 'function') return;
+  const SKIP = '.radio-week-container, .sdo-tabs, .gallery, textarea, input, select, [data-no-swipe]';
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+
+  host.addEventListener('touchstart', (event) => {
+    tracking = false;
+    if (!event.touches || event.touches.length !== 1) return;
+    // Модальные слои и открытые subpage перехватывают «назад» сами
+    if (window.ModalBack && typeof window.ModalBack.size === 'function' && window.ModalBack.size() > 0) return;
+    if (containerUpward && containerUpward.classList.contains('visible')) return;
+    const target = event.target;
+    if (target && typeof target.closest === 'function' && target.closest(SKIP)) return;
+    tracking = true;
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+  }, { passive: true });
+
+  host.addEventListener('touchend', (event) => {
+    if (!tracking) return;
+    tracking = false;
+    const end = event.changedTouches && event.changedTouches[0];
+    if (!end) return;
+    const dx = end.clientX - startX;
+    const dy = end.clientY - startY;
+    // Только уверенный горизонтальный свайп (≥70px); вертикальный скролл игнорируем
+    if (Math.abs(dx) < 70 || Math.abs(dy) > 60 || Math.abs(dy) > Math.abs(dx)) return;
+    if (animationInProgress === true) return;
+    const buttons = Array.from(document.querySelectorAll('.nav-element')).filter((node) => node.id);
+    if (buttons.length < 2) return;
+    const index = buttons.findIndex((node) => node.id === navOpened);
+    if (index < 0) return;
+    const next = dx < 0 ? index + 1 : index - 1; // влево — вперёд, вправо — назад
+    if (next < 0 || next >= buttons.length) return;
+    try {
+      const result = generatePage(buttons[next].id);
+      // ✓ Как и клик по кнопке навигации: при сбое страницы анимацию обязательно снимаем,
+      //   иначе последующие переходы (и кликом, и свайпом) перестанут работать
+      if (result && typeof result.catch === 'function') result.catch(() => { animationInProgress = false; });
+    } catch (_) { animationInProgress = false; }
+  }, { passive: true });
+})();
+
 auth.init(); // Когда приложение загружается, первым делом запускаем авторизацию
 
 /* Удаление аккаунта

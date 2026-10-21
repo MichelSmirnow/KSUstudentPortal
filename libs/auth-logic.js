@@ -1,5 +1,27 @@
+/**
+ * ✓ Предел ожидания любого сетевого ответа.
+ * Если сервер молчит (плохая связь, сайт висит) — вместо зависшего промиса возвращается
+ * запасное значение, и страница сразу продолжает работу. Плюс: при отсутствии интернета
+ * запрос даже не делается — соответствующие методы проверяют navigator.onLine сами.
+ */
+window.waitForNetwork = function waitForNetwork(promise, timeout, fallback) {
+  const mark = fallback === undefined ? '__no_answer__' : fallback;
+  let timer = 0;
+  const safe = Promise.resolve(promise).catch(() => mark);
+  return Promise.race([
+    safe,
+    new Promise((resolve) => { timer = setTimeout(() => { resolve(mark); }, timeout || 6000); }),
+  ]).then((value) => { clearTimeout(timer); return value; });
+};
+
 // ✓ Класс для управления авторизацией в Firebase
 class Authentication {
+  // ✓ Нет соединения: сетевые методы сразу возвращают локальный ответ, без запросов
+  static isOffline() {
+    try { return typeof navigator !== 'undefined' && navigator.onLine === false; }
+    catch (_) { return false; }
+  }
+
 
   // ✓ Базовые настройки сервиса авторизации от Firebase
   constructor() {
@@ -100,6 +122,9 @@ class Authentication {
 
   // ✓ Отправить письмо на почту пользователя для ее подтверждения
   async sendEmailVerification() {
+    if (Authentication.isOffline()) {
+      return { success: false, offline: true, message: "Нет подключения к интернету: письмо отправить невозможно" };
+    }
     try {
       const user = this.auth.currentUser;
       if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
@@ -119,7 +144,17 @@ class Authentication {
     try {
       const user = this.auth.currentUser;
       if (!user) { return { success: false, verified: false, message: "Пользователь не авторизован" }; }
-      await user.reload();
+      if (Authentication.isOffline()) { // ✓ Без интернета перечитывать нечего — берём сохранённое состояние
+        return {
+          success: true,
+          verified: Boolean(user.emailVerified),
+          message: user.emailVerified ? "Почта подтверждена" : "Нет подключения: показано сохранённое состояние почты",
+        };
+      }
+      const reloaded = await window.waitForNetwork(user.reload(), 6000, '__no_answer__');
+      if (reloaded === '__no_answer__') {
+        return { success: false, verified: Boolean(user.emailVerified), message: "Сервер не отвечает: показано сохранённое состояние почты" };
+      }
       this.currentUser = this.auth.currentUser || user;
       return {
         success: true,
@@ -286,6 +321,7 @@ class Database {
 
   // ✓ Сохранить текст
   async saveText(textContent, subject, subjectTimestamp, textType, userGroup) {
+    if (Authentication.isOffline()) return { success: false, offline: true, message: "Нет подключения к интернету: публикация не отправлена" };
     try {
       const user = this.auth.getCurrentUser();
       if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
@@ -312,7 +348,8 @@ class Database {
       };
 
       // ✓ Запись документа в базу данных (коллекцию) "texts" под уникальным ID
-      await this.db.collection("texts").doc(textId).set(textData, { merge: true });
+      const saved = await window.waitForNetwork(this.db.collection("texts").doc(textId).set(textData, { merge: true }), 8000, '__no_answer__');
+      if (saved === '__no_answer__') return { success: false, message: "Сервер не отвечает: текст не отправлен" };
       return { success: true, textId, message: "Текст успешно добавлен на сервер" };
     } catch (error) {
       return { success: false, error: error.code, message: `Ошибка отправки текста на сервер: ${error.message}` } 
@@ -328,8 +365,10 @@ class Database {
   async getTexts(parameter, value) {
     const availableParameters = ['textID', 'userID', 'author', 'authorEmail', 'subject', 'subjectTimestamp', 'textContent', 'textType', 'timestamp', "userGroup"];
     if (!availableParameters.includes(parameter)) return { success: false, message: `Неверный тип данных для сортировки серверных текстов` }
+    if (Authentication.isOffline()) return { success: false, offline: true, texts: [], message: "Нет подключения к интернету" };
     try {
-      const snapshot = await this.db.collection("texts").where(parameter, "==", value).get();
+      const snapshot = await window.waitForNetwork(this.db.collection("texts").where(parameter, "==", value).get(), 8000, null);
+      if (!snapshot) return { success: false, texts: [], message: "Сервер не отвечает: работаем с сохранёнными материалами" };
       const texts = [];
       snapshot.forEach(doc => { texts.push(doc.data()); });
       return { success: true, texts };
@@ -340,6 +379,7 @@ class Database {
 
   // ✓ Сохранить ссылку и метаданные изображения
   async saveImage(imageUrl, subject, subjectTimestamp, imageType) {
+    if (Authentication.isOffline()) return { success: false, offline: true, message: "Нет подключения к интернету: публикация не отправлена" };
     try {
       const user = this.auth.getCurrentUser();
       if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
@@ -363,7 +403,8 @@ class Database {
       };
 
       // ✓ Запись документа в базу данных (коллекцию) "texts" под уникальным ID
-      await this.db.collection("images").doc(imageId).set(imageData, { merge: true });
+      const saved = await window.waitForNetwork(this.db.collection("images").doc(imageId).set(imageData, { merge: true }), 8000, '__no_answer__');
+      if (saved === '__no_answer__') return { success: false, message: "Сервер не отвечает: изображение не отправлено" };
       return { success: true, imageId, message: "Изображение успешно добавлено на сервер" };
     } catch (error) { return { success: false, error: error.code, message: `Ошибка отправки изображения на сервер: ${error.message}` }; }
   }
@@ -377,8 +418,10 @@ class Database {
   async getImages(parameter, value) {
     const availableParameters = ['imageID', 'userID', 'author', 'authorEmail', 'subject', 'subjectTimestamp', 'imageURL', 'imageType', 'timestamp'];
     if (!availableParameters.includes(parameter)) return { success: false, message: `Неверный тип данных для сортировки серверных изображений` }
+    if (Authentication.isOffline()) return { success: false, offline: true, images: [], message: "Нет подключения к интернету" };
     try {
-      const snapshot = await this.db.collection("images").where(parameter, "==", value).get();
+      const snapshot = await window.waitForNetwork(this.db.collection("images").where(parameter, "==", value).get(), 8000, null);
+      if (!snapshot) return { success: false, images: [], message: "Сервер не отвечает: работаем с сохранёнными материалами" };
       const images = [];
       snapshot.forEach(doc => { images.push(doc.data()); });
       return { success: true, images };
@@ -391,6 +434,7 @@ class Database {
   // Поддерживаются оба варианта вызова: saveAccount(group, subgroup, language)
   // и saveAccount({ userGroup, userSubgroup, userLanguage })
   async saveAccount(userGroup, userSubgroup, userLanguage) {
+    if (Authentication.isOffline()) return { success: false, offline: true, message: "Нет подключения к интернету: данные сохранены на устройстве" };
     try {
       const user = this.auth.getCurrentUser();
       if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
@@ -418,7 +462,8 @@ class Database {
       if (payload.userLanguage) { accountData.userLanguage = payload.userLanguage; }
 
       // ✓ Запись документа в базу данных (коллекцию) "accounts" под уникальным ID
-      await this.db.collection("accounts").doc(user.uid).set(accountData, { merge: true });
+      const saved = await window.waitForNetwork(this.db.collection("accounts").doc(user.uid).set(accountData, { merge: true }), 8000, '__no_answer__');
+      if (saved === '__no_answer__') return { success: false, message: "Сервер не отвечает: данные сохранены на устройстве" };
       return { success: true, accountId: user.uid, account: accountData, message: "Данные аккаунта успешно добавлены на сервер" };
     } catch (error) {
       return { success: false, error: error.code, message: `Ошибка отправки данных аккаунта на сервер: ${error.message}` }
@@ -427,8 +472,10 @@ class Database {
 
   // ✓ Получить дополнительные данные аккаунта
   async getAccount(userUID) {
+    if (Authentication.isOffline()) return { success: false, offline: true, message: "Нет подключения к интернету" };
     try { // ✓ Получаем основные данные аккаунта
-      const snapshot = await this.db.collection("accounts").where("userId", "==", userUID).get();
+      const snapshot = await window.waitForNetwork(this.db.collection("accounts").where("userId", "==", userUID).get(), 8000, null);
+      if (!snapshot) return { success: false, message: "Сервер не отвечает: работаем с сохранёнными данными аккаунта" };
       const accounts = [];
       snapshot.forEach(doc => { accounts.push(doc.data()); });
       const account = accounts[0];
@@ -448,6 +495,7 @@ class Database {
 
   // ✓ Обновить отдельные поля аккаунта (группа, язык, достижения, избранные группы и т.п.)
   async updateAccount(fields) {
+    if (Authentication.isOffline()) return { success: false, offline: true, message: "Нет подключения к интернету: сохранено на устройстве" };
     try {
       const user = this.auth.getCurrentUser();
       if (!user) { return { success: false, message: "Пользователь не авторизован" }; }
@@ -459,7 +507,8 @@ class Database {
       payload.userName = user.displayName || "Анонимный пользователь";
       payload.userEmail = user.email;
       payload.timestamp = Date.now();
-      await this.db.collection("accounts").doc(user.uid).set(payload, { merge: true });
+      const saved = await window.waitForNetwork(this.db.collection("accounts").doc(user.uid).set(payload, { merge: true }), 8000, '__no_answer__');
+      if (saved === '__no_answer__') return { success: false, message: "Сервер не отвечает: данные обновлены на устройстве" };
       return { success: true, account: payload, message: "Данные аккаунта обновлены" };
     } catch (error) {
       return { success: false, error: error.code, message: `Ошибка обновления данных аккаунта: ${error.message}` };
@@ -468,8 +517,11 @@ class Database {
 
   // ✓ Получить статус администратора пользователя
   async getAdmin(userUID) {
+    // ✓ Без сети или с молчащим сервером: админ-статус определяется, когда есть ответ
+    if (Authentication.isOffline()) return { success: true, isAdmin: false, offline: true };
     try {
-      const adminDoc = await this.db.collection("admindata").doc(userUID).get();
+      const adminDoc = await window.waitForNetwork(this.db.collection("admindata").doc(userUID).get(), 6000, null);
+      if (!adminDoc) return { success: true, isAdmin: false, offline: true };
       const isAdmin = adminDoc.exists; 
       return { success: true, isAdmin };
     } catch (error) {

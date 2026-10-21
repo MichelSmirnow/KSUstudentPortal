@@ -16,6 +16,172 @@
  * DOM собирается через createElement + appendChild. Корневой элемент возвращается
  * синхронно, содержимое Firestore подтягивается асинхронно.
  */
+/* -----------------------------------------------------------------------------------------
+ * Отметки «ДЗ сделано»
+ *
+ * Отметка живёт в памяти устройства (localStorage) и, если есть сеть — в Firestore.
+ * В Firestore изменения уходят НЕ ЧАЩЕ одного раза в 30 секунд: нажатие после паузы
+ * отправляется сразу, все нажатия в следующие 30 секунд копятся и уходят одним пакетом.
+ * Отметки хранятся за своим пользователем: каждый видит только то, что отметил сам.
+ * -------------------------------------------------------------------------------------- */
+
+const HOMEWORK_DONE_COLLECTION = 'homeworkDone';
+const HOMEWORK_SYNC_PERIOD = 30_000;   // минимальная пауза между отправками в Firestore
+const HOMEWORK_SYNC_LIMIT = 800;       // сколько отметок читаем из Firestore
+
+const HomeworkCheckpointStore = {
+  pending: new Map(),   // key -> изменение, ожидающее отправки
+  cache: null,          // отметки, уже прочитанные с сервера
+  timer: null,
+  nextAllowedAt: 0,
+  inFlight: null,
+
+  _uid() {
+    try {
+      const user = window.auth && typeof window.auth.getCurrentUser === 'function'
+        ? window.auth.getCurrentUser() : null;
+      return user && user.uid ? String(user.uid) : '';
+    } catch (_) { return ''; }
+  },
+
+  _db() {
+    try { return window.database && window.database.db ? window.database.db : null; } catch (_) { return null; }
+  },
+
+  _pendingKey() {
+    return `homework-checkpoints-pending:${this._uid() || 'guest'}`;
+  },
+
+  _docId(uid, key) {
+    return `${uid}__${encodeURIComponent(String(key)).slice(0, 300)}`;
+  },
+
+  // ✓ Очередь переживает перезапуск приложения
+  _loadPending() {
+    try {
+      const raw = window.localStorage.getItem(this._pendingKey());
+      const list = raw ? JSON.parse(raw) : [];
+      (Array.isArray(list) ? list : []).forEach((item) => {
+        if (item && typeof item.key === 'string') this.pending.set(item.key, item);
+      });
+    } catch (_) { /* сохранённой очереди нет — работаем с пустой */ }
+  },
+
+  _savePending() {
+    try {
+      window.localStorage.setItem(this._pendingKey(), JSON.stringify(Array.from(this.pending.values())));
+    } catch (_) { /* очередь не сохранилась — отправим из памяти */ }
+  },
+
+  // ✓ Изменение отметки: копим и отправляем по правилу «не чаще раза в 30 секунд»
+  queue(key, payload) {
+    if (typeof key !== 'string' || !key) return;
+    this.pending.set(key, Object.assign({}, payload, { key, timestamp: Date.now() }));
+    this._savePending();
+    this._schedule();
+  },
+
+  _schedule() {
+    if (this.timer) return;
+    const wait = Math.max(0, this.nextAllowedAt - Date.now());
+    if (wait === 0 && !this.inFlight) { this.flush(); return; }
+    this.timer = setTimeout(() => { this.timer = null; this.flush(); }, wait === 0 ? HOMEWORK_SYNC_PERIOD : wait);
+  },
+
+  // ✓ Не сейчас (нет сети/нет аккаунта) — просто напомним себе через период синхронизации.
+  //   Раньше такой возврат шёл в _schedule() и при wait === 0 снова звал flush():
+  //   при оффлайне получалась бесконечная рекурсия и переполнение стека.
+  _retryLater() {
+    if (this.timer) return;
+    this.timer = setTimeout(() => { this.timer = null; this.flush(); }, HOMEWORK_SYNC_PERIOD);
+  },
+
+  // ✓ Отправить накопленные изменения одним пакетом
+  async flush() {
+    if (this.inFlight || this.pending.size === 0) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) { this._retryLater(); return; }
+    const uid = this._uid();
+    const db = this._db();
+    if (!uid || !db) { this._retryLater(); return; }   // гость или нет сети — отправим позже
+
+    const items = Array.from(this.pending.values());
+    this.pending.clear();
+    this._savePending();
+    this.nextAllowedAt = Date.now() + HOMEWORK_SYNC_PERIOD;
+
+    const request = (async () => {
+      const writer = db.batch();
+      items.forEach((item) => {
+        const reference = db.collection(HOMEWORK_DONE_COLLECTION).doc(this._docId(uid, item.key));
+        writer.set(reference, {
+          userId: uid,
+          key: String(item.key),
+          eventKey: String(item.eventKey || ''),
+          subject: String(item.subject || '').slice(0, 200),
+          subgroup: Number(item.subgroup) === 1 || Number(item.subgroup) === 2 ? Number(item.subgroup) : 0,
+          group: String(item.group || '').slice(0, 60),
+          done: item.done === true,
+          updatedAt: Date.now(),
+        }, { merge: true });
+      });
+      await writer.commit();
+    })();
+    this.inFlight = request;
+
+    try { await request; }
+    catch (error) {
+      console.warn('Отметки ДЗ сохранены на устройстве, синхронизация позже:', error && error.message);
+      items.forEach((item) => this.pending.set(item.key, item)); // вернём в очередь
+      this._savePending();
+    } finally { this.inFlight = null; }
+
+    if (this.pending.size > 0) this._schedule();
+  },
+
+  // ✓ Прочитать свои отметки из Firestore (один раз за сессию)
+  async pull(force) {
+    if (this.cache && !force) return this.cache;
+    // ✓ Без интернета читать нечего: отметки и так лежат на устройстве, молчим
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
+    const uid = this._uid();
+    const db = this._db();
+    if (!uid || !db) return null;
+    try {
+      const snapshot = await db.collection(HOMEWORK_DONE_COLLECTION)
+        .where('userId', '==', uid)
+        .limit(HOMEWORK_SYNC_LIMIT)
+        .get();
+      const result = new Map();
+      snapshot.forEach((doc) => {
+        const data = doc.data() || {};
+        const key = String(data.key || '');
+        if (key) result.set(key, data.done === true);
+      });
+      this.cache = result;
+      return result;
+    } catch (error) {
+      console.warn('Отметки ДЗ читаем только с устройства:', error && error.message);
+      return null;
+    }
+  },
+
+  // ✓ Сброс при выходе из аккаунта
+  reset() {
+    this.pending.clear();
+    this.cache = null;
+    this.nextAllowedAt = 0;
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+  },
+};
+
+window.HomeworkCheckpointStore = HomeworkCheckpointStore;
+window.flushHomeworkCheckpoints = () => HomeworkCheckpointStore.flush();
+
+// ✓ При закрытии приложения пробуем отправить накопленное
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('pagehide', () => { HomeworkCheckpointStore.flush(); });
+}
+
 class HomeworkRenderer {
 
   /* ================================ Константы ================================ */
@@ -59,6 +225,10 @@ class HomeworkRenderer {
     this._hasBeenConnected = false;
     this._selectedMode = this.options.initialMode === 'materials' ? 'materials' : 'homework';
     this._completed = this._readCompleted();
+    // ✓ Отметки, не ушедшие в Firestore, догоняют сервер при следующем запуске
+    HomeworkCheckpointStore._loadPending();
+    HomeworkCheckpointStore._schedule();
+    this._pullCompleted();
   }
 
   /* ================================ Каркас страницы ================================ */
@@ -106,6 +276,7 @@ class HomeworkRenderer {
       clearTimeout(this._refreshTimer);
       this._refreshTimer = null;
     }
+    HomeworkCheckpointStore.flush(); // ✓ Накопленные отметки уходят на сервер без ожидания
     if (this._observer) {
       this._observer.disconnect();
       this._observer = null;
@@ -713,18 +884,58 @@ class HomeworkRenderer {
 
     button.appendChild(label);
     button.appendChild(mark);
+    button.__homeworkEvent = event;
 
     button.addEventListener('click', (clickEvent) => {
       clickEvent.preventDefault();
       clickEvent.stopPropagation();
-      const key = this._eventStorageKey(event);
-      if (this._completed.has(key)) this._completed.delete(key);
-      else this._completed.add(key);
-      this._writeCompleted();
+      this._setCompleted(event, !this._completed.has(this._eventStorageKey(event)));
       this._drawCheckpoint(button, event, true);
     });
 
     return button;
+  }
+
+  /** Изменить отметку: память устройства — сразу, Firestore — пакетом не чаще раза в 30 секунд */
+  _setCompleted(event, done) {
+    const key = this._eventStorageKey(event);
+    if (done) this._completed.add(key);
+    else this._completed.delete(key);
+    this._writeCompleted();
+    HomeworkCheckpointStore.queue(key, {
+      eventKey: HomeworkRenderer.eventIdentity(event),
+      subject: String(event.summary || ''),
+      subgroup: HomeworkRenderer.getEventSubgroup(event) || 0,
+      group: HomeworkRenderer.getCurrentGroup(),
+      done: done === true,
+    });
+  }
+
+  /** Дотянуть отметки из Firestore и обновить кнопки на странице */
+  async _pullCompleted() {
+    const remote = await HomeworkCheckpointStore.pull();
+    if (!remote) return;
+    let changed = false;
+    remote.forEach((done, key) => {
+      if (HomeworkCheckpointStore.pending.has(key)) return; // ✓ своё свежее изменение важнее
+      if (done && !this._completed.has(key)) { this._completed.add(key); changed = true; }
+      else if (!done && this._completed.has(key)) { this._completed.delete(key); changed = true; }
+    });
+    if (!changed) return;
+    this._writeCompleted();
+    this._refreshCheckpoints();
+  }
+
+  /** Перерисовать все кнопки отметок на странице */
+  _refreshCheckpoints() {
+    if (!this._root) return;
+    const buttons = this._root.querySelectorAll('.homework-checkpoint');
+    for (let index = 0; index < buttons.length; index += 1) {
+      const button = buttons[index];
+      const event = button.__homeworkEvent;
+      if (!event || button.hidden) continue;
+      this._drawCheckpoint(button, event, true);
+    }
   }
 
   _drawCheckpoint(button, event, hasHomework) {
@@ -1684,22 +1895,31 @@ class HomeworkRenderer {
       return true;
     };
 
-    // ✓ Разные группы могут слушать один предмет в одно и то же время у разных
-    // преподавателей. Сверяем преподавателя, иначе чужие ДЗ видны всем группам.
+    // ✓ Материалы и ДЗ показываются только выбранной пользователем группы:
+    //   один предмет в одно время у разных групп ведут разные преподаватели,
+    //   и чужие публикации (в том числе старые, без имени преподавателя) не должны сюда попадать.
+    const activeGroup = HomeworkRenderer.getCurrentGroup();
+    const forGroup = (record) => {
+      if (!activeGroup) return true;
+      const recordGroup = String((record && record.userGroup) || '').trim();
+      return recordGroup === activeGroup;
+    };
+
+    // ✓ Дополнительная сверка преподавателя (когда у записи и пары он указан)
     const eventTeacher = HomeworkRenderer.getEventTeacher(event);
     const forTeacher = (record) => {
       if (typeof window.isPostForTeacher === 'function') return window.isPostForTeacher(record, eventTeacher);
       const recordTeacher = String((record && record.teacher) || '').trim();
-      if (!recordTeacher || !eventTeacher) return true; // старые публикации не отсекаем
+      if (!recordTeacher || !eventTeacher) return true; // старые публикации без преподавателя отсекает forGroup
       return recordTeacher.toLowerCase() === eventTeacher.toLowerCase();
     };
 
     const texts = HomeworkRenderer.getResultArray(textResult, 'texts').filter((text) =>
       !HomeworkRenderer.isServiceRecord(text)
-      && String(text.subject || '').trim() === summary && forTargetSubgroup(text) && forTeacher(text)
+      && String(text.subject || '').trim() === summary && forTargetSubgroup(text) && forGroup(text) && forTeacher(text)
     );
     const images = HomeworkRenderer.getResultArray(imageResult, 'images').filter((image) =>
-      String(image.subject || '').trim() === summary && forTargetSubgroup(image) && forTeacher(image)
+      String(image.subject || '').trim() === summary && forTargetSubgroup(image) && forGroup(image) && forTeacher(image)
     );
 
     return { texts, images };

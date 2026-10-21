@@ -288,7 +288,7 @@ class subgroupSelector {
 
   // ✓ Рендер элемента выбора подгруппы
   initializeDropdown() {
-    this.dropdownContent.innerHTML = '<p style="font-size: 13px; color: #000 !important; "><i>Если в вашей группе нет деления на подгруппы, выберите первую подгруппу</i></p>';
+    this.dropdownContent.innerHTML = '<p style="font-size: 13px; color: var(--text) !important; "><i>Если в вашей группе нет деления на подгруппы, выберите первую подгруппу</i></p>';
     this.dropdownContent.appendChild(this.renderSubgroup('1 (А) подгруппа'));
     this.dropdownContent.appendChild(this.renderSubgroup('2 (Б) подгруппа'));
   }
@@ -355,7 +355,7 @@ class languageSelector {
 
   // ✓ Рендер элемента выбора языка
   initializeDropdown() {
-    this.dropdownContent.innerHTML = '<p style="font-size: 13px; color: #000 !important; "><i>Выберите язык, который вы изучаете в университете</i></p>';
+    this.dropdownContent.innerHTML = '<p style="font-size: 13px; color: var(--text) !important; "><i>Выберите язык, который вы изучаете в университете</i></p>';
     for (const language of LANGUAGES_LIST) {
       this.dropdownContent.appendChild(this.renderLanguage(language));
     }

@@ -43,7 +43,7 @@ class indexedStorage {
   async ensureStore() {
     try {
       if (!this.db) {
-        console.log('[ensureStore] БД не инициализирована, вызываю initDB');
+        DEBUG_MODE && console.log('[ensureStore] БД не инициализирована, вызываю initDB');
         await this.initDB();
       }
       
@@ -53,7 +53,7 @@ class indexedStorage {
         throw new Error(`Store "${this.storeName}" не существует в БД`);
       }
       
-      console.log('[ensureStore] Store готов к работе');
+      DEBUG_MODE && console.log('[ensureStore] Store готов к работе');
     } catch (err) {
       console.error('[ensureStore] Ошибка:', err);
       throw err;
@@ -61,14 +61,14 @@ class indexedStorage {
   }
 
   async load(key) {
-    console.log(`[load] === НАЧАЛО load(${key}) ===`);
+    DEBUG_MODE && console.log(`[load] === НАЧАЛО load(${key}) ===`);
     
     try {
       await this.ensureStore();
-      console.log('[load] ensureStore() завершён');
+      DEBUG_MODE && console.log('[load] ensureStore() завершён');
       
       return new Promise((resolve, reject) => {
-        console.log('[load] Начало загрузки');
+        DEBUG_MODE && console.log('[load] Начало загрузки');
         
         try {
           const transaction = this.db.transaction(this.storeName, 'readonly');
@@ -76,7 +76,7 @@ class indexedStorage {
           const request = store.get(key); // Используем key вместо hardcoded 'groupData'
           
           request.onsuccess = () => {
-            console.log(`[load] onsuccess для ${key}, result:`, request.result ? 'данные есть' : 'null');
+            DEBUG_MODE && console.log(`[load] onsuccess для ${key}, result:`, request.result ? 'данные есть' : 'null');
             resolve(request.result || null);
           };
           
@@ -103,14 +103,14 @@ class indexedStorage {
   }
 
   async save(key, data) {
-    console.log(`[save] === НАЧАЛО save(${key}) ===`);
+    DEBUG_MODE && console.log(`[save] === НАЧАЛО save(${key}) ===`);
     
     try {
       await this.ensureStore();
-      console.log('[save] ensureStore() завершён');
+      DEBUG_MODE && console.log('[save] ensureStore() завершён');
       
       return new Promise((resolve, reject) => {
-        console.log('[save] Начало сохранения');
+        DEBUG_MODE && console.log('[save] Начало сохранения');
         
         try {
           const transaction = this.db.transaction(this.storeName, 'readwrite');
@@ -118,7 +118,7 @@ class indexedStorage {
           const request = store.put(data, key); // Используем key
           
           transaction.oncomplete = () => {
-            console.log(`[save] transaction.oncomplete для ${key}`);
+            DEBUG_MODE && console.log(`[save] transaction.oncomplete для ${key}`);
             resolve(data);
           };
           
@@ -145,7 +145,7 @@ class indexedStorage {
   }
 
   async clearDB() {
-    console.log('[clearDB] Очистка БД');
+    DEBUG_MODE && console.log('[clearDB] Очистка БД');
     try {
       await this.ensureStore();
       return new Promise((resolve, reject) => {
@@ -154,7 +154,7 @@ class indexedStorage {
         const request = store.clear();
         
         request.onsuccess = () => {
-          console.log('[clearDB] БД очищена');
+          DEBUG_MODE && console.log('[clearDB] БД очищена');
           resolve();
         };
         
@@ -193,7 +193,7 @@ class indexedStorage {
         } catch (_) { resolve(0); }
       });
     } catch (error) {
-      console.log('[size] Ошибка оценки объёма:', error && error.message ? error.message : error);
+      DEBUG_MODE && console.log('[size] Ошибка оценки объёма:', error && error.message ? error.message : error);
       return 0;
     }
   }
@@ -202,7 +202,7 @@ class indexedStorage {
     if (this.db) {
       this.db.close();
       this.db = null;
-      console.log('[closeDB] БД закрыта');
+      DEBUG_MODE && console.log('[closeDB] БД закрыта');
     }
   }
 }
@@ -257,14 +257,14 @@ async function measureLocalDatabaseSize() {
 async function clearAllIndexedDB() {
   groupData = {};
   if (!indexedDB.databases) {
-    console.log("Метод indexedDB.databases() не поддерживается этим браузером.");
+    DEBUG_MODE && console.log("Метод indexedDB.databases() не поддерживается этим браузером.");
     return;
   }
   const dbs = await indexedDB.databases();
   for (const db of dbs) {
     const req = indexedDB.deleteDatabase(db.name);
-    req.onsuccess = () => console.log(`База данных "${db.name}" удалена.`);
-    req.onerror = () => console.log(`Не удалось удалить базу "${db.name}".`);
-    req.onblocked = () => console.log(`Операция блокирована для базы "${db.name}".`);
+    req.onsuccess = () => DEBUG_MODE && console.log(`База данных "${db.name}" удалена.`);
+    req.onerror = () => DEBUG_MODE && console.log(`Не удалось удалить базу "${db.name}".`);
+    req.onblocked = () => DEBUG_MODE && console.log(`Операция блокирована для базы "${db.name}".`);
   }
 }

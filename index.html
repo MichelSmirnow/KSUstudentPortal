@@ -16,6 +16,16 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="images/logo/192x192.png">
 
+    <!-- Тема приложения: применяем ДО отрисовки, чтобы не мигало светлым при включённой тёмной теме -->
+    <meta name="theme-color" content="#f5f5f5" id="theme-color-meta">
+    <script>
+        try {
+            if (localStorage.getItem('kgThemePreference') === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        } catch (e) { /* приватный режим — остаёмся на светлой */ }
+    </script>
+
     <!-- Импорты стилей -->
     <link rel="stylesheet" href="styles/fonts/fonts.css">
     <link rel="stylesheet" href="styles/main.css">

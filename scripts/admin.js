@@ -138,6 +138,11 @@
 
   /* =========================== 1. Методы базы данных =========================== */
 
+  function networkOffline() {
+    try { return typeof navigator !== 'undefined' && navigator.onLine === false; }
+    catch (_) { return false; }
+  }
+
   function installGovernanceExtensions() {
     const database = global.database;
     if (!database || !database.constructor || !database.constructor.prototype) return;
@@ -146,8 +151,10 @@
     /* ------------------------- Профили пользователей (userdata) ------------------------- */
 
     prototype.getUserdata = async function getUserdata(userId) {
+      if (networkOffline()) return { success: false, profile: null, offline: true, message: 'Нет подключения к интернету' };
       try {
-        const doc = await this.db.collection('userdata').doc(String(userId)).get();
+        const doc = await global.waitForNetwork(this.db.collection('userdata').doc(String(userId)).get(), 6000, null);
+        if (!doc) return { success: false, profile: null, message: 'Сервер не отвечает' };
         const data = typeof doc.data === 'function' ? doc.data() : null;
         return { success: true, profile: data || null };
       } catch (error) {
@@ -156,8 +163,10 @@
     };
 
     prototype.getAllUserdata = async function getAllUserdata() {
+      if (networkOffline()) return { success: false, profiles: [], offline: true, message: 'Нет подключения к интернету' };
       try {
-        const snapshot = await this.db.collection('userdata').get();
+        const snapshot = await global.waitForNetwork(this.db.collection('userdata').get(), 6000, null);
+        if (!snapshot) return { success: false, profiles: [], message: 'Сервер не отвечает' };
         return { success: true, profiles: snapshotToArray(snapshot) };
       } catch (error) {
         return { success: false, profiles: [], message: `Не удалось получить список ролей: ${error && error.message ? error.message : error}` };
@@ -165,11 +174,13 @@
     };
 
     prototype.updateUserdata = async function updateUserdata(userId, changes) {
+      if (networkOffline()) return { success: false, offline: true, message: 'Нет подключения к интернету: изменения не сохранены' };
       try {
         const user = this.auth.getCurrentUser();
         if (!user) return { success: false, message: 'Пользователь не авторизован' };
         const payload = { ...(changes || {}), userId: String(userId), updatedAt: Date.now(), updatedBy: user.uid };
-        await this.db.collection('userdata').doc(String(userId)).set(payload, { merge: true });
+        const saved = await global.waitForNetwork(this.db.collection('userdata').doc(String(userId)).set(payload, { merge: true }), 8000, '__no_answer__');
+        if (saved === '__no_answer__') return { success: false, message: 'Сервер не отвечает: изменения не сохранены' };
         if (global.UserBadges) global.UserBadges.invalidate();
         return { success: true, profile: payload, message: 'Данные пользователя обновлены' };
       } catch (error) {
@@ -187,14 +198,52 @@
       return this.updateUserdata(userId, { customTag: value });
     };
 
-    prototype.setUserBlocked = async function setUserBlocked(userId, blocked, reason) {
+    prototype.setUserBlocked = async function setUserBlocked(userId, blocked, reason, until) {
       const admin = currentUser();
+      const now = Date.now();
+      // ✓ Блокировка может быть временной: until — мс до конца срока (0 = навсегда)
+      const untilMs = blocked ? (Number(until) > 0 ? Number(until) : 0) : 0;
+      // ✓ История блокировок: копится в userdata и показывается в карточке профиля
+      let log = [];
+      try {
+        const stored = await this.getUserdata(userId);
+        const current = stored && stored.profile ? stored.profile : null;
+        log = current && Array.isArray(current.blockLog) ? current.blockLog.slice(0, 39) : [];
+      } catch (_) { /* без истории — начнём новую */ }
+      log.unshift({
+        at: now,
+        action: blocked ? 'block' : 'unblock',
+        until: untilMs,
+        reason: blocked ? String(reason || '').trim().slice(0, 200) : '',
+        by: admin ? String(admin.displayName || admin.email || admin.uid || '') : '',
+      });
       return this.updateUserdata(userId, {
         blocked: Boolean(blocked),
         blockedReason: blocked ? String(reason || '').trim().slice(0, 200) : '',
         blockedBy: blocked ? (admin ? admin.uid : '') : '',
-        blockedAt: blocked ? Date.now() : null,
+        blockedAt: blocked ? now : null,
+        blockedUntil: untilMs,
+        blockLog: log.slice(0, 40),
       });
+    };
+
+    /** ✓ Модерация описания и аватара: админ пишет в аккаунт пользователя (только поля профиля) */
+    prototype.adminUpdateAccount = async function adminUpdateAccount(userId, fields) {
+      if (networkOffline()) return { success: false, offline: true, message: 'Нет подключения к интернету' };
+      const payload = { ...(fields || {}) };
+      delete payload.userId;
+      delete payload.uid;
+      if (Object.keys(payload).length === 0) return { success: false, message: 'Нет данных для обновления' };
+      try {
+        const saved = await global.waitForNetwork(
+          this.db.collection('accounts').doc(String(userId)).set(payload, { merge: true }),
+          8000, '__no_answer__'
+        );
+        if (saved === '__no_answer__') return { success: false, message: 'Сервер не отвечает' };
+        return { success: true, message: 'Профиль обновлён' };
+      } catch (error) {
+        return { success: false, message: `Ошибка обновления профиля: ${error && error.message ? error.message : error}` };
+      }
     };
 
     /* ------------------------------ Счётчики администратора ------------------------------ */
@@ -734,20 +783,35 @@
     return false;
   }
 
-  /** Полный список значков для публикации: админ → преподаватель → староста → свой тег */
+  /** Текст тега достижения по ключу (или '') */
+  function achievementTagText(key) {
+    const value = String(key || '');
+    if (!value) return '';
+    const found = ACHIEVEMENTS.find((item) => item.key === value);
+    return found && found.tag ? String(found.tag) : '';
+  }
+
+  /** Полный список значков: админ → преподаватель → староста → тег (достижение ИЛИ свой) → админский тег */
   function badgesFor(post, cache) {
     const badges = [];
     const profile = profileFor(post, cache);
     if (isAdminPost(post, cache)) badges.push({ kind: 'admin', text: ADMIN_BADGE_TEXT });
     if (profile && profile.role === ROLE_TEACHER) badges.push({ kind: 'teacher', text: ROLE_LABELS[ROLE_TEACHER] });
     else if (profile && profile.role === ROLE_STAROSTA) badges.push({ kind: 'starosta', text: ROLE_LABELS[ROLE_STAROSTA] });
+    // ✓ Текстовый тег пользователя и тег достижения взаимоисключающи (XOR);
+    //   тег администратора (customTag) и статусы работают параллельно с ними.
+    const achievementText = achievementTagText(profile && profile.achievementTagKey);
+    if (achievementText) badges.push({ kind: 'achievement', text: achievementText });
+    else if (profile && profile.selfTag) badges.push({ kind: 'selftag', text: String(profile.selfTag) });
     if (profile && profile.customTag) badges.push({ kind: 'custom', text: String(profile.customTag) });
     return badges;
   }
 
   function createBadge(badge) {
     const node = element('span', badge.kind === 'admin' ? 'homework-admin-badge' : `homework-role-badge homework-role-badge--${badge.kind}`, badge.text);
-    node.title = badge.kind === 'custom' ? 'Особый статус от администрации' : badge.text;
+    if (badge.kind === 'achievement') node.title = 'Тег за достижение';
+    else if (badge.kind === 'selftag') node.title = 'Особый тег пользователя';
+    else node.title = badge.kind === 'custom' ? 'Особый статус от администрации' : badge.text;
     return node;
   }
 
@@ -798,8 +862,10 @@
       const cache = await loadBadgeData();
       const uid = String(userId || currentUid());
       const profile = cache.byUid.get(uid) || null;
+      const until = Number(profile && profile.blockedUntil) || 0;
       return {
-        blocked: Boolean(profile && profile.blocked),
+        blocked: Boolean(profile && profile.blocked) && (until === 0 || until > Date.now()),
+        blockedUntil: until,
         reason: (profile && profile.blockedReason) || '',
         profile,
       };
@@ -886,7 +952,7 @@
       const url = String(records[index].imageUrl || records[index].url || '').trim();
       if (!url) continue;
       try {
-        const response = await fetch(url, { mode: 'cors', credentials: 'omit' });
+        const response = await (global.fetchWithTimeout || global.fetch.bind(global))(url, { mode: 'cors', credentials: 'omit', timeout: 15000 });
         if (!response.ok) continue;
         const blob = await response.blob();
         const extension = (url.split('.').pop() || 'png').split('?')[0].slice(0, 5);
@@ -1141,21 +1207,21 @@
    * Картинки: images/achievements/<ключ>.png
    */
   const ACHIEVEMENTS = [
-    { key: 'first_post', title: 'Первый пост', condition: '1 публикация', hint: 'Опубликуйте первый материал или домашнее задание', check: (stats) => stats.posts >= 1 },
-    { key: 'posts_10', title: 'Начинающий', condition: '10 публикаций', hint: 'Опубликуйте 10 записей', check: (stats) => stats.posts >= 10 },
-    { key: 'posts_25', title: 'Продвинутый', condition: '25 публикаций', hint: 'Опубликуйте 25 записей', check: (stats) => stats.posts >= 25 },
-    { key: 'posts_100', title: 'Профи', condition: '100 публикаций', hint: 'Опубликуйте 100 записей', check: (stats) => stats.posts >= 100 },
-    { key: 'posts_1000', title: 'Без личной жизни', condition: '1000 публикаций', hint: 'Опубликуйте 1000 записей', check: (stats) => stats.posts >= 1000 },
-    { key: 'first_photo', title: 'Первый снимок', condition: '1 изображение', hint: 'Прикрепите изображение к публикации', check: (stats) => stats.photos >= 1 },
-    { key: 'photos_25', title: 'Любитель картинок', condition: '25 изображений', hint: 'Прикрепите 25 изображений', check: (stats) => stats.photos >= 25 },
-    { key: 'photos_100', title: 'Фотограф', condition: '100 изображений', hint: 'Прикрепите 100 изображений', check: (stats) => stats.photos >= 100 },
-    { key: 'photos_250', title: 'Мастер', condition: '250 изображений', hint: 'Прикрепите 250 изображений', check: (stats) => stats.photos >= 250 },
-    { key: 'moderator_100', title: 'Квалифицированный админ', condition: '100 модераций', hint: 'Проверьте 100 публикаций в панели администратора', check: (stats) => stats.moderations >= 100 },
-    { key: 'callcenter_10', title: 'Сотрудник call-центра', condition: '10 ответов', hint: 'Ответьте на 10 обращений в разделе «Фидбек»', check: (stats) => stats.answers >= 10 },
-    { key: 'sirok', title: 'Сырок', condition: '1 000 000 сырков', hint: 'Заготовка будущего достижения: механика сырков ещё не добавлена', check: () => false },
-    { key: 'premium_tester', title: 'Премиальный тестировщик', condition: 'регистрация до 01.10.2026', hint: 'Зарегистрируйтесь до 1 октября 2026 года', check: (stats) => stats.registeredAt > 0 && stats.registeredAt < TESTER_DEADLINES.premium },
-    { key: 'alpha_tester', title: 'Альфа-тестировщик', condition: 'регистрация до 30.10.2026', hint: 'Зарегистрируйтесь до 30 октября 2026 года', check: (stats) => stats.registeredAt > 0 && stats.registeredAt < TESTER_DEADLINES.alpha },
-    { key: 'beta_tester', title: 'Бета-тестировщик', condition: 'регистрация до 01.01.2027', hint: 'Зарегистрируйтесь до 1 января 2027 года', check: (stats) => stats.registeredAt > 0 && stats.registeredAt < TESTER_DEADLINES.beta },
+    { key: 'first_post', tag: 'Дебют', title: 'Первый пост', condition: '1 публикация', hint: 'Опубликуйте первый материал или домашнее задание', check: (stats) => stats.posts >= 1 },
+    { key: 'posts_10', tag: 'Регуляр', title: 'Начинающий', condition: '10 публикаций', hint: 'Опубликуйте 10 записей', check: (stats) => stats.posts >= 10 },
+    { key: 'posts_25', tag: 'Блогер', title: 'Продвинутый', condition: '25 публикаций', hint: 'Опубликуйте 25 записей', check: (stats) => stats.posts >= 25 },
+    { key: 'posts_100', tag: 'Герой пера', title: 'Профи', condition: '100 публикаций', hint: 'Опубликуйте 100 записей', check: (stats) => stats.posts >= 100 },
+    { key: 'posts_1000', tag: 'Марафон', title: 'Без личной жизни', condition: '1000 публикаций', hint: 'Опубликуйте 1000 записей', check: (stats) => stats.posts >= 1000 },
+    { key: 'first_photo', tag: 'Щёлк!', title: 'Первый снимок', condition: '1 изображение', hint: 'Прикрепите изображение к публикации', check: (stats) => stats.photos >= 1 },
+    { key: 'photos_25', tag: 'Кадровик', title: 'Любитель картинок', condition: '25 изображений', hint: 'Прикрепите 25 изображений', check: (stats) => stats.photos >= 25 },
+    { key: 'photos_100', tag: 'Светопись', title: 'Фотограф', condition: '100 изображений', hint: 'Прикрепите 100 изображений', check: (stats) => stats.photos >= 100 },
+    { key: 'photos_250', tag: 'Объектив', title: 'Мастер', condition: '250 изображений', hint: 'Прикрепите 250 изображений', check: (stats) => stats.photos >= 250 },
+    { key: 'moderator_100', tag: 'Блюститель', title: 'Квалифицированный админ', condition: '100 модераций', hint: 'Проверьте 100 публикаций в панели администратора', check: (stats) => stats.moderations >= 100 },
+    { key: 'callcenter_10', tag: 'На линии', title: 'Сотрудник call-центра', condition: '10 ответов', hint: 'Ответьте на 10 обращений в разделе «Фидбек»', check: (stats) => stats.answers >= 10 },
+    { key: 'sirok', tag: 'Глазурь', title: 'Сырок', condition: '1 000 000 сырков', hint: 'Заготовка будущего достижения: механика сырков ещё не добавлена', check: () => false },
+    { key: 'premium_tester', tag: 'Премиум', title: 'Премиальный тестировщик', condition: 'регистрация до 01.10.2026', hint: 'Зарегистрируйтесь до 1 октября 2026 года', check: (stats) => stats.registeredAt > 0 && stats.registeredAt < TESTER_DEADLINES.premium },
+    { key: 'alpha_tester', tag: 'Альфа', title: 'Альфа-тестировщик', condition: 'регистрация до 30.10.2026', hint: 'Зарегистрируйтесь до 30 октября 2026 года', check: (stats) => stats.registeredAt > 0 && stats.registeredAt < TESTER_DEADLINES.alpha },
+    { key: 'beta_tester', tag: 'Бета', title: 'Бета-тестировщик', condition: 'регистрация до 01.01.2027', hint: 'Зарегистрируйтесь до 1 января 2027 года', check: (stats) => stats.registeredAt > 0 && stats.registeredAt < TESTER_DEADLINES.beta },
   ];
 
   const ACHIEVEMENT_KEYS = ACHIEVEMENTS.map((item) => item.key);
@@ -1230,6 +1296,7 @@
      */
     async evaluate() {
       try {
+        if (networkOffline()) return { success: false, offline: true, added: [], achievements: [] };
         const user = global.auth && typeof global.auth.getCurrentUser === 'function' ? global.auth.getCurrentUser() : null;
         if (!user) return { success: false, added: [], achievements: [] };
 
@@ -1275,23 +1342,31 @@
       }
     },
 
-    /** Доска достижений: иконка, название, дата получения и подсказка «как получить» */
+    /** Доска достижений: иконка, название, дата получения, подсказка и (во вкладке) тег */
     render(container, options) {
       if (!container) return container;
       const data = options || {};
       const unlocked = Achievements.unpack(data.achievements, data.meta);
+      const unlockedByKey = new Map(unlocked.map((item) => [String(item.key), item]));
+      // ✓ showAll — показать и заработанные, и заблокированные (вкладка «Достижения»)
+      const items = data.showAll
+        ? Achievements.LIST.map((item) => unlockedByKey.get(String(item.key))
+          || { ...item, unlockedAt: 0, icon: `images/achievements/${item.key}.png` })
+        : unlocked;
       const board = element('div', 'achievements-board');
-      board.appendChild(element('p', 'achievements-title', 'Достижения'));
+      if (data.hideTitle !== true) board.appendChild(element('p', 'achievements-title', 'Достижения'));
 
-      if (unlocked.length === 0) {
+      if (items.length === 0) {
         board.appendChild(element('p', 'achievements-empty', 'Пока нет ни одного достижения. Публикуйте материалы, изображения и отвечайте на обращения — они появятся здесь.'));
         container.appendChild(board);
         return container;
       }
 
+      const equippedKey = String(data.equippedKey || '');
       const list = element('ul', 'achievements-list');
-      unlocked.forEach((achievement) => {
-        const item = element('li', 'achievement');
+      items.forEach((achievement) => {
+        const earned = unlockedByKey.has(String(achievement.key));
+        const item = element('li', 'achievement' + (earned ? '' : ' achievement--locked'));
         const icon = element('img', 'achievement-icon');
         icon.src = achievement.icon;
         icon.alt = achievement.title;
@@ -1306,8 +1381,39 @@
         const body = element('div', 'achievement-body');
         body.appendChild(element('p', 'achievement-title', achievement.title));
         const dateText = achievement.unlockedAt ? formatDate(achievement.unlockedAt) : '';
-        body.appendChild(element('p', 'achievement-date', dateText ? `Получено ${dateText}` : 'Получено'));
+        if (earned) {
+          body.appendChild(element('p', 'achievement-date', dateText ? `Получено ${dateText}` : 'Получено'));
+        } else {
+          body.appendChild(element('p', 'achievement-date achievement-date--locked', 'Ещё не получено'));
+        }
         body.appendChild(element('p', 'achievement-hint', `Как получить: ${achievement.hint} (${achievement.condition})`));
+
+        // ✓ Тег достижения: короткая подпись, которую можно поставить вместо своего текстового тега
+        if (data.showTags && achievement.tag) {
+          const tagRow = element('div', 'achievement-tag-row');
+          const chip = element('span', 'achievement-tag-chip' + (earned ? '' : ' achievement-tag-chip--locked'),
+            String(achievement.tag));
+          const equipped = equippedKey === String(achievement.key);
+          if (!earned) {
+            chip.title = 'Тег откроется вместе с достижением';
+            tagRow.appendChild(chip);
+          } else if (equipped) {
+            chip.classList.add('achievement-tag-chip--active');
+            tagRow.appendChild(chip);
+            const off = element('button', 'account-standartButton achievement-tag-button achievement-tag-button--off', 'Убрать тег');
+            off.type = 'button';
+            off.addEventListener('click', () => { if (typeof data.onUnequip === 'function') data.onUnequip(); });
+            tagRow.appendChild(off);
+          } else {
+            tagRow.appendChild(chip);
+            const on = element('button', 'account-standartButton achievement-tag-button', 'Поставить тег');
+            on.type = 'button';
+            on.addEventListener('click', () => { if (typeof data.onEquip === 'function') data.onEquip(String(achievement.key)); });
+            tagRow.appendChild(on);
+          }
+          body.appendChild(tagRow);
+        }
+
         item.appendChild(body);
         list.appendChild(item);
       });
@@ -1745,6 +1851,11 @@
       row.dataset.uid = user.uid;
 
       const uid = String(user.uid);
+      // ✓ Блокировка со сроком: после blockedUntil пользователь снова обычный
+      const userBlockedUntil = Number(user.blockedUntil) || 0;
+      if (user.blocked && userBlockedUntil > 0 && userBlockedUntil <= Date.now()) {
+        user = { ...user, blocked: false, blockedUntil: 0 };
+      }
       const myUid = String(context.myUid || '');
       const isSelf = uid === myUid;
       const isAdmin = cache.adminIds.has(uid) || (user.userEmail && cache.adminIds.has(String(user.userEmail).toLowerCase()));
@@ -1880,22 +1991,30 @@
       const reasonInput = element('input', 'admin-user-input');
       reasonInput.type = 'text';
       reasonInput.placeholder = 'Причина блокировки';
+      const durationSelect = element('select', 'admin-user-select admin-user-block-term');
+      [['0', 'Навсегда'], ['86400000', 'На 1 день'], ['604800000', 'На 7 дней'], ['2592000000', 'На 30 дней']]
+        .forEach(([value, label]) => {
+          const option = element('option', null, label);
+          option.value = value;
+          durationSelect.appendChild(option);
+        });
       const reasonApply = element('button', 'admin-user-button admin-user-button--danger', 'Подтвердить');
       reasonApply.type = 'button';
       const reasonCancel = element('button', 'admin-user-button', 'Отмена');
       reasonCancel.type = 'button';
       reasonBox.appendChild(reasonInput);
+      reasonBox.appendChild(durationSelect);
       reasonBox.appendChild(reasonApply);
       reasonBox.appendChild(reasonCancel);
       reasonBox.hidden = true;
 
-      const applyBlock = async (blocked, reason) => {
+      const applyBlock = async (blocked, reason, until) => {
         if (isAnotherAdmin) {
           notify('Другого администратора заблокировать нельзя', 'error');
           return;
         }
         blockButton.disabled = true;
-        const result = await global.database.setUserBlocked(uid, blocked, reason);
+        const result = await global.database.setUserBlocked(uid, blocked, reason, until);
         blockButton.disabled = false;
         notify((result && result.message) || 'Готово', result && result.success ? 'success' : 'error');
         await softRefresh();
@@ -1910,7 +2029,7 @@
       reasonCancel.addEventListener('click', () => { reasonBox.hidden = true; });
       reasonApply.addEventListener('click', async () => {
         reasonBox.hidden = true;
-        await applyBlock(true, reasonInput.value);
+        await applyBlock(true, reasonInput.value, Number(durationSelect.value) || 0);
       });
 
       blockBox.appendChild(blockButton);
@@ -1921,6 +2040,28 @@
         blockBox.appendChild(element('span', 'admin-user-hint', 'Администратор защищён от блокировки'));
       }
       controls.appendChild(blockBox);
+
+      /* История блокировок — видна только администрации (панель администратора) */
+      const blockLogEntries = Array.isArray(user.blockLog) ? user.blockLog.slice(0, 20) : [];
+      if (blockLogEntries.length > 0) {
+        const logBox = element('div', 'admin-user-block-log');
+        logBox.appendChild(element('p', 'admin-user-block-log-title', 'История блокировок'));
+        blockLogEntries.forEach((entry) => {
+          const line = element('p', 'admin-user-block-log-line');
+          const at = entry && Number(entry.at) ? new Date(Number(entry.at)) : null;
+          const untilMs = entry && Number(entry.until) ? Number(entry.until) : 0;
+          const isUnblock = entry && entry.action === 'unblock';
+          const action = isUnblock ? 'Разблокировка' : 'Блокировка';
+          let term = '';
+          if (!isUnblock) term = untilMs > 0 ? ` до ${formatDate(new Date(untilMs))}` : ' (навсегда)';
+          const parts = [at ? formatDate(at) : '—', `${action}${term}`];
+          if (entry && entry.reason) parts.push(String(entry.reason));
+          if (entry && entry.by) parts.push(String(entry.by));
+          line.textContent = parts.join(' · ');
+          logBox.appendChild(line);
+        });
+        controls.appendChild(logBox);
+      }
 
       /* Подтверждение почты вручную (флаг Firebase Email не меняется — см. пояснение на кнопке) */
       const verifyBox = element('div', 'admin-user-verify');
@@ -1980,18 +2121,34 @@
 
     async renderModerationTab(container) {
       const list = element('div', 'admin-moderation-list');
+      const profileList = element('div', 'admin-moderation-list admin-profile-queue');
+      profileList.hidden = true;
       const toolbar = element('div', 'admin-moderation-toolbar');
       const status = element('p', 'admin-panel-summary');
       const refreshButton = element('button', 'admin-user-button', 'Обновить список');
       refreshButton.type = 'button';
       const order = [];
+      let mode = 'posts';
       let timer = null;
 
       toolbar.appendChild(status);
       toolbar.appendChild(refreshButton);
       container.appendChild(toolbar);
-      container.appendChild(list);
 
+      // ✓ Внутри модерации — две подочереди: публикации и описание/аватар профилей
+      const subTabs = element('div', 'admin-moderation-subtabs');
+      const postsTab = element('button', 'admin-moderation-subtab selected', 'Публикации');
+      postsTab.type = 'button';
+      const profileTab = element('button', 'admin-moderation-subtab', 'Описание и аватар');
+      profileTab.type = 'button';
+      subTabs.appendChild(postsTab);
+      subTabs.appendChild(profileTab);
+      container.appendChild(subTabs);
+
+      container.appendChild(list);
+      container.appendChild(profileList);
+
+      /* ------------------------- Подочередь: публикации ------------------------- */
       const loadQueue = async (options = {}) => {
         const result = global.database && typeof global.database.getPendingPosts === 'function'
           ? await global.database.getPendingPosts()
@@ -2013,6 +2170,7 @@
       };
 
       const draw = async (options = {}) => {
+        if (mode !== 'posts') return 0;
         const posts = await loadQueue(options);
         clear(list);
         if (posts.length === 0) {
@@ -2035,16 +2193,152 @@
         return posts.length;
       };
 
-      refreshButton.addEventListener('click', () => draw({ shuffle: false }));
+      /* --------------------- Подочередь: описание и аватар --------------------- */
+      const loadProfileQueue = async () => {
+        const result = global.database && typeof global.database.getAllAccounts === 'function'
+          ? await global.database.getAllAccounts()
+          : { accounts: [] };
+        const accounts = Array.isArray(result.accounts) ? result.accounts : [];
+        return accounts.filter((account) => {
+          if (!account) return false;
+          const bio = String(account.bioPending || '').trim();
+          const avatar = String(account.avatarPending || '').trim();
+          return Boolean(bio || avatar);
+        });
+      };
+
+      const drawProfileQueue = async () => {
+        if (mode !== 'profiles') return;
+        clear(profileList);
+        const profiles = await loadProfileQueue();
+        if (profiles.length === 0) {
+          profileList.appendChild(element('p', 'admin-panel-empty', 'Новых описаний или аватаров на проверку нет.'));
+        } else {
+          profiles.forEach((account) => {
+            profileList.appendChild(this.createProfileModerationCard(account, {
+              onDone: () => drawProfileQueue(),
+            }));
+          });
+        }
+        status.textContent = profiles.length === 0
+          ? 'Очередь профилей пуста'
+          : `${profiles.length} ${plural(profiles.length, 'профиль', 'профиля', 'профилей')} ждут проверки`;
+      };
+
+      const setMode = async (next) => {
+        if (mode === next) return;
+        mode = next;
+        postsTab.classList.toggle('selected', mode === 'posts');
+        profileTab.classList.toggle('selected', mode === 'profiles');
+        list.hidden = mode !== 'posts';
+        profileList.hidden = mode !== 'profiles';
+        if (mode === 'posts') await draw({ shuffle: false });
+        else await drawProfileQueue();
+      };
+      postsTab.addEventListener('click', () => setMode('posts'));
+      profileTab.addEventListener('click', () => setMode('profiles'));
+
+      refreshButton.addEventListener('click', () => {
+        if (mode === 'posts') return draw({ shuffle: false });
+        return drawProfileQueue();
+      });
 
       const initial = await draw({ shuffle: true });
-      if (initial > 0) {
-        timer = setInterval(() => {
-          if (!isAlive(container)) { clearInterval(timer); return; }
-          draw({ shuffle: false });
-        }, Number(this.refreshInterval) || MODERATION_TAB_REFRESH);
-      }
+      timer = setInterval(() => {
+        if (!isAlive(container)) { clearInterval(timer); return; }
+        if (mode === 'posts') draw({ shuffle: false });
+        else drawProfileQueue();
+      }, Number(this.refreshInterval) || MODERATION_TAB_REFRESH);
       return container;
+    },
+
+    /**
+     * ✓ Карточка модерации профиля: описание «О себе» и аватар, отправленные пользователем.
+     *   Одобрение переносит pending-поля в видимые, отклонение — просто снимает их.
+     */
+    createProfileModerationCard(account, handlers = {}) {
+      const options = handlers || {};
+      const card = element('article', 'admin-moderation-card admin-profile-card');
+      const uid = String(account.userId || account.uid || '');
+      const bioPending = String(account.bioPending || '').trim();
+      const avatarPending = String(account.avatarPending || '').trim();
+
+      const head = element('div', 'admin-moderation-head');
+      const titleBox = element('div', 'admin-moderation-title-box');
+      titleBox.appendChild(element('p', 'admin-moderation-title', account.userName || account.userEmail || `ID ${uid.slice(0, 8)}`));
+      const meta = [
+        account.userGroup ? `группа ${account.userGroup}` : null,
+        (Number(account.bioPendingAt) || Number(account.avatarPendingAt))
+          ? `подано ${formatDateTime(Number(account.bioPendingAt) || Number(account.avatarPendingAt))}`
+          : null,
+      ].filter(Boolean).join(' · ');
+      if (meta) titleBox.appendChild(element('p', 'admin-moderation-meta', meta));
+      head.appendChild(titleBox);
+      card.appendChild(head);
+
+      const act = async (fields, label) => {
+        const result = await global.database.adminUpdateAccount(uid, fields);
+        if (typeof global.showNotification === 'function') {
+          global.showNotification((result && result.message) || label, result && result.success ? 'success' : 'error');
+        }
+        if (result && result.success && typeof options.onDone === 'function') await options.onDone();
+      };
+
+      if (avatarPending) {
+        const box = element('div', 'admin-profile-mod-row');
+        const img = element('img', 'admin-profile-mod-avatar');
+        img.src = avatarPending;
+        img.alt = 'Новый аватар';
+        img.addEventListener('click', () => {
+          if (global.imageViewer && typeof global.imageViewer.open === 'function') {
+            global.imageViewer.open(avatarPending, { title: 'Новый аватар' });
+          }
+        });
+        box.appendChild(img);
+        const info = element('div', 'admin-profile-mod-info');
+        info.appendChild(element('p', 'admin-profile-mod-label', 'Аватар профиля'));
+        const actions = element('div', 'admin-profile-mod-actions');
+        const ok = element('button', 'admin-user-button admin-user-button--success', 'Одобрить аватар');
+        ok.type = 'button';
+        ok.addEventListener('click', () => act({
+          avatarUrl: avatarPending, avatarPending: '', avatarPendingAt: 0,
+        }, 'Аватар одобрен'));
+        const no = element('button', 'admin-user-button admin-user-button--danger', 'Отклонить');
+        no.type = 'button';
+        no.addEventListener('click', () => act({
+          avatarPending: '', avatarPendingAt: 0,
+        }, 'Аватар отклонён'));
+        actions.appendChild(ok);
+        actions.appendChild(no);
+        info.appendChild(actions);
+        box.appendChild(info);
+        card.appendChild(box);
+      }
+
+      if (bioPending) {
+        const box = element('div', 'admin-profile-mod-row admin-profile-mod-row--bio');
+        const info = element('div', 'admin-profile-mod-info');
+        info.appendChild(element('p', 'admin-profile-mod-label', 'Описание «О себе»'));
+        info.appendChild(element('p', 'admin-profile-mod-text', bioPending));
+        const actions = element('div', 'admin-profile-mod-actions');
+        const ok = element('button', 'admin-user-button admin-user-button--success', 'Одобрить описание');
+        ok.type = 'button';
+        ok.addEventListener('click', () => act({
+          bio: bioPending, bioPending: '', bioPendingAt: 0,
+        }, 'Описание одобрено'));
+        const no = element('button', 'admin-user-button admin-user-button--danger', 'Отклонить');
+        no.type = 'button';
+        no.addEventListener('click', () => act({
+          bioPending: '', bioPendingAt: 0,
+        }, 'Описание отклонено'));
+        actions.appendChild(ok);
+        actions.appendChild(no);
+        info.appendChild(actions);
+        box.appendChild(info);
+        card.appendChild(box);
+      }
+
+      return card;
     },
 
     createModerationCard(post, handlers = {}) {

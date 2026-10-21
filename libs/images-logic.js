@@ -266,7 +266,7 @@
 
       if (global.navigator && global.navigator.onLine === false) return false;
       try {
-        const response = await fetch(url, { method: 'GET', mode: 'cors', cache: 'force-cache' });
+        const response = await (global.fetchWithTimeout || global.fetch.bind(global))(url, { method: 'GET', mode: 'cors', cache: 'force-cache', timeout: 12000 });
         if (!response.ok || response.type === 'opaque') return false;
         const blob = await response.blob();
         if (!blob || blob.size === 0) return false;
@@ -754,7 +754,7 @@
 
       let response;
       try {
-        response = await fetch(`${PostimagesUploader.HOST}/json`, {
+        response = await (global.fetchWithTimeout || global.fetch.bind(global))(`${PostimagesUploader.HOST}/json`, {
           method: 'POST',
           mode: 'cors',
           credentials: 'omit',
@@ -764,6 +764,7 @@
             'Cache-Control': 'no-cache',
           },
           body: form,
+          timeout: 45000,
         });
       } catch (networkError) {
         throw new Error('Нет связи с Postimages. Проверьте интернет-соединение и попробуйте снова.');
@@ -824,7 +825,7 @@
       });
 
       try {
-        const response = await fetch(`${PostimagesUploader.HOST}/mod?${params.toString()}`, {
+        const response = await (global.fetchWithTimeout || global.fetch.bind(global))(`${PostimagesUploader.HOST}/mod?${params.toString()}`, {
           method: 'GET',
           mode: 'cors',
           credentials: 'omit',
@@ -833,6 +834,7 @@
             'X-Requested-With': 'XMLHttpRequest',
             'Cache-Control': 'no-cache',
           },
+          timeout: 15000,
         });
         if (!response.ok) return '';
         const text = await response.text();
@@ -1170,6 +1172,24 @@
     }
 
     /** Прямые ссылки на успешно загруженные изображения */
+    /**
+     * ✓ Одиночная загрузка без интерфейса: возвращает прямую ссылку на изображение.
+     *   Та же связка Postimages, что и у публикаций (/json + запрос готовой ссылки),
+     *   — используется, например, для аватара профиля.
+     */
+    static async uploadDirect(file) {
+      if (!file) return '';
+      const widget = new PostimagesUploader(document.createElement('div'), {});
+      try {
+        const pageUrl = await widget._sendFile(file);
+        if (!pageUrl) return '';
+        const direct = await widget._resolveDirectLink(pageUrl);
+        return direct || pageUrl;
+      } finally {
+        try { widget.destroy(); } catch (_) { /* уже очищен */ }
+      }
+    }
+
     getImages() {
       return Array.from(new Set(
         this.items.filter((item) => item.status === 'done' && item.remoteUrl).map((item) => item.remoteUrl)
@@ -1978,7 +1998,7 @@
         }
         if (!blob) {
           try {
-            const response = await fetch(String(source), { mode: 'cors' });
+            const response = await (global.fetchWithTimeout || global.fetch.bind(global))(String(source), { mode: 'cors', timeout: 15000 });
             if (response.ok) blob = await response.blob();
           } catch (_) { blob = null; }
         }
@@ -2207,7 +2227,7 @@
         } catch (_) { /* кэш недоступен */ }
       }
       try {
-        const response = await fetch(String(source), { mode: 'cors' });
+        const response = await (global.fetchWithTimeout || global.fetch.bind(global))(String(source), { mode: 'cors', timeout: 15000 });
         if (response.ok) return await response.blob();
       } catch (_) { /* сеть недоступна */ }
       return null;
@@ -3016,6 +3036,14 @@
 
   function registerImageServiceWorker() {
     if (!global.navigator || !global.navigator.serviceWorker || !global.isSecureContext) {
+      global.imageServiceWorkerReady = Promise.resolve(null);
+      return;
+    }
+    // ✓ Service worker работает только на http/https. При открытии файла напрямую
+    //   (file://) браузер отказывается регистрировать его — раньше это сыпало ошибкой
+    //   в консоль при каждом запуске. Молча пропускаем.
+    const pageProtocol = global.location && global.location.protocol ? global.location.protocol : '';
+    if (pageProtocol && !/^https?:$/.test(pageProtocol)) {
       global.imageServiceWorkerReady = Promise.resolve(null);
       return;
     }
