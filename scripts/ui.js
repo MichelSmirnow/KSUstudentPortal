@@ -294,16 +294,16 @@ function generateSheduleUnavailableContainer(options) {
 
   const title = document.createElement('p');
   title.classList.add('shedule-fallback-title');
-  title.innerHTML = 'Расписание не загрузилось из ЭЙОС';
+  title.innerHTML = 'Не удалось загрузить расписание';
   container.appendChild(title);
 
   const reason = document.createElement('p');
   reason.classList.add('shedule-fallback-reason');
-  // ✓ Показываем настоящую причину сбоя запроса (её записывает ICSParser.fetch), без догадок
+  // ✓ Показываем сводную причину после проверки всех автоматических источников
   const fetchError = window.lastSheduleFetchError ? String(window.lastSheduleFetchError) : '';
   reason.textContent = fetchError
-    ? `ЭЙОС не ответил на запрос: ${fetchError}`
-    : 'ЭЙОС не ответил на запрос';
+    ? `Автоматические источники не сработали: ${fetchError}`
+    : 'Автоматические источники расписания не ответили';
   container.appendChild(reason);
 
   if (sheduleID !== undefined && sheduleID !== null && sheduleID !== '') {
@@ -317,9 +317,8 @@ function generateSheduleUnavailableContainer(options) {
 
   const explain = document.createElement('p');
   explain.classList.add('shedule-fallback-explain');
-  explain.innerHTML = 'Запрос к <b>eios.kosgos.ru</b> не прошёл: сервер не ответил или соединение '
-    + 'прервалось. Загрузите расписание вручную — оно сохранится на устройстве и дальше будет '
-    + 'открываться как обычно.';
+  explain.innerHTML = 'Не удалось получить расписание из ЭЙОС и резервных хранилищ. Загрузите официальный '
+    + 'файл .ics вручную — он сохранится на устройстве и дальше будет открываться как обычно.';
   container.appendChild(explain);
 
   const hint = document.createElement('p');
@@ -349,7 +348,7 @@ function generateSheduleUnavailableContainer(options) {
     }
     retryButton.disabled = false;
     retryButton.textContent = 'Повторить загрузку';
-    showNotification('ЭЙОС снова не ответил — воспользуйтесь загрузкой файла', 'error');
+    showNotification('Автоматические источники снова не ответили — воспользуйтесь загрузкой файла', 'error');
   });
   actions.appendChild(retryButton);
 
@@ -826,30 +825,29 @@ async function generatePageContent(id) {
     await renderNotificationsPage(generatePageContentContainer.querySelector('#subcontainer'));
     return generatePageContentContainer;
   } else if (id === 'web') {           // Страница разработчика
-
     generatePageContentContainer.innerHTML = `
-    <div class="relative-contaner" style="display: flex; flex-direction: column; gap: 10px; ">
-    <div class="flex-container info-container">
-      <div class="banner-half">
-        <h3>Об авторах</h3>
-        <p></p>
+    <div class="relative-container about-page">
+      <div class="flex-container info-container about-header-card">
+        <div class="about-header-copy">
+          <h3>Об авторах</h3>
+        </div>
+        <img class="about-header-image" src="./images/supbanners/note.png" alt="Блокнот" loading="eager"/>
       </div>
-      <img class="banner-half" src="images/supbanners/note.png"/>
-    </div>
-    <div class="info-container">
-      <div class="flex-container">
-        <p class="banner-half" style="font-size: 20px"><b>Я люблю сырки</b></p>
-        <img style="width: 70% !important;" src="images/supbanners/sirok.png"/>  
-      </div>
-      <p class="">Чтобы поддержать разработчика, можете ему лично купить <i>глазированный сырок</i> (а лучше два)</p>
-    </div>
-    <div class="info-container" style="display: flex; flex-direction: column; gap: 8px;">
-      <p style="margin: 0;"><b>Донаты</b></p>
-      <div class="flex-container" style="flex-wrap: wrap; gap: 10px;">
-        <button type="button" class="account-standartButton" disabled>DonationsAlerts</button>
-        <button type="button" class="account-standartButton" disabled>DonatePay</button>
-      </div>
-      <p style="margin: 0; font-size: 13px; color: var(--text-muted);">Ссылки на донат-площадки появятся здесь, когда автор их добавит.</p>
+      <section class="info-container about-syrki-card">
+        <div class="about-syrki-heading">
+          <p class="about-syrki-title"><b>Я люблю сырки</b></p>
+          <img class="about-syrki-image" src="./images/supbanners/sirok.png" alt="Глазированный сырок" loading="eager"/>
+        </div>
+        <p class="about-syrki-description">Чтобы поддержать разработчика, можете ему лично купить <i>глазированный сырок</i> (а лучше два)</p>
+      </section>
+      <section class="info-container about-donations-card">
+        <p class="about-donations-title"><b>Донаты</b></p>
+        <div class="about-donations-buttons">
+          <button type="button" class="account-standartButton" disabled>DonationsAlerts</button>
+          <button type="button" class="account-standartButton" disabled>DonatePay</button>
+        </div>
+        <p class="about-donations-note">Ссылки на донат-площадки появятся здесь, когда автор их добавит.</p>
+      </section>
     </div>
     `;
     return generatePageContentContainer;
@@ -1329,6 +1327,12 @@ async function generateSubpageContent(id, data) {
     // несколько карточек (разные кафедры), и расписание у них общее.
     let teacherScheduleRequested = false;
     const teacherScheduleKey = `teacher:${teacherData.sheduleCode || teacherData.fullName || ''}`;
+    const renderTeacherSchedule = (schedule) => {
+      if (!Array.isArray(schedule) || schedule.length === 0) return;
+      teacherSchedulePane.innerHTML = '';
+      const renderer = new ScheduleRenderer(schedule);
+      teacherSchedulePane.appendChild(renderer.render('week', true));
+    };
     async function ensureTeacherSchedule(force = false) {
       if (teacherScheduleRequested && !force) return;
       teacherScheduleRequested = true;
@@ -1348,7 +1352,14 @@ async function generateSubpageContent(id, data) {
       try {
         if (force) delete groupData[teacherScheduleKey];
         if (!groupData[teacherScheduleKey]) {
-          groupData[teacherScheduleKey] = await fetchShedule(teacherData.sheduleCode, 'teacher');
+          groupData[teacherScheduleKey] = await fetchShedule(teacherData.sheduleCode, 'teacher', {
+            cacheKey: teacherScheduleKey,
+            onBackgroundUpdate: (updatedSchedule) => {
+              if (!Array.isArray(updatedSchedule) || updatedSchedule.length === 0) return;
+              groupData[teacherScheduleKey] = updatedSchedule;
+              renderTeacherSchedule(updatedSchedule);
+            },
+          });
         }
         teacherSchedule = groupData[teacherScheduleKey];
       } catch (error) {
@@ -1378,8 +1389,7 @@ async function generateSubpageContent(id, data) {
         return;
       }
 
-      const teacherScheduleRenderer = new ScheduleRenderer(teacherSchedule);
-      teacherSchedulePane.appendChild(teacherScheduleRenderer.render('week', true));
+      renderTeacherSchedule(teacherSchedule);
     }
 
     const setTeacherTab = (mode) => {
@@ -1409,41 +1419,80 @@ async function generateSubpageContent(id, data) {
   } else if (id === 'achievements') {   // ✓ Достижения и теги профиля
     await renderAchievementsSubpage(generatePageContentContainer);
     return generatePageContentContainer;
-  } else if (id === 'rules') {          // ✓ Свод правил приложения
+  } else if (id === 'rules') {          // ✓ Правила и положения сервиса (КГУ)
     generatePageContentContainer.innerHTML = `
-    <div class="flex-container info-container">
+    <div class="flex-container info-container rules-hero">
       <div class="banner-half">
-        <h3>Свод правил</h3>
-        <p>Коротко о главном: чтобы материалы были полезными, а общение — безопасным</p>
+        <h3>📜 Правила и положения сервиса (КГУ)</h3>
       </div>
-      <img class="banner-half" src="images/supbanners/note.png"/>
+      <img class="banner-half" src="images/supbanners/note.png" alt=""/>
     </div>
-    <div class="rules-page">
-      <section class="rules-card">
-        <h4>1. Публикации материалов и ДЗ</h4>
-        <p>Публикуйте только то, что относится к учёбе: конспекты, задания, задачи, полезные ссылки. Каждая публикация проходит проверку администратора — до неё запись помечена «Не проверено» и видна только автору.</p>
-        <p>Нельзя выдавать чужие работы за свои, публиковать рекламу, оскорбления и личные данные других людей. Ошибку можно исправить — редактирование снова отправляет работу на проверку, а отклонённая публикация удаляется полностью.</p>
+    <div class="rules-page service-rules-page">
+      <section class="rules-card service-rules-card">
+        <h4>1. Основные сведения</h4>
+        <p><span class="service-rule-number">1.1.</span> Данное приложение предназначено для студентов и преподавателей Костромского Государственного Университета (КГУ). Сервис создан для удобного просмотра расписания, публикации, хранения и просмотра домашних заданий.</p>
+        <p><span class="service-rule-number">1.2.</span> Приложение является удобной платформой для взаимодействия: студенты получают актуальную информацию, а преподаватели — инструмент для донесения учебных материалов.</p>
+        <p><span class="service-rule-number">1.3.</span> Использование приложения подразумевает согласие с настоящими правилами. Незнание правил не освобождает пользователей от ответственности.</p>
+        <p><span class="service-rule-number">1.4.</span> Все права на исходный код, дизайн и структуру приложения принадлежат владельцу проекта. Копирование, распространение или изменение кода без разрешения правообладателя строго запрещено.</p>
       </section>
-      <section class="rules-card">
-        <h4>2. Жалобы</h4>
-        <p>На любую чужую публикацию можно пожаловаться. После седьмой жалобы запись удаляется автоматически. Ложные жалобы и жалобы на собственные записи — нарушение правил.</p>
+
+      <section class="rules-card service-rules-card">
+        <h4>2. Аккаунт и регистрация</h4>
+        <p><span class="service-rule-number">2.1.</span> Для использования сервиса обязательна регистрация с подтверждением через существующую электронную почту (e-mail).</p>
+        <p><span class="service-rule-number">2.2.</span> Один человек — один аккаунт. Создание дополнительных (фейковых) аккаунтов запрещено.</p>
+        <p><span class="service-rule-number">2.3.</span> В никнейме, теге, аватарке, описании профиля и статусах строго запрещены:</p>
+        <div class="service-rules-list">
+          <p>· Любые оскорбления, унижения чести и достоинства.</p>
+          <p>· Разжигание ненависти и вражды (по расовому, национальному, религиозному и иным признакам).</p>
+          <p>· Политический контент и агитация.</p>
+          <p>· Порнография, NSFW-контент (эротика, шок-контент, сцены насилия) и любой контент, нарушающий общепринятые нормы морали.</p>
+        </div>
+        <p><span class="service-rule-number">2.4.</span> Аватарки, описания и никнеймы проходят премодерацию. Администрация оставляет за собой право отклонить их без объяснения причин, если они вызывают сомнения.</p>
+        <p><span class="service-rule-number">2.5.</span> Передача своего аккаунта третьим лицам запрещена. Пользователь несет ответственность за все действия, совершенные с его аккаунта.</p>
       </section>
-      <section class="rules-card">
-        <h4>3. События и уведомления</h4>
-        <p>События создают только староста, профорг, культорг и администраторы. Пишите по делу: когда, где и что нужно сделать. Спам и дубли удаляются.</p>
+
+      <section class="rules-card service-rules-card">
+        <h4>3. Публикации (Посты и ДЗ)</h4>
+        <p><span class="service-rule-number">3.1.</span> В категориях «Домашнее задание» и «Материалы» запрещено публиковать:</p>
+        <div class="service-rules-list service-rules-list--lettered">
+          <p>а) Контент, не связанный с учебным процессом (флуд, спам, мемы, личные переписки).</p>
+          <p>б) Рекламный и коммерческий контент (продвижение сторонних сервисов, товаров, каналов).</p>
+          <p>в) Контент, подпадающий под запреты пункта 2.3 (оскорбления, NSFW, политика и т.д.).</p>
+          <p>г) Чужие работы, выдаваемые за свои (плагиат).</p>
+        </div>
+        <p><span class="service-rule-number">3.2.</span> Каждая публикация проходит строгую модерацию перед публикацией. До проверки запись помечается как «Не проверено» и видна только автору.</p>
+        <p><span class="service-rule-number">3.3.</span> Ошибку в публикации можно исправить (при редактировании пост снова уходит на проверку), однако отклоненная публикация удаляется полностью.</p>
+        <p><span class="service-rule-number">3.4.</span> На любую чужую публикацию можно подать жалобу. После 7 жалоб запись удаляется автоматически. Ложные жалобы и жалобы на собственные записи считаются нарушением правил.</p>
       </section>
-      <section class="rules-card">
-        <h4>4. Заметки</h4>
-        <p>Заметки личные: их видите только вы и только в расписании своей группы. Они работают без интернета и синхронизируются, когда появляется сеть.</p>
+
+      <section class="rules-card service-rules-card">
+        <h4>4. События, уведомления и заметки</h4>
+        <p><span class="service-rule-number">4.1.</span> События могут создавать только уполномоченные лица: старосты, профорги, культорги и администраторы. Публикуйте только по делу (когда, где и что нужно сделать). Спам и дубликаты удаляются.</p>
+        <p><span class="service-rule-number">4.2.</span> Личные заметки видны только вам и только в расписании вашей группы. Они работают без интернета и синхронизируются при появлении сети.</p>
       </section>
-      <section class="rules-card">
-        <h4>5. Аккаунт и блокировки</h4>
-        <p>Один человек — один аккаунт; чужие данные другим пользователям не показывайте. За серьёзные нарушения доступ могут заблокировать — временно или постоянно; история блокировок хранится у администрации.</p>
-        <p>Фото преподавателей, тексты и структура приложения принадлежат автору проекта — используйте их только внутри приложения (подробнее — в разделе «Об авторах»).</p>
+
+      <section class="rules-card service-rules-card">
+        <h4>5. Администрация сервиса</h4>
+        <p><span class="service-rule-number">5.1.</span> Администрация обязана досконально знать правила данного сервиса и следовать им.</p>
+        <p><span class="service-rule-number">5.2.</span> В полномочия администрации входит:</p>
+        <div class="service-rules-list">
+          <p>· Модерация контента, публикуемого пользователями (посты, профили, жалобы).</p>
+          <p>· Своевременное оповещение пользователей о важных событиях.</p>
+          <p>· Редактура и выдача прав для старост, профоргов, культоргов и преподавателей.</p>
+          <p>· Оперативная обратная связь на обращения пользователей.</p>
+        </div>
+        <p><span class="service-rule-number">5.3.</span> Превышение своих полномочий, использование служебного положения в личных целях или предвзятая модерация карается немедленным лишением прав администратора без возможности восстановления.</p>
+        <p><span class="service-rule-number">5.4.</span> История блокировок пользователей хранится у администрации.</p>
       </section>
-      <section class="rules-card">
-        <h4>6. Техническое</h4>
-        <p>Расписание, ДЗ и отметки хранятся на устройстве и синхронизируются при наличии сети. Ошибки и предложения присылайте через «Обратную связь» — мы читаем всё.</p>
+
+      <section class="rules-card service-rules-card">
+        <h4>6. Наказания за нарушения</h4>
+        <p>За нарушение любого из вышеперечисленных пунктов предусмотрены следующие санкции (на выбор администрации, в зависимости от тяжести проступка):</p>
+        <div class="service-rules-list">
+          <p>· Временный бан (Блокировка): ограничение доступа к аккаунту и функциям приложения на определенный срок (от 1 дня до 30 дней) за мелкие нарушения, спам, систематическое игнорирование замечаний или неуважение к пользователям.</p>
+          <p>· Постоянный бан (Навсегда): полная и безвозвратная блокировка аккаунта с занесением в черный список за серьезные нарушения (плагиат, публикация NSFW/запрещенного контента, разжигание ненависти, реклама, попытки взлома приложения, передача аккаунта или создание фейков).</p>
+        </div>
+        <p class="service-rules-note">Примечание: Администрация оставляет за собой право удалять контент, нарушающий правила, без предварительного уведомления автора.</p>
       </section>
     </div>
     `;
@@ -3801,7 +3850,7 @@ async function renderProfileSubpage(container, options) {
     avatarRow.appendChild(wrap);
   };
   drawAvatarRow();
-  profileBody.appendChild(avatarRow);
+  aboutBody.appendChild(avatarRow);
 
   // --- Описание «О себе» ---
   const bioRow = document.createElement('div');
@@ -3850,7 +3899,7 @@ async function renderProfileSubpage(container, options) {
   bioRow.appendChild(bioInput);
   bioRow.appendChild(bioNote);
   bioRow.appendChild(bioSave);
-  profileBody.appendChild(bioRow);
+  aboutBody.appendChild(bioRow);
 
   /* --------------------------- 3. Данные приложения --------------------------- */
   const dataSection = document.createElement('details');

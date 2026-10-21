@@ -1,9 +1,11 @@
 /* ====================================== ✓ Расписание ====================================== */
 
 /* ============================ ✓ Доступ к ЭЙОС ============================
- * Расписание забирается обычным запросом по ссылке (fetch) внутри ICSParser.
- * Никаких CORS-проверок, источников и прокси здесь нет: если запрос не прошёл,
- * fetchShedule возвращает undefined, а интерфейс предлагает загрузить файл .ics вручную.
+ * Порядок загрузки: JSON API (через настроенный Cloudflare Worker, если он задан,
+ * затем обычный fetch), официальный ICS ЭЙОС, data.kgustud.ru и HTTPS-зеркало KSUdata.
+ * Если есть локальная копия группы или преподавателя, она показывается сразу,
+ * а обновление выполняется в фоне с cooldown, чтобы сеть не задерживала экран и не опрашивалась часто.
+ * Отдельных CORS-проверок, локального сервера и npm-сборки нет.
  * ============================================================================== */
 
 // ✓ Разобрать календарь, который пользователь принёс сам, и сохранить его на устройство
@@ -33,9 +35,11 @@ async function importSheduleFromText(text, sheduleID, sheduleType) {
  * сразу уходит в оффлайн-режим и показывает то, что уже сохранено на устройстве.
  * -------------------------------------------------------------------------------------- */
 
-// ✓ Нет сохранённого расписания — ждём чуть дольше, есть — почти не ждём
-const SHEDULE_FETCH_TIMEOUT = 10000;   // расписания на устройстве нет
-const SHEDULE_REFRESH_TIMEOUT = 4000;  // расписание уже есть, показывать есть что
+// ✓ Общий предел ожидания; при наличии кэша экран не ждёт сеть
+const SHEDULE_FETCH_TIMEOUT = 7000;            // расписания на устройстве нет
+const SHEDULE_REFRESH_TIMEOUT = 2500;          // прочие типы расписания с кэшем (например, аудитория)
+const SHEDULE_BACKGROUND_REFRESH_TIMEOUT = 5000;
+const SHEDULE_BACKGROUND_REFRESH_COOLDOWN = 90 * 1000;
 
 // ✓ Есть ли подключение к интернету
 function isNetworkOnline() {
@@ -80,8 +84,37 @@ async function fetchWithTimeout(url, options) {
 }
 window.fetchWithTimeout = fetchWithTimeout;
 
+// ✓ Для расписания таймер охватывает и загрузку заголовков, и чтение тела ответа.
+async function fetchTextWithTimeout(url, timeout) {
+  const limit = Number(timeout) > 0 ? Number(timeout) : SHEDULE_FETCH_TIMEOUT;
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const task = Promise.resolve().then(async () => {
+    const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
+    if (!response.ok) throw new Error(`сервер ответил ${response.status}`);
+    const body = await response.text();
+    return { response, body };
+  });
+  let timer = 0;
+  try {
+    return await Promise.race([
+      task,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          if (controller) { try { controller.abort(); } catch (_) { /* уже отменён */ } }
+          reject(new Error('время ожидания ответа истекло'));
+        }, limit);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    task.catch(() => {});
+  }
+}
+
 // ✓ Состояние последней загрузки расписания: ok | offline | error
 const sheduleLoadStatus = new Map();
+// ✓ Не запускаем повторное фоновое обновление одной группы чаще заданного интервала
+const sheduleBackgroundRefreshState = new Map();
 function setSheduleStatus(sheduleID, sheduleType, status, details) {
   sheduleLoadStatus.set(`${sheduleType || 'group'}:${sheduleID}`, { status, details: details || '' });
 }
@@ -94,15 +127,23 @@ window.getSheduleStatusDetails = (sheduleID, sheduleType) => {
   return record ? record.details : '';
 };
 
-// ✓ Парсер ICS календаря с сайта ЕЙОС КГУ
+// ✓ Парсер расписания ЭЙОС: ICS-календарь и REST JSON
 class ICSParser {
   constructor() {
     this.parseShedule = [];
   }
 
-  // ✓ Получение ICS календаря расписания: обычный запрос по ссылке и разбор ответа
+  // ✓ Совместимый вызов для ICS-ссылок
   async fetch(url, options) {
-    const timeout = Number(options && options.timeout) > 0 ? Number(options.timeout) : undefined;
+    return this.fetchSource({ url, format: 'ics' }, options);
+  }
+
+  // ✓ Скачать и разобрать один источник: ICS или JSON API
+  async fetchSource(source, options) {
+    const settings = options || {};
+    const timeout = Number(settings.timeout) > 0 ? Number(settings.timeout) : undefined;
+    const url = typeof source === 'string' ? source : (source && source.url);
+    const format = source && typeof source === 'object' && source.format === 'json' ? 'json' : 'ics';
     if (!url) {
       window.lastSheduleFetchError = 'ссылка на расписание не собралась';
       if (DEBUG_MODE) console.warn('Ссылка на расписание не собралась');
@@ -114,15 +155,172 @@ class ICSParser {
       throw new Error('нет подключения к интернету');
     }
     try {
-      const response = await fetchWithTimeout(url, { timeout });
-      if (!response.ok) throw new Error(`сервер ответил ${response.status}`);
+      const { body } = await fetchTextWithTimeout(url, timeout);
+      let events;
+      if (format === 'json') {
+        let payload;
+        try {
+          payload = JSON.parse(String(body || '').replace(/^\uFEFF/, ''));
+        } catch (error) {
+          throw new Error(`ответ не является корректным JSON: ${(error && error.message) || error}`);
+        }
+        events = this.parseJson(payload);
+      } else {
+        events = this.parse(body);
+      }
+      if (!Array.isArray(events) || events.length === 0) {
+        throw new Error('источник не вернул занятий или формат расписания неверен');
+      }
       window.lastSheduleFetchError = '';
-      return this.parse(await response.text());
+      return events;
     } catch (error) {
       // Причину запоминаем: её показывает панель ручной загрузки расписания
       window.lastSheduleFetchError = (error && error.message) ? error.message : String(error);
       throw error;
     }
+  }
+
+  // ✓ Привести JSON расписания ЭЙОС к внутреннему формату событий ICSParser
+  parseJson(payload) {
+    function findRows(value, depth) {
+      if (Array.isArray(value)) return value;
+      if (!value || typeof value !== 'object' || depth > 5) return null;
+      const keys = ['rasp', 'schedule', 'lessons', 'items', 'data', 'result'];
+      let emptyRows = null;
+      for (const key of keys) {
+        const found = findRows(value[key], depth + 1);
+        if (Array.isArray(found)) {
+          if (found.length) return found;
+          emptyRows = found;
+        }
+      }
+      return emptyRows;
+    }
+
+    const rows = findRows(payload, 0);
+    if (!Array.isArray(rows)) throw new Error('JSON не содержит списка занятий');
+
+    const pick = (row, keys) => {
+      if (!row || typeof row !== 'object') return undefined;
+      for (const key of keys) {
+        const value = row[key];
+        if (value !== undefined && value !== null && !(typeof value === 'string' && value.trim() === '')) {
+          return value;
+        }
+      }
+      return undefined;
+    };
+    const text = value => {
+      if (value === undefined || value === null) return '';
+      if (Array.isArray(value)) return value.map(text).filter(Boolean).join(', ');
+      if (typeof value === 'object') return '';
+      return String(value).trim();
+    };
+
+    const events = [];
+    rows.forEach(row => {
+      if (!row || typeof row !== 'object') return;
+      let summary = text(pick(row, [
+        'дисциплина', 'Дисциплина', 'summary', 'SUMMARY', 'предмет', 'Предмет', 'название', 'name', 'title'
+      ]));
+      if (!summary) return;
+
+      const fallbackDate = pick(row, ['дата', 'Дата', 'date', 'lessonDate', 'датаЗанятия']);
+      const startValue = pick(row, [
+        'датаНачала', 'ДатаНачала', 'startTime', 'start', 'началоЗанятия', 'начало'
+      ]);
+      const endValue = pick(row, [
+        'датаОкончания', 'ДатаОкончания', 'endTime', 'end', 'окончаниеЗанятия', 'конец', 'окончание'
+      ]);
+      const startClock = pick(row, ['начало', 'времяНачала', 'startClock', 'timeStart']);
+      const endClock = pick(row, ['конец', 'окончание', 'времяОкончания', 'endClock', 'timeEnd']);
+      const startTime = this.parseJsonDateTime(startValue, fallbackDate, startClock);
+      const endTime = this.parseJsonDateTime(endValue, fallbackDate, endClock);
+      if (!startTime || !endTime) return;
+
+      const subgroup = text(pick(row, ['номерПодгруппы', 'номерПодгруппыЗанятия', 'subgroupNumber']));
+      if (subgroup && subgroup !== '0' && !/(?:п\/г|подгрупп|подгр\.?)\s*№?\s*\d+/i.test(summary)) {
+        summary += `, п/г ${subgroup}`;
+      }
+
+      const rawDescription = text(pick(row, ['description', 'DESCRIPTION', 'описание', 'Описание']));
+      const teacher = text(pick(row, [
+        'преподаватель', 'Преподаватель', 'фиоПреподавателя', 'teacherName', 'teacher', 'fio'
+      ]));
+      const group = text(pick(row, ['группа', 'Группа', 'groupName', 'group', 'группы']));
+      let description = rawDescription;
+      if (!description) {
+        const details = [];
+        if (teacher) details.push(/^преподаватель\b/i.test(teacher) ? teacher : `Преподаватель ${teacher}`);
+        if (group) details.push(`группа: ${group}`);
+        description = details.join(', ');
+      }
+
+      const uid = pick(row, ['код', 'Код', 'uid', 'UID', 'id', 'ID', 'idRasp']);
+      events.push({
+        uid: uid === undefined ? '' : String(uid),
+        summary,
+        description,
+        location: text(pick(row, [
+          'аудитория', 'Аудитория', 'location', 'LOCATION', 'room', 'кабинет', 'названиеАудитории'
+        ])),
+        startTime,
+        endTime,
+        created: text(pick(row, ['создано', 'датаСоздания', 'created', 'createdAt'])),
+        lastModified: text(pick(row, ['датаИзменения', 'lastModified', 'updatedAt', 'modified']))
+      });
+    });
+    return events;
+  }
+
+  // ✓ Разобрать дату из JSON ЭЙОС; ISO без зоны трактуется как местное время расписания
+  parseJsonDateTime(value, fallbackDate, fallbackTime) {
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const milliseconds = Math.abs(value) < 100000000000 ? value * 1000 : value;
+      const date = new Date(milliseconds);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    let dateText = value === undefined || value === null ? '' : String(value).trim();
+    const dotNetDate = dateText.match(/^\/Date\((-?\d+)(?:[+-]\d{4})?\)\/$/i);
+    if (dotNetDate) {
+      const date = new Date(Number(dotNetDate[1]));
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    const fallback = fallbackDate === undefined || fallbackDate === null ? '' : String(fallbackDate).trim();
+    const clock = fallbackTime === undefined || fallbackTime === null ? '' : String(fallbackTime).trim();
+    if (fallback && clock && (!dateText || /^\d{1,2}:\d{2}(?::\d{2})?$/.test(dateText))) {
+      const isoDate = fallback.match(/^(\d{4}-\d{2}-\d{2})/);
+      const dayClock = clock.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (isoDate && dayClock) {
+        dateText = `${isoDate[1]}T${String(dayClock[1]).padStart(2, '0')}:${dayClock[2]}:${dayClock[3] || '00'}`;
+      } else {
+        const dotDate = fallback.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+        if (dotDate && dayClock) {
+          dateText = `${dotDate[3]}-${String(dotDate[2]).padStart(2, '0')}-${String(dotDate[1]).padStart(2, '0')}T${String(dayClock[1]).padStart(2, '0')}:${dayClock[2]}:${dayClock[3] || '00'}`;
+        }
+      }
+    }
+
+    if (!dateText) return null;
+    if (/^\d{8}T\d{4,6}Z?$/i.test(dateText)) return this.parseDateTime(dateText);
+    const ruDate = dateText.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (ruDate) {
+      const date = new Date(
+        Number(ruDate[3]), Number(ruDate[2]) - 1, Number(ruDate[1]),
+        Number(ruDate[4] || 0), Number(ruDate[5] || 0), Number(ruDate[6] || 0)
+      );
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?$/.test(dateText)) {
+      dateText = dateText.replace(' ', 'T');
+    }
+    const parsed = new Date(dateText);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   // ✓ Парсирование полученного календаря до объекта и запись в массив
@@ -401,7 +599,8 @@ async function saveLocalShedule(inputShedule, sheduleID, sheduleType) {
 }
 
 // ✓ Выгрузить календарь с расписанием с сайта ЭЙОС КГУ и распарсировать его
-async function fetchShedule(sheduleID, sheduleType) {
+async function fetchShedule(sheduleID, sheduleType, options) {
+  const scheduleOptions = options && typeof options === 'object' ? options : {};
 
   // ✓ Функция слияния двух массивов расписаний
   function mergeSchedules(oldSchedule = [], newSchedule = []) {
@@ -508,11 +707,107 @@ async function fetchShedule(sheduleID, sheduleType) {
     return merged;
   }
 
-  // ✓ Сгенерировать ссылку для получения расписания (добавить расписание аудиторий)
-  function getSheduleLink(type, id) {
-    const link = buildSheduleLink(type, id);
-    if (!link) console.warn('Ссылку на расписание собрать не удалось:', type, id);
-    return link;
+  // ✓ Подготовить приоритетный JSON и резервные ICS-источники
+  function getSheduleSources(type, id) {
+    const sources = buildSheduleSources(type, id);
+    if (!sources.length) console.warn('Источники расписания собрать не удалось:', type, id);
+    return sources;
+  }
+
+  // ✓ Для группы и преподавателя сразу отдаём кэш; обновляем IndexedDB и открытый экран в фоне.
+  function refreshCachedScheduleInBackground(cachedSchedule) {
+    if ((sheduleType !== 'group' && sheduleType !== 'teacher') || !isNetworkOnline()) return;
+    const memoryKey = scheduleOptions.cacheKey !== undefined && scheduleOptions.cacheKey !== null
+      ? scheduleOptions.cacheKey
+      : sheduleID;
+    const stateKey = `${sheduleType}:${sheduleID}`;
+    const now = Date.now();
+    const previous = sheduleBackgroundRefreshState.get(stateKey);
+    const updateListener = typeof scheduleOptions.onBackgroundUpdate === 'function'
+      ? scheduleOptions.onBackgroundUpdate
+      : null;
+
+    if (previous && previous.pending) {
+      if (updateListener && Array.isArray(previous.listeners) && !previous.listeners.includes(updateListener)) {
+        previous.listeners.push(updateListener);
+      }
+      return;
+    }
+    if (previous && now - previous.startedAt < SHEDULE_BACKGROUND_REFRESH_COOLDOWN) return;
+
+    const state = { startedAt: now, pending: true, promise: null, listeners: updateListener ? [updateListener] : [] };
+    sheduleBackgroundRefreshState.set(stateKey, state);
+    state.promise = (async () => {
+      let updateQueued = false;
+      try {
+        const parser = new ICSParser();
+        const sources = getSheduleSources(sheduleType, sheduleID);
+        const freshSchedule = await fetchSheduleWithFallback(
+          parser,
+          sources,
+          SHEDULE_BACKGROUND_REFRESH_TIMEOUT
+        );
+        if (!Array.isArray(freshSchedule) || freshSchedule.length === 0) return;
+
+        const memorySchedule = typeof groupData !== 'undefined' && Array.isArray(groupData[memoryKey])
+          ? groupData[memoryKey]
+          : cachedSchedule;
+        const mergedSchedule = mergeSchedules(memorySchedule, freshSchedule);
+        await saveLocalShedule(mergedSchedule, sheduleID, sheduleType);
+        window.lastSheduleFetchError = '';
+        setSheduleStatus(sheduleID, sheduleType, 'ok', 'кэш показан сразу; расписание обновлено в фоне');
+
+        // Вызывающий код сначала получает кэш; затем обновляем его в памяти и перерисовываем экран.
+        setTimeout(() => {
+          try {
+            let latestSchedule = mergedSchedule;
+            if (typeof groupData !== 'undefined') {
+              const currentSchedule = Array.isArray(groupData[memoryKey])
+                ? groupData[memoryKey]
+                : cachedSchedule;
+              latestSchedule = mergeSchedules(currentSchedule, freshSchedule);
+              groupData[memoryKey] = latestSchedule;
+            }
+
+            state.listeners.forEach(listener => {
+              try { listener(latestSchedule); }
+              catch (listenerError) {
+                if (DEBUG_MODE) console.warn('Не удалось показать обновлённое расписание:', listenerError);
+              }
+            });
+
+            if (
+              sheduleType === 'group' &&
+              typeof CurrentGroup !== 'undefined' &&
+              String(CurrentGroup) === String(sheduleID) &&
+              typeof document !== 'undefined' &&
+              document.getElementById('shedule-container') &&
+              typeof rerenderScheduleInPlace === 'function'
+            ) {
+              const view = typeof currentScheduleViewType === 'function'
+                ? currentScheduleViewType()
+                : 'day';
+              rerenderScheduleInPlace(view);
+            }
+          } catch (renderError) {
+            if (DEBUG_MODE) console.warn('Не удалось показать фоновое обновление расписания:', renderError);
+          } finally {
+            state.pending = false;
+            state.finishedAt = Date.now();
+          }
+        }, 0);
+        updateQueued = true;
+      } catch (error) {
+        const details = (error && error.message) ? error.message : String(error);
+        setSheduleStatus(sheduleID, sheduleType, isNetworkOnline() ? 'error' : 'offline', details);
+        if (DEBUG_MODE) console.warn('Фоновое обновление расписания не удалось; остаётся локальная копия:', error);
+      } finally {
+        if (!updateQueued) {
+          state.pending = false;
+          state.finishedAt = Date.now();
+        }
+      }
+    })();
   }
 
   let oldShedule;
@@ -529,16 +824,26 @@ async function fetchShedule(sheduleID, sheduleType) {
 
   let newShedule;
   const online = isNetworkOnline();
-  // ✓ Если расписание уже есть — ждём сервер совсем недолго: показывать есть что
+  if (oldShedule && !online) {
+    setSheduleStatus(sheduleID, sheduleType, 'offline', 'нет подключения к интернету; показан локальный кэш');
+    return oldShedule;
+  }
+  if (oldShedule && (sheduleType === 'group' || sheduleType === 'teacher')) {
+    // ✓ Не держим экран на сети: отдаём локальный кэш и обновляем его отдельно.
+    window.lastSheduleFetchError = '';
+    setSheduleStatus(sheduleID, sheduleType, 'ok', 'показан локальный кэш; обновление в фоне');
+    refreshCachedScheduleInBackground(oldShedule);
+    return oldShedule;
+  }
   const requestTimeout = oldShedule ? SHEDULE_REFRESH_TIMEOUT : SHEDULE_FETCH_TIMEOUT;
   try { // ✓ Попытка обновить данные с сервера
     if (!online) throw new Error('нет подключения к интернету');
     const parser = new ICSParser();
-    const sheduleLink = getSheduleLink(sheduleType, sheduleID);
-    newShedule = await parser.fetch(sheduleLink, { timeout: requestTimeout });
+    const sheduleSources = getSheduleSources(sheduleType, sheduleID);
+    newShedule = await fetchSheduleWithFallback(parser, sheduleSources, requestTimeout);
     if (!newShedule || newShedule.length === 0 || !Array.isArray(newShedule)) {
       newShedule = undefined;
-      throw new Error('Не получилось соединиться с сервером или формат расписания на сервере неверен');
+      throw new Error('Не получилось соединиться с источниками или формат расписания неверен');
     }
     if (DEBUG_MODE) console.log('Удалось сделать запрос и получить расписание: ', newShedule);
     setSheduleStatus(sheduleID, sheduleType, 'ok');
@@ -578,17 +883,141 @@ async function fetchShedule(sheduleID, sheduleType) {
   return mergedShedule;
 }
 
-// ✓ Ссылка на API ЭЙОС: её же показываем пользователю для ручной загрузки файла
-function buildSheduleLink(type, id) {
-  if (type === 'group') {
-    const groupIDtoExtract = typeof getGroupID === 'function' ? getGroupID(id) : null;
-    if (!groupIDtoExtract) return undefined;
-    return `http://data.kgustud.ru/%D0%98%D0%92%D0%98%D0%A2%D0%A8/%D0%A0%D0%B0%D1%81%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5%20%D0%B3%D1%80%D1%83%D0%BF%D0%BF/${groupIDtoExtract}.ics`;
-    // return `https://eios.kosgos.ru/api/Rasp?idGroup=${groupIDtoExtract}&iCal=true`;
+// ✓ Скачать источники по очереди, не превышая общий лимит ожидания
+async function fetchSheduleWithFallback(parser, sources, timeout) {
+  if (!Array.isArray(sources) || sources.length === 0) {
+    window.lastSheduleFetchError = 'ссылки на расписание не собрались';
+    throw new Error(window.lastSheduleFetchError);
   }
-  if (type === 'teacher') return `https://eios.kosgos.ru/api/Rasp?idTeacher=${id}&iCal=true`;
-  if (type === 'room') return `https://eios.kosgos.ru/api/Rasp?idAudLine=${id}&iCal=true`;
-  return undefined;
+  const totalTimeout = Number(timeout) > 0 ? Number(timeout) : SHEDULE_FETCH_TIMEOUT;
+  const deadline = Date.now() + totalTimeout;
+  const errors = [];
+
+  for (let index = 0; index < sources.length; index += 1) {
+    const source = sources[index];
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    if (!isNetworkOnline()) {
+      errors.push('нет подключения к интернету');
+      break;
+    }
+    // У источников есть верхний лимит. Минимальный резерв оставляем поздним источникам,
+    // особенно HTTPS-зеркалу; быстрый отказ предыдущего источника отдаёт им всё время назад.
+    const laterSources = sources.slice(index + 1);
+    const reserveForLater = Math.min(
+      Math.max(0, remaining - 1),
+      laterSources.length * 350
+    );
+    const availableForThisSource = Math.max(1, remaining - reserveForLater);
+    const sourceCap = Number(source.maxTimeout) > 0 ? Number(source.maxTimeout) : availableForThisSource;
+    const attemptTimeout = Math.max(1, Math.min(availableForThisSource, sourceCap));
+    try {
+      const events = await parser.fetchSource(source, { timeout: attemptTimeout });
+      if (!Array.isArray(events) || events.length === 0) {
+        throw new Error('в источнике нет занятий');
+      }
+      window.lastSheduleFetchError = '';
+      if (DEBUG_MODE) console.info(`✓ Расписание загружено: ${source.name || source.url}`);
+      return events;
+    } catch (error) {
+      const message = (error && error.message) ? error.message : String(error);
+      errors.push(`${source.name || source.url}: ${message}`);
+      if (DEBUG_MODE) console.warn(`Источник расписания не сработал (${source.name || source.url}):`, error);
+    }
+  }
+
+  const details = errors.length ? errors.join(' → ') : 'истекло время ожидания ответа';
+  window.lastSheduleFetchError = details;
+  throw new Error(details);
+}
+
+// ✓ ID из селектора группы или уже готовый ID группы/преподавателя/аудитории
+function resolveEiosScheduleID(type, id) {
+  if (type === 'group') {
+    const mapped = typeof getGroupID === 'function' ? getGroupID(id) : undefined;
+    if (mapped !== undefined && mapped !== null && String(mapped).trim() !== '') return mapped;
+    const raw = String(id === undefined || id === null ? '' : id).trim();
+    return /^\d+$/.test(raw) ? raw : undefined;
+  }
+  if (id === undefined || id === null || String(id).trim() === '') return undefined;
+  return id;
+}
+
+// ✓ Официальный REST JSON ЭЙОС: по умолчанию возвращает data.rasp
+function buildEiosJsonScheduleLink(type, id) {
+  const parameters = { group: 'idGroup', teacher: 'idTeacher', room: 'idAudLine' };
+  const parameter = parameters[type];
+  const resolvedID = resolveEiosScheduleID(type, id);
+  if (!parameter || resolvedID === undefined) return undefined;
+  return `https://eios.kosgos.ru/api/Rasp?${parameter}=${encodeURIComponent(String(resolvedID).trim())}`;
+}
+
+// ✓ Официальный экспорт iCalendar ЭЙОС; переход по ссылке не зависит от CORS
+function buildEiosICSLink(type, id) {
+  const parameters = { group: 'idGroup', teacher: 'idTeacher', room: 'idAudLine' };
+  const parameter = parameters[type];
+  const resolvedID = resolveEiosScheduleID(type, id);
+  if (!parameter || resolvedID === undefined) return undefined;
+  return `https://eios.kosgos.ru/api/Rasp?${parameter}=${encodeURIComponent(String(resolvedID).trim())}&iCal=true`;
+}
+
+// ✓ При наличии развернутого Worker отправляем тот же адрес через узкий CORS-proxy
+function buildEiosProxyLink(targetLink) {
+  const configuredProxy = typeof window !== 'undefined'
+    ? String(window.EIOS_SCHEDULE_PROXY_URL || '').trim()
+    : '';
+  if (!configuredProxy || !targetLink) return undefined;
+  const base = configuredProxy.replace(/\/+$/, '');
+  const separator = base.includes('?') ? '&' : '?';
+  return `${base}${separator}url=${encodeURIComponent(targetLink)}`;
+}
+
+// ✓ Предыдущий адрес хранилища расписания (для режимов, где HTTP-запрос разрешён)
+function buildDataKgustudICSLink(groupID) {
+  if (groupID === undefined || groupID === null || String(groupID).trim() === '') return undefined;
+  const path = ['ИВИТШ', 'Расписание групп', `${String(groupID).trim()}.ics`]
+    .map(part => encodeURIComponent(part))
+    .join('/');
+  return `http://data.kgustud.ru/${path}`;
+}
+
+// ✓ HTTPS-зеркало ICS из KSUdata для статического приложения и HTTPS-страниц
+function buildKSUDataICSLink(groupID) {
+  if (groupID === undefined || groupID === null || String(groupID).trim() === '') return undefined;
+  const path = ['ИВИТШ', 'Расписание групп', `${String(groupID).trim()}.ics`]
+    .map(part => encodeURIComponent(part))
+    .join('/');
+  return `https://raw.githubusercontent.com/MichelSmirnow/KSUdata/main/${path}`;
+}
+
+// ✓ Автоматическая последовательность: JSON → ЭЙОС ICS → data.kgustud.ru → HTTPS-зеркало
+function buildSheduleSources(type, id) {
+  const sources = [];
+  const add = (name, url, format, maxTimeout) => {
+    if (!url || sources.some(source => source.url === url)) return;
+    sources.push({ name, url, format, maxTimeout });
+  };
+  const jsonLink = buildEiosJsonScheduleLink(type, id);
+  const proxyJsonLink = buildEiosProxyLink(jsonLink);
+  if (proxyJsonLink) add('ЭЙОС JSON через Cloudflare', proxyJsonLink, 'json', 2200);
+  if (jsonLink) add('ЭЙОС JSON', jsonLink, 'json', proxyJsonLink ? 900 : 2200);
+
+  const icsLink = buildEiosICSLink(type, id);
+  const proxyICSLink = buildEiosProxyLink(icsLink);
+  if (proxyICSLink) add('ЭЙОС ICS через Cloudflare', proxyICSLink, 'ics', 1200);
+  if (icsLink) add('ЭЙОС ICS', icsLink, 'ics', 1000);
+
+  if (type === 'group') {
+    const groupID = resolveEiosScheduleID(type, id);
+    add('data.kgustud.ru ICS', buildDataKgustudICSLink(groupID), 'ics', 800);
+    add('KSUdata HTTPS ICS', buildKSUDataICSLink(groupID), 'ics', 4000);
+  }
+  return sources;
+}
+
+// ✓ Ручная ссылка на официальный ICS ЭЙОС; она не требует чтения ответа через fetch
+function buildSheduleLink(type, id) {
+  return buildEiosICSLink(type, id);
 }
 
 window.buildSheduleLink = buildSheduleLink;

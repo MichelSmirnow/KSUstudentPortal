@@ -1,0 +1,355 @@
+/* =====================================================================
+   Theme completion: dark form controls, schedule, feedback, and service pages
+   Loaded after page styles so the selected theme wins over legacy light colors.
+   ===================================================================== */
+
+/* Native controls in app pages: replace browser/legacy white fields in dark mode. */
+[data-theme="dark"] :is(#container, #container-translate, #container-upwards) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  textarea,
+  select
+) {
+  color: var(--text);
+  background-color: var(--surface);
+  border-color: var(--border);
+  caret-color: var(--text);
+  color-scheme: dark;
+}
+
+[data-theme="dark"] :is(#container, #container-translate, #container-upwards) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  textarea,
+  select
+)::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+[data-theme="dark"] :is(#container, #container-translate, #container-upwards) select option,
+[data-theme="dark"] :is(#container, #container-translate, #container-upwards) select optgroup {
+  color: var(--text);
+  background-color: var(--surface);
+}
+
+[data-theme="dark"] :is(#container, #container-translate, #container-upwards) input[type="checkbox"],
+[data-theme="dark"] :is(#container, #container-translate, #container-upwards) input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+/* Profile, event forms, post editor, and feedback controls. */
+[data-theme="dark"] .profile-section--danger {
+  background: var(--danger-soft);
+}
+
+[data-theme="dark"] .groups-branch--institute,
+[data-theme="dark"] .groups-branch--course {
+  background: var(--surface-2);
+}
+
+[data-theme="dark"] .feedback-card--answered {
+  background: var(--success-soft);
+  border: 1px solid var(--success-border);
+}
+
+[data-theme="dark"] .feedback-message--question {
+  background: rgba(114, 178, 231, 0.14);
+}
+
+[data-theme="dark"] .feedback-message--answer {
+  background: rgba(98, 217, 154, 0.13);
+}
+
+[data-theme="dark"] .admin-panel-tabs,
+[data-theme="dark"] .homework-mode-switch {
+  background: var(--glass);
+  color: var(--text);
+}
+
+[data-theme="dark"] .admin-panel-denied,
+[data-theme="dark"] .admin-panel-empty,
+[data-theme="dark"] .admin-panel-loading,
+[data-theme="dark"] .homework-empty {
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .account-password-toggle {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .account-input-wrapper .eye-icon {
+  filter: brightness(0) invert(0.82);
+}
+
+/* Schedule cards now use the same surface/text palette as the rest of the app. */
+[data-theme="dark"] .schedule-day {
+  background: var(--surface);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] .schedule-day .event,
+[data-theme="dark"] .schedule-day .pauseEvent {
+  border-bottom-color: var(--border-soft);
+}
+
+[data-theme="dark"] .schedule-day .event-type {
+  color: var(--text-muted);
+  background-color: var(--surface-2);
+}
+
+[data-theme="dark"] .event--notice-event {
+  background: linear-gradient(to right, rgba(114, 178, 231, 0.15), rgba(114, 178, 231, 0.05));
+  box-shadow: 0 0 12px rgba(76, 151, 219, 0.16);
+}
+
+[data-theme="dark"] .schedule-event-strip {
+  color: var(--text);
+  border-left-color: var(--accent);
+  background: rgba(114, 178, 231, 0.16);
+}
+
+[data-theme="dark"] .schedule-event-strip:hover {
+  background: rgba(114, 178, 231, 0.24);
+}
+
+[data-theme="dark"] .schedule-event-strip-role {
+  color: var(--link);
+}
+
+[data-theme="dark"] .shedule-fallback--drop {
+  border-color: var(--accent);
+  background: var(--surface-soft);
+}
+
+[data-theme="dark"] .compare-day-button {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+[data-theme="dark"] .compare-day-button.selected {
+  color: var(--text-on-accent);
+  background: var(--accent);
+}
+
+[data-theme="dark"] .compare-select option,
+[data-theme="dark"] .compare-select optgroup {
+  color: var(--text);
+  background: var(--surface);
+}
+
+/* Author page: keep the product photo inside the card instead of overflowing off-screen. */
+.about-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.about-page > .info-container {
+  width: calc(100% - 20px);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 18px 20px;
+}
+
+.about-header-card {
+  min-height: 150px;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.about-header-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.about-header-copy h3 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.about-header-image {
+  display: block;
+  flex: 0 1 190px;
+  width: 190px;
+  max-width: 42%;
+  height: 130px;
+  object-fit: contain;
+}
+
+.about-syrki-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.about-syrki-title {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.about-syrki-image {
+  display: block;
+  justify-self: end;
+  width: 100%;
+  max-width: 310px;
+  height: 175px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+}
+
+.about-syrki-description {
+  margin: 12px 0 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.about-donations-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.about-donations-title,
+.about-donations-note {
+  margin: 0;
+}
+
+.about-donations-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.about-donations-note {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Full service rules: exact wording, presented as readable numbered cards. */
+.rules-hero {
+  width: calc(100% - 20px);
+  box-sizing: border-box;
+  margin: 0 auto 12px;
+}
+
+.rules-hero .banner-half {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+.rules-hero h3 {
+  margin: 4px 0;
+  line-height: 1.25;
+}
+
+.rules-hero img.banner-half {
+  flex: 0 1 170px;
+  width: 170px;
+  min-width: 0;
+  max-width: 38%;
+  height: 115px;
+  object-fit: contain;
+}
+
+.service-rules-page {
+  width: calc(100% - 20px);
+  margin: 0 auto;
+}
+
+.service-rules-card {
+  padding: 18px 20px;
+  border-left: 3px solid var(--accent);
+}
+
+.service-rules-card h4 {
+  margin: 0 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-strong);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.rules-card.service-rules-card p {
+  margin: 9px 0 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.service-rule-number {
+  display: inline-block;
+  min-width: 38px;
+  color: var(--link);
+  font-weight: 800;
+}
+
+.service-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 9px 0 3px 38px;
+}
+
+.service-rules-card .service-rules-list p {
+  margin: 0;
+  color: var(--text);
+}
+
+.service-rules-list--lettered {
+  margin-left: 28px;
+}
+
+.service-rules-card .service-rules-note {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--warning-text);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+@media (max-width: 480px) {
+  .about-header-card {
+    min-height: 120px;
+  }
+
+  .about-header-image {
+    width: 145px;
+    height: 105px;
+  }
+
+  .about-syrki-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .about-syrki-image {
+    justify-self: center;
+    max-width: 340px;
+    height: 190px;
+  }
+
+  .rules-hero img.banner-half {
+    width: 125px;
+    height: 100px;
+  }
+
+  .service-rules-card {
+    padding: 15px 15px 17px;
+  }
+
+  .service-rules-list {
+    margin-left: 10px;
+  }
+
+  .service-rules-list--lettered {
+    margin-left: 3px;
+  }
+}

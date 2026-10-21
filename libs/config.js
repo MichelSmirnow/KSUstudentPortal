@@ -9,3 +9,6 @@ const firebaseConfig = {
   appId: "1:857442293549:web:c6d573f769ae5fd01925a4",
   measurementId: "G-6TESFY3B7M"
 };
+
+// Опционально: URL Worker для расписания, например https://eios-schedule.example.workers.dev; пустая строка отключает прокси.
+window.EIOS_SCHEDULE_PROXY_URL = window.EIOS_SCHEDULE_PROXY_URL || '';
